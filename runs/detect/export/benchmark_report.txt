@@ -1,0 +1,27 @@
+Phase 5 — CPU Benchmark Report
+============================================================
+
+Configuration: 100 inference passes, 4 threads
+Sample images: 20 from validation set
+
+YOLOv11n ONNX @ 640×640:
+  Avg inference time: 44.2 ms (±3.4)
+  FPS (dev machine):  22.6
+  RAM usage:          ~246 MB
+  Est. RPi 5 FPS:     ~6.5 (~155 ms/img)
+
+YOLOv11n ONNX @ 320×320:
+  Avg inference time: 11.5 ms (±0.9)
+  FPS (dev machine):  87.1
+  RAM usage:          ~116 MB
+  Est. RPi 5 FPS:     ~24.9 (~40 ms/img)
+
+YOLOv11s ONNX @ 640×640:
+  Avg inference time: 106.6 ms (±8.1)
+  FPS (dev machine):  9.4
+  RAM usage:          ~356 MB
+  Est. RPi 5 FPS:     ~2.7 (~373 ms/img)
+
+
+RPi 5 scaling factor: 3.5x (Cortex-A76 vs x86 estimate)
+Target FPS: >= 8

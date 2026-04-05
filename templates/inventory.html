@@ -1,0 +1,74 @@
+<div id="inventoryTab" class="tab-content">
+    <div class="inventory-section">
+        <h2>Inventory Records</h2>
+        
+        <!-- Inventory Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-bar-inner">
+                <div class="filter-chip">
+                    <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                    <select id="inventoryVariantFilter" data-change="filterInventory">
+                        <option value="">All Variants</option>
+                        <option value="Black">Black</option>
+                        <option value="Platinum">Platinum</option>
+                        <option value="Pineapple">Pineapple</option>
+                    </select>
+                </div>
+                <span class="filter-divider"></span>
+                <div class="filter-date-range">
+                    <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <input type="date" id="inventoryStartDate" data-change="filterInventory" title="Start date">
+                    <span class="filter-range-sep">to</span>
+                    <input type="date" id="inventoryEndDate" data-change="filterInventory" title="End date">
+                </div>
+                <button type="button" class="filter-reset-btn" data-action="clearInventoryFilters" title="Clear all filters">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="inventory-list" id="inventoryList">
+            <p>No records yet</p>
+        </div>
+        <button class="clear-btn" data-action="clearAllInventory">Clear All Records</button>
+    </div>
+
+    <!-- Archive Toggle Button -->
+    <button type="button" class="archive-toggle-btn" data-action="toggleArchive">📁 Deleted Records / Archive</button>
+
+    <!-- Archive Section (Hidden by default) -->
+    <div class="inventory-section" id="archiveSection" style="display: none;">
+        
+        <!-- Archive Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-bar-inner">
+                <div class="filter-chip">
+                    <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                    <select id="archiveVariantFilter" data-change="filterArchive">
+                        <option value="">All Variants</option>
+                        <option value="Black">Black</option>
+                        <option value="Platinum">Platinum</option>
+                        <option value="Pineapple">Pineapple</option>
+                    </select>
+                </div>
+                <span class="filter-divider"></span>
+                <div class="filter-date-range">
+                    <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <input type="date" id="archiveStartDate" data-change="filterArchive" title="Start date">
+                    <span class="filter-range-sep">to</span>
+                    <input type="date" id="archiveEndDate" data-change="filterArchive" title="End date">
+                </div>
+                <button type="button" class="filter-reset-btn" data-action="clearArchiveFilters" title="Clear all filters">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="archive-list" id="archiveList">
+            <p>No deleted records</p>
+        </div>
+    </div>
+</div>
+

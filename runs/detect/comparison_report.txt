@@ -1,0 +1,25 @@
+Phase 3 — Model Comparison: YOLOv11s vs YOLOv11n
+============================================================
+
+Metric               YOLOv11s     YOLOv11n      Delta
+----------------------------------------------------
+Accuracy               98.09%       98.63%    -0.54%
+Precision              98.09%       98.63%    -0.54%
+Recall                 98.09%       98.63%    -0.54%
+F1 Score               98.09%       98.63%    -0.54%
+mAP@0.5                98.15%       98.24%    -0.09%
+mAP@0.5:0.95           72.00%       75.04%    -3.04%
+----------------------------------------------------
+Model Size            54.5 MB       5.2 MB
+Parameters               9.4M         2.6M
+
+
+Recommendation:
+Accuracy difference is 0.54% (< 3% threshold).
+✅ RECOMMENDED: Use YOLOv11n for Raspberry Pi 5 deployment.
+   - Significantly smaller model (5.2 MB vs 54.5 MB)
+   - Fewer parameters (2.6M vs 9.4M)
+   - Faster inference on CPU
+   - Minimal accuracy tradeoff (0.54%)
+
+Recommended model for export: YOLOv11n

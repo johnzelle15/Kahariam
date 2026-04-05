@@ -1,0 +1,124 @@
+<div id="dashboardTab" class="tab-content active">
+    <div class="dashboard-container">
+        <div class="stats-header">
+            <div class="stat-card total">
+                <h3>Total Fish</h3>
+                <p class="stat-number" id="totalCount">0</p>
+                <div class="trend-indicator" id="trendTotalCount"></div>
+            </div>
+            <div class="stat-card tank">
+                <h3>Fish in Tank</h3>
+                <p class="stat-number" id="fishInTank">0</p>
+                <div class="trend-indicator" id="trendFishInTank"></div>
+            </div>
+            <div class="stat-card wholesale">
+                <h3>Wholesale Storage</h3>
+                <p class="stat-number" id="wholesaleStorage">0</p>
+                <div class="trend-indicator" id="trendWholesaleStorage"></div>
+            </div>
+            <div class="stat-card entries">
+                <h3>Today's Revenue</h3>
+                <p class="stat-number" id="totalEntries">₱0.00</p>
+                <div class="trend-indicator" id="trendTodayRevenue"></div>
+            </div>
+            <div class="stat-card revenue-total">
+                <h3>Total Revenue</h3>
+                <p class="stat-number" id="totalRevenue">₱0.00</p>
+                <div class="trend-indicator" id="trendTotalRevenue"></div>
+            </div>
+        </div>
+
+
+            <!-- Inventory Modal -->
+            <div id="inventoryModal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.35); justify-content:center; align-items:center;">
+                <div class="modal-content" style="background:#fff; margin:8vh auto; padding:32px 28px 24px 28px; border-radius:16px; width:95%; max-width:420px; position:relative; box-shadow:0 8px 32px rgba(0,0,0,0.18); border:1.5px solid #e0e7ef;">
+                    <span class="close" data-action="closeInventoryModal" style="position:absolute; top:18px; right:28px; font-size:28px; cursor:pointer; color:#1e293b; transition:color 0.2s;">&times;</span>
+                    <h2 style="text-align:center; font-size:2rem; font-weight:700; color:#22223b; margin-bottom:10px; letter-spacing:0.5px;">Total Fish Inventory</h2>
+                    <div style="margin-bottom:18px; text-align:center;">
+                        <span style="font-size:1.15rem; font-weight:600; color:#374151;">Total:</span>
+                        <span id="modalTotalCount" style="font-size:1.5rem; font-weight:700; color:#22c55e; margin-left:6px;">0</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-around; margin-bottom:8px;">
+                        <div style="text-align:center;">
+                            <span style="font-weight:600; color:#22223b;">Black</span><br>
+                            <span id="modalCountBlack" style="font-size:1.2rem; font-weight:700; color:#0ea5e9;">0</span>
+                        </div>
+                        <div style="text-align:center;">
+                            <span style="font-weight:600; color:#22223b;">Platinum</span><br>
+                            <span id="modalCountPlatinum" style="font-size:1.2rem; font-weight:700; color:#64748b;">0</span>
+                        </div>
+                        <div style="text-align:center;">
+                            <span style="font-weight:600; color:#22223b;">Pineapple</span><br>
+                            <span id="modalCountPineapple" style="font-size:1.2rem; font-weight:700; color:#f59e42;">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-bar-inner">
+                <div class="filter-chip">
+                    <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                    <select id="dashboardVariantFilter" data-change="applyDateFilter">
+                        <option value="">All Variants</option>
+                        <option value="Black">Black</option>
+                        <option value="Platinum">Platinum</option>
+                        <option value="Pineapple">Pineapple</option>
+                    </select>
+                </div>
+                <span class="filter-divider"></span>
+                <div class="filter-date-range">
+                    <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <input type="date" id="dashStartDate" data-change="applyDateFilter" title="Start date">
+                    <span class="filter-range-sep">to</span>
+                    <input type="date" id="dashEndDate" data-change="applyDateFilter" title="End date">
+                </div>
+                <button type="button" class="filter-reset-btn" data-action="clearDashboardFilters" title="Clear all filters">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="dashboard-layout-grid">
+            <div class="chart-container dashboard-fish-card">
+                <h3 class="chart-title chart-title-center">Fish in Tank</h3>
+                <canvas id="totalChart"></canvas>
+            </div>
+
+            <div class="chart-container pie-chart dashboard-variant-card">
+                <h3 class="chart-title chart-title-center">Overall Variant Inventory</h3>
+                <canvas id="variantChart"></canvas>
+            </div>
+
+            <div class="dashboard-alerts-card">
+                <h3>Low Stock Alerts</h3>
+                <div class="low-stock-alerts" id="lowStockAlertsList">
+                    <div class="low-stock-item empty">No low stock alerts</div>
+                </div>
+                <div class="low-stock-footer" aria-label="Low stock indicators">
+                    <div class="low-stock-footer-title">Indicators</div>
+                    <div class="low-stock-footer-items">
+                        <span class="low-stock-footer-item">
+                            <span class="low-stock-icon critical">!</span>
+                            <span>Critical (≤15)</span>
+                        </span>
+                        <span class="low-stock-footer-item">
+                            <span class="low-stock-icon warning">▲</span>
+                            <span>Warning (16–30)</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="recent-section dashboard-recent-card">
+                <h2>Recent Sessions</h2>
+                <div class="recent-list" id="recentList">
+                    <p>No recent entries</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

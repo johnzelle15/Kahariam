@@ -1,0 +1,66 @@
+<div id="insightsTab" class="tab-content">
+    <div class="dashboard-container">
+        <!-- Sales Trend Line Chart (moved from dashboard) -->
+        <div class="sales-trend-section" style="margin-top:18px;">
+            <div class="chart-container sales-trend-card">
+                <h3 class="chart-title chart-title-center">Monthly Sales Trend</h3>
+                <div class="sales-trend-actions">
+                    <div class="sales-trend-filters">
+                        <div class="filter-group sales-trend-filter">
+                            <label for="salesViewMode">View:</label>
+                            <select id="salesViewMode" data-change="applyDateFilter">
+                                <option value="amount" selected>Revenue (₱)</option>
+                                <option value="units">Stock (pcs)</option>
+                            </select>
+                        </div>
+                        <div class="filter-group sales-trend-filter">
+                            <label for="salesMonthFilter">Month:</label>
+                            <select id="salesMonthFilter" data-change="applyDateFilter">
+                                <option value="">All Months</option>
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                        <div class="filter-group sales-trend-filter">
+                            <label for="salesYearFilter">Year:</label>
+                            <select id="salesYearFilter" data-change="applyDateFilter">
+                                <option value="">All Years</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="sales-trend-spacer"></div>
+                    <div class="sales-trend-downloads">
+                        <button id="downloadCsvBtn">Download CSV</button>
+                        <button id="downloadPngBtn">Download PNG</button>
+                    </div>
+                </div>
+                <div class="sales-trend-key" aria-label="Sales trend key">
+                    <span class="trend-chip">Monthly only • Filter by month/year</span>
+                    <span class="trend-chip" id="salesPriceInfo">Retail ₱5.00 • Wholesale ₱1.75</span>
+                </div>
+                <div class="sales-trend-grid">
+                    <div class="sales-trend-panel">
+                        <h4 id="salesRetailTitle" class="chart-title chart-title-center">Retail Revenue</h4>
+                        <canvas id="salesTrendRetailChart"></canvas>
+                    </div>
+                    <div class="sales-trend-panel">
+                        <h4 id="salesWholesaleTitle" class="chart-title chart-title-center">Wholesale Revenue</h4>
+                        <canvas id="salesTrendWholesaleChart"></canvas>
+                    </div>
+                </div>
+                <div id="salesTrendLegend" class="sales-trend-legend" aria-label="Sales trend legend"></div>
+            </div>
+        </div>
+
+    </div>
+</div>

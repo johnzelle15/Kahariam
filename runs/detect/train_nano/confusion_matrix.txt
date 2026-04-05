@@ -1,0 +1,17 @@
+Phase 2 — YOLOv11n Confusion Matrix
+==================================================
+
+Rows = True Label | Columns = Predicted Label
+Classes: ['black', 'pineapple', 'platinum']
+
+                    black    pineapple     platinum
+       black          241            3            0
+   pineapple            0          241            3
+    platinum            4            0          240
+
+
+Normalized Confusion Matrix:
+                    black    pineapple     platinum
+       black       0.9877       0.0123       0.0000
+   pineapple       0.0000       0.9877       0.0123
+    platinum       0.0164       0.0000       0.9836

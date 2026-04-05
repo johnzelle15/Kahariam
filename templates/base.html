@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aquaculture Management System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dark-theme.css') }}?v=8">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <!-- ============ TABS ============ -->
+        <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="dashboard">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Dashboard
+            </button>
+            <button class="tab-btn" data-tab="counter">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                Counter
+            </button>
+            <button class="tab-btn" data-tab="inventory">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                Inventory
+            </button>
+            <button class="tab-btn" data-tab="adjustments">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                Adjustments
+            </button>
+            <button class="tab-btn" data-tab="insights">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Insights
+            </button>
+        </div>
+
+        <div class="app-main">
+            <!-- ============ DASHBOARD TAB ============ -->
+            {% include 'dashboard.html' %}
+
+            <!-- ============ COUNTER TAB ============ -->
+            {% include 'counter.html' %}
+
+            <!-- ============ INVENTORY TAB ============ -->
+            {% include 'inventory.html' %}
+
+            <!-- ============ ADJUSTMENTS TAB ============ -->
+            {% include 'adjustments.html' %}
+
+            <!-- ============ INSIGHTS TAB ============ -->
+            {% include 'insights.html' %}
+        </div>
+    </div>
+
+    <!-- ============ DIALOGS ============ -->
+    <div id="dialogOverlay" class="dialog-overlay"></div>
+
+    <!-- Counting Scope Dialog -->
+    <div id="countModeDialog" class="dialog">
+        <h2>Counting Type</h2>
+        <p>Choose what this count is for.</p>
+        <div class="dialog-buttons">
+            <button data-action="chooseCountMode" data-arg="tank">For Tank</button>
+            <button data-action="chooseCountMode" data-arg="whole">For Wholesale</button>
+            <button data-action="closeDialog">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Whole Counting Target Dialog -->
+    <div id="targetSettingDialog" class="dialog">
+        <h2>Set Targets (Wholesale)</h2>
+        <div class="input-group">
+            <label>Please set the target (pcs):</label>
+            <input type="number" id="targetGeneral" placeholder="0">
+        </div>
+        <p id="targetSetStatus" style="color: green; font-weight: bold; min-height: 20px; margin: 5px 0;"></p>
+        <div class="dialog-buttons">
+            <button type="button" data-action="setWholeTargets">Set Target</button>
+            <button type="button" id="targetStartBtn" data-action="proceedToVariantSelection" disabled>Start</button>
+            <button type="button" data-action="closeDialog">Cancel</button>
+        </div>
+    </div>
+    
+    <!-- Variant Selection Dialog -->
+    <div id="variantDialog" class="dialog">
+        <h2>Select Fish Variant</h2>
+        <p>Which variant are you counting?</p>
+            <select id="variantSelect">
+            <option value="">-- Choose Variant --</option>
+            <option value="Black">Black</option>
+            <option value="Platinum">Platinum</option>
+            <option value="Pineapple">Pineapple</option>
+        </select>
+        <div class="dialog-buttons">
+            <button data-action="confirmVariant">Start Counting</button>
+            <button data-action="closeDialog">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Save Dialog -->
+    <div id="saveDialog" class="dialog">
+        <h2 id="dialogMessage"></h2>
+        <textarea id="notesInput" placeholder="Add notes (optional)"></textarea>
+        <div class="dialog-buttons">
+            <button id="btnSaveWhole" data-action="saveToInventory" data-arg="true">Add to Wholesale</button>
+            <button id="btnAddToTank" data-action="addToTank">Add to Tank</button>
+            <button data-action="saveToInventory" data-arg="false">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div id="confirmDialog" class="dialog confirm-dialog">
+        <h2 id="confirmDialogTitle">Confirm Action</h2>
+        <p id="confirmDialogMessage">Are you sure?</p>
+        <div class="dialog-buttons">
+            <button id="confirmDialogOkBtn" class="confirm-btn" data-action="confirmDialogOk">OK</button>
+            <button id="confirmDialogCancelBtn" class="cancel-btn" data-action="confirmDialogCancel">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Notice Dialog -->
+    <div id="noticeDialog" class="dialog notice-dialog">
+        <h2 id="noticeDialogTitle">Notice</h2>
+        <p id="noticeDialogMessage"></p>
+        <div class="dialog-buttons">
+            <button id="noticeDialogOkBtn" class="confirm-btn" data-action="closeNoticeDialog">OK</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='script.js') }}?v=7"></script>
+</body>
+</html>

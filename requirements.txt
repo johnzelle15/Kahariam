@@ -1,0 +1,41 @@
+# Fish-Counter Python requirements
+# Install: pip install -r requirements.txt
+
+# =====================
+# Core backend runtime
+# =====================
+Flask
+flask-socketio
+eventlet
+python-socketio
+python-engineio
+simple-websocket
+
+# =====================
+# Database and security
+# =====================
+mariadb
+pymysql
+bcrypt
+
+# =====================
+# Config and HTTP client
+# =====================
+python-dotenv
+requests
+pyyaml
+
+# =====================
+# AI / Vision runtime
+# =====================
+opencv-python
+torch
+ultralytics
+
+# =====================
+# Notes
+# =====================
+# Frontend dependencies are managed in frontend/package.json (npm install in /frontend).
+# For Raspberry Pi OS, install system deps first:
+# sudo apt update
+# sudo apt install -y python3-pip python3-venv build-essential libmariadb-dev pkg-config

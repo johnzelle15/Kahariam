@@ -1,0 +1,46 @@
+Phase 1 — YOLOv11s Evaluation Metrics
+==================================================
+
+Accuracy  : 98.09%
+Precision : 98.09% (weighted)
+Recall    : 98.09% (weighted)
+F1 Score  : 98.09% (weighted)
+
+==================================================
+
+Classification Report:
+              precision    recall  f1-score   support
+
+       black       0.98      0.98      0.98       244
+   pineapple       0.99      0.98      0.98       244
+    platinum       0.97      0.98      0.98       244
+
+    accuracy                           0.98       732
+   macro avg       0.98      0.98      0.98       732
+weighted avg       0.98      0.98      0.98       732
+
+
+
+Phase 1 — YOLOv11s Written Analysis
+==================================================
+
+1. HIGHEST PER-CLASS ACCURACY: black (98.4%)
+   This class likely has the most distinctive visual features,
+   making it easier for the model to distinguish from others.
+
+2. LOWEST PER-CLASS ACCURACY: pineapple (97.5%)
+   This class may share visual similarities with other classes.
+
+3. MOST CONFUSED CLASS PAIR: pineapple → platinum (confusion rate: 2.5%)
+   The model sometimes predicts platinum when the true class is pineapple.
+   This is likely due to color/pattern similarities between these varieties.
+
+4. OVERFITTING ASSESSMENT:
+   Check the training loss vs validation loss curves in results.png.
+   If val loss diverges significantly above train loss in later epochs,
+   the model is overfitting. Early stopping (patience=30) helps mitigate this.
+
+5. CLASS IMBALANCE IN PREDICTIONS:
+   black: true=244, predicted=244 (balanced)
+   pineapple: true=244, predicted=241 (balanced)
+   platinum: true=244, predicted=247 (balanced)

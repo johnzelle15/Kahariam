@@ -1,0 +1,177 @@
+<div id="adjustmentsTab" class="tab-content">
+    <div class="adjustments-section">
+        <div class="content-wrap inventory-section">
+        <h2>Adjust Stock (Sold / Died)</h2>
+        <div class="form-row">
+            <label>Adjust Source:</label>
+            <div class="adjust-source-switch" id="adjustSourceSwitch">
+                <button type="button" class="adjust-source-btn selected" data-source="tank">Fish Tank (Retail)</button>
+                <button type="button" class="adjust-source-btn" data-source="wholesale">Wholesale Sold</button>
+            </div>
+            <p id="adjustSourceContext" class="adjust-source-context">Current tab: Fish Tank Sold/Died adjustments</p>
+        </div>
+        <div class="adjust-form">
+            <div id="adjustFormTank" class="adjust-form-mode active" data-mode="tank">
+                <div class="form-row">
+                    <label>Select Variant(s) & Count:</label>
+                    <div class="adjust-cards" id="adjustCardsTank">
+                        <div class="adjust-variant-card" data-variant="Black" data-mode="tank">
+                            <label class="adjust-card-head" title="Select Black">
+                                <input type="checkbox" class="adjust-card-check" data-variant="Black">
+                                <span class="adjust-card-name">Black</span>
+                            </label>
+                            <div class="adjust-card-stock"><span data-stock-for="Black" data-source="tank">0</span></div>
+                            <div class="adjust-card-stock-label">FISH</div>
+                            <div class="adjust-card-count-controls">
+                                <button type="button" class="adjust-count-btn" data-action="adjMinus" data-variant="Black">−</button>
+                                <input type="number" class="adjust-card-count" data-variant="Black" min="1" value="1" disabled>
+                                <button type="button" class="adjust-count-btn" data-action="adjPlus" data-variant="Black">+</button>
+                            </div>
+                        </div>
+
+                        <div class="adjust-variant-card" data-variant="Platinum" data-mode="tank">
+                            <label class="adjust-card-head" title="Select Platinum">
+                                <input type="checkbox" class="adjust-card-check" data-variant="Platinum">
+                                <span class="adjust-card-name">Platinum</span>
+                            </label>
+                            <div class="adjust-card-stock"><span data-stock-for="Platinum" data-source="tank">0</span></div>
+                            <div class="adjust-card-stock-label">FISH</div>
+                            <div class="adjust-card-count-controls">
+                                <button type="button" class="adjust-count-btn" data-action="adjMinus" data-variant="Platinum">−</button>
+                                <input type="number" class="adjust-card-count" data-variant="Platinum" min="1" value="1" disabled>
+                                <button type="button" class="adjust-count-btn" data-action="adjPlus" data-variant="Platinum">+</button>
+                            </div>
+                        </div>
+
+                        <div class="adjust-variant-card" data-variant="Pineapple" data-mode="tank">
+                            <label class="adjust-card-head" title="Select Pineapple">
+                                <input type="checkbox" class="adjust-card-check" data-variant="Pineapple">
+                                <span class="adjust-card-name">Pineapple</span>
+                            </label>
+                            <div class="adjust-card-stock"><span data-stock-for="Pineapple" data-source="tank">0</span></div>
+                            <div class="adjust-card-stock-label">FISH</div>
+                            <div class="adjust-card-count-controls">
+                                <button type="button" class="adjust-count-btn" data-action="adjMinus" data-variant="Pineapple">−</button>
+                                <input type="number" class="adjust-card-count" data-variant="Pineapple" min="1" value="1" disabled>
+                                <button type="button" class="adjust-count-btn" data-action="adjPlus" data-variant="Pineapple">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>Reason:</label>
+                    <div class="adjust-reason-cards" id="adjustReasonCards">
+                        <button type="button" class="adjust-reason-card reason-sold selected" data-reason="Sold">🛒 Sold</button>
+                        <button type="button" class="adjust-reason-card reason-died" data-reason="Died">☠️ Died</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label for="adjNotesTank">Notes (optional):</label>
+                    <textarea id="adjNotesTank"></textarea>
+                </div>
+                <div class="form-row">
+                    <button class="adjust-submit-btn" data-action="submitAdjustment" data-arg="tank" id="adjustSubmitBtnTank">Submit Tank Adjustment</button>
+                </div>
+            </div>
+
+            <div id="adjustFormWholesale" class="adjust-form-mode" data-mode="wholesale">
+                <div class="form-row">
+                    <label>Select Variant(s) & Count (Minimum total 300):</label>
+                    <div class="adjust-cards" id="adjustCardsWholesale">
+                        <div class="adjust-variant-card" data-variant="Black" data-mode="wholesale">
+                            <label class="adjust-card-head" title="Select Black">
+                                <input type="checkbox" class="adjust-card-check" data-variant="Black">
+                                <span class="adjust-card-name">Black</span>
+                            </label>
+                            <div class="adjust-card-stock"><span data-stock-for="Black" data-source="wholesale">0</span></div>
+                            <div class="adjust-card-stock-label">FISH</div>
+                            <div class="adjust-card-count-controls">
+                                <button type="button" class="adjust-count-btn" data-action="adjMinus" data-variant="Black">−</button>
+                                <input type="number" class="adjust-card-count" data-variant="Black" min="1" value="1" disabled>
+                                <button type="button" class="adjust-count-btn" data-action="adjPlus" data-variant="Black">+</button>
+                            </div>
+                        </div>
+
+                        <div class="adjust-variant-card" data-variant="Platinum" data-mode="wholesale">
+                            <label class="adjust-card-head" title="Select Platinum">
+                                <input type="checkbox" class="adjust-card-check" data-variant="Platinum">
+                                <span class="adjust-card-name">Platinum</span>
+                            </label>
+                            <div class="adjust-card-stock"><span data-stock-for="Platinum" data-source="wholesale">0</span></div>
+                            <div class="adjust-card-stock-label">FISH</div>
+                            <div class="adjust-card-count-controls">
+                                <button type="button" class="adjust-count-btn" data-action="adjMinus" data-variant="Platinum">−</button>
+                                <input type="number" class="adjust-card-count" data-variant="Platinum" min="1" value="1" disabled>
+                                <button type="button" class="adjust-count-btn" data-action="adjPlus" data-variant="Platinum">+</button>
+                            </div>
+                        </div>
+
+                        <div class="adjust-variant-card" data-variant="Pineapple" data-mode="wholesale">
+                            <label class="adjust-card-head" title="Select Pineapple">
+                                <input type="checkbox" class="adjust-card-check" data-variant="Pineapple">
+                                <span class="adjust-card-name">Pineapple</span>
+                            </label>
+                            <div class="adjust-card-stock"><span data-stock-for="Pineapple" data-source="wholesale">0</span></div>
+                            <div class="adjust-card-stock-label">FISH</div>
+                            <div class="adjust-card-count-controls">
+                                <button type="button" class="adjust-count-btn" data-action="adjMinus" data-variant="Pineapple">−</button>
+                                <input type="number" class="adjust-card-count" data-variant="Pineapple" min="1" value="1" disabled>
+                                <button type="button" class="adjust-count-btn" data-action="adjPlus" data-variant="Pineapple">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>Reason:</label>
+                    <div class="adjust-reason-cards" id="adjustReasonCardsWholesale">
+                        <button type="button" class="adjust-reason-card reason-sold selected" disabled>🛒 Sold (Wholesale Out)</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <p class="adjust-source-context">Note: Wholesale IN is recorded via Counter machine save flow.</p>
+                </div>
+                <div class="form-row">
+                    <label for="adjNotesWholesale">Notes (optional):</label>
+                    <textarea id="adjNotesWholesale"></textarea>
+                </div>
+                <div class="form-row">
+                    <button class="adjust-submit-btn" data-action="submitAdjustment" data-arg="wholesale" id="adjustSubmitBtnWholesale">Submit Wholesale Adjustment</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Adjustments History -->
+        <div class="adjustments-history">
+            <h3 id="adjustmentsHistoryTitle">Adjustment History (Fish Tank)</h3>
+            <div class="filter-bar">
+                <div class="filter-bar-inner">
+                    <div class="filter-chip">
+                        <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                        <select id="adjHistoryVariant" data-change="loadAdjustments">
+                            <option value="">All Variants</option>
+                            <option value="Black">Black</option>
+                            <option value="Platinum">Platinum</option>
+                            <option value="Pineapple">Pineapple</option>
+                        </select>
+                    </div>
+                    <span class="filter-divider"></span>
+                    <div class="filter-date-range">
+                        <svg class="filter-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <input type="date" id="adjHistoryStartDate" data-change="loadAdjustments" title="Start date">
+                        <span class="filter-range-sep">to</span>
+                        <input type="date" id="adjHistoryEndDate" data-change="loadAdjustments" title="End date">
+                    </div>
+                    <button type="button" class="filter-reset-btn" data-action="clearAdjustmentFilters" title="Clear all filters">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <div id="adjustmentsList" class="history-container">
+                <p>No adjustments yet</p>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>

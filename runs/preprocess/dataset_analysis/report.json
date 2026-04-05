@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-04-04T10:45:42.049197",
+  "original_files": 3755,
+  "empty_files": 2,
+  "corrupted_annotations": 0,
+  "files_unwanted_only": 83,
+  "valid_files": 3670,
+  "target_count": 1218,
+  "total_train": 2922,
+  "total_val": 732,
+  "balanced": true,
+  "classes": {
+    "black": {
+      "original": 1177,
+      "balanced": 1218,
+      "train": 974,
+      "val": 244,
+      "action": "OVERSAMPLE 1177 -> 1218 (+41 duplicates)"
+    },
+    "pineapple": {
+      "original": 1218,
+      "balanced": 1218,
+      "train": 974,
+      "val": 244,
+      "action": "UNDERSAMPLE 1218 -> 1218"
+    },
+    "platinum": {
+      "original": 1275,
+      "balanced": 1218,
+      "train": 976,
+      "val": 244,
+      "action": "UNDERSAMPLE 1275 -> 1218"
+    }
+  }
+}

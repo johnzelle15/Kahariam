@@ -1,0 +1,21 @@
+description: Ultralytics YOLO11n model trained on c:\Users\yvonn\OneDrive\Documents\yolo2.0\dataset\data.yaml
+author: Ultralytics
+date: '2026-04-05T09:35:37.625978'
+version: 8.4.33
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 480
+- 480
+names:
+  0: black
+  1: pineapple
+  2: platinum
+args:
+  batch: 1
+  half: false
+channels: 3
+end2end: false

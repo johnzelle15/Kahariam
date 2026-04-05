@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fish Counter — Database &amp; System Analysis</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --card: #334155;
+    --border: #475569; --text: #e2e8f0; --muted: #94a3b8;
+    --accent: #38bdf8; --green: #4ade80; --red: #f87171;
+    --orange: #fb923c; --purple: #a78bfa; --yellow: #facc15;
+    --pink: #f472b6; --teal: #2dd4bf;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; overflow-x:hidden; word-wrap:break-word; overflow-wrap:break-word; -webkit-font-smoothing:antialiased; }
+  img, svg, video { max-width:100%; height:auto; }
+  .container { max-width:1200px; margin:0 auto; padding:20px; width:100%; }
+
+  /* Header */
+  .header { text-align:center; padding:48px 20px 36px; background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%); border-bottom:2px solid var(--accent); margin-bottom:32px; }
+  .header h1 { font-size:2rem; color:var(--accent); margin-bottom:8px; letter-spacing:-0.5px; }
+  .header .subtitle { font-size:1.1rem; color:var(--muted); }
+  .header .meta { margin-top:12px; font-size:.85rem; color:var(--muted); }
+  .header .meta span { background:var(--card); padding:4px 12px; border-radius:20px; margin:0 4px; display:inline-block; margin-top:4px; }
+
+  /* Navigation */
+  .nav { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); padding:10px 0; margin-bottom:28px; }
+  .nav-inner { max-width:1200px; margin:0 auto; padding:0 20px; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+  .nav a { color:var(--muted); text-decoration:none; font-size:.8rem; padding:5px 14px; border-radius:20px; transition:all .2s; border:1px solid transparent; }
+  .nav a:hover { color:var(--accent); border-color:var(--accent); background:rgba(56,189,248,.08); }
+
+  /* Sections */
+  .section { margin-bottom:40px; }
+  .section-title { font-size:1.5rem; font-weight:700; color:var(--accent); margin-bottom:20px; padding-bottom:10px; border-bottom:2px solid var(--card); display:flex; align-items:center; gap:10px; }
+  .section-title .num { background:var(--accent); color:var(--bg); width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.9rem; font-weight:800; flex-shrink:0; }
+  .subsection { margin:20px 0; }
+  .subsection h3 { font-size:1.1rem; color:var(--green); margin-bottom:12px; }
+
+  /* Cards */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:16px; }
+  .card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; }
+  .stat-card .value { font-size:2rem; font-weight:800; color:var(--accent); }
+  .stat-card .label { font-size:.85rem; color:var(--muted); margin-top:4px; }
+  .stat-card.green .value { color:var(--green); }
+  .stat-card.orange .value { color:var(--orange); }
+  .stat-card.red .value { color:var(--red); }
+  .stat-card.purple .value { color:var(--purple); }
+
+  /* Tables */
+  .table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); -webkit-overflow-scrolling:touch; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th { background:var(--card); color:var(--accent); padding:12px 14px; text-align:left; font-weight:600; white-space:nowrap; }
+  td { padding:10px 14px; border-top:1px solid var(--border); word-break:break-word; }
+  td code { word-break:break-all; }
+  tr:hover td { background:rgba(56,189,248,.04); }
+  .badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:.78rem; font-weight:600; }
+  .badge-green { background:rgba(74,222,128,.15); color:var(--green); }
+  .badge-orange { background:rgba(251,146,60,.15); color:var(--orange); }
+  .badge-red { background:rgba(248,113,113,.15); color:var(--red); }
+  .badge-blue { background:rgba(56,189,248,.15); color:var(--accent); }
+  .badge-purple { background:rgba(167,139,250,.15); color:var(--purple); }
+  .badge-muted { background:rgba(148,163,184,.12); color:var(--muted); }
+
+  /* Flow diagrams */
+  .flow { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; margin:16px 0; overflow-x:auto; }
+  .flow-row { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .flow-box { padding:14px 22px; border-radius:10px; font-size:.85rem; font-weight:600; text-align:center; min-width:140px; max-width:220px; line-height:1.4; }
+  .flow-box.camera { background:linear-gradient(135deg,#1e3a5f,#0c4a6e); border:2px solid var(--accent); color:var(--accent); }
+  .flow-box.server { background:linear-gradient(135deg,#1a2e1a,#14532d); border:2px solid var(--green); color:var(--green); }
+  .flow-box.db { background:linear-gradient(135deg,#2d1b4e,#4c1d95); border:2px solid var(--purple); color:var(--purple); }
+  .flow-box.ui { background:linear-gradient(135deg,#3b1a1a,#7f1d1d); border:2px solid var(--orange); color:var(--orange); }
+  .flow-box.state { background:linear-gradient(135deg,#1e293b,#334155); border:2px solid var(--teal); color:var(--teal); }
+  .flow-arrow { color:var(--muted); font-size:1.4rem; flex-shrink:0; }
+  .flow-label { font-size:.72rem; color:var(--muted); text-align:center; display:block; margin-top:2px; }
+
+  /* Tech stack */
+  .tech-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  .tech-item { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 18px; display:flex; align-items:center; gap:14px; }
+  .tech-icon { width:42px; height:42px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:800; flex-shrink:0; }
+  .tech-item .name { font-weight:600; font-size:.92rem; }
+  .tech-item .ver { font-size:.78rem; color:var(--muted); }
+  .tech-item .role { font-size:.75rem; color:var(--muted); margin-top:2px; }
+
+  /* Issue cards */
+  .issue { background:var(--surface); border-left:4px solid var(--orange); border-radius:0 10px 10px 0; padding:16px 20px; margin:10px 0; }
+  .issue.critical { border-left-color:var(--red); }
+  .issue.info { border-left-color:var(--accent); }
+  .issue .issue-title { font-weight:700; font-size:.95rem; margin-bottom:4px; }
+  .issue .issue-desc { font-size:.85rem; color:var(--muted); }
+  .issue code { background:var(--card); padding:1px 6px; border-radius:4px; font-size:.82rem; color:var(--green); }
+
+  /* Defense cards */
+  .defense-card { background:linear-gradient(135deg,var(--surface),rgba(56,189,248,.05)); border:1px solid var(--accent); border-radius:12px; padding:24px; margin:16px 0; }
+  .defense-card h4 { color:var(--accent); font-size:1rem; margin-bottom:10px; }
+  .defense-card blockquote { border-left:3px solid var(--accent); padding-left:16px; color:var(--muted); font-style:italic; font-size:.9rem; line-height:1.7; }
+
+  /* Bar chart CSS */
+  .bar-chart { margin:16px 0; }
+  .bar-row { display:flex; align-items:center; gap:10px; margin:8px 0; }
+  .bar-label { width:90px; text-align:right; font-size:.85rem; color:var(--muted); flex-shrink:0; }
+  .bar-track { flex:1; background:var(--card); border-radius:6px; height:28px; position:relative; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:10px; font-size:.78rem; font-weight:600; color:var(--bg); transition:width .6s ease; }
+  .bar-fill.in { background:linear-gradient(90deg,var(--green),#22c55e); }
+  .bar-fill.out { background:linear-gradient(90deg,var(--red),#ef4444); }
+  .bar-fill.wholesale { background:linear-gradient(90deg,var(--purple),#8b5cf6); }
+
+  /* ER Diagram */
+  .er-diagram { display:flex; flex-wrap:wrap; gap:24px; justify-content:center; padding:20px; }
+  .er-table { background:var(--card); border-radius:10px; min-width:220px; overflow:hidden; border:2px solid var(--border); }
+  .er-table.active { border-color:var(--green); }
+  .er-table.empty { border-color:var(--border); opacity:.7; }
+  .er-table-head { padding:10px 14px; font-weight:700; font-size:.9rem; text-align:center; }
+  .er-table.active .er-table-head { background:rgba(74,222,128,.15); color:var(--green); }
+  .er-table.empty .er-table-head { background:rgba(148,163,184,.1); color:var(--muted); }
+  .er-col { padding:5px 14px; font-size:.78rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; }
+  .er-col .type { color:var(--muted); }
+  .er-col.pk { color:var(--yellow); font-weight:600; }
+  .er-col.fk { color:var(--accent); }
+
+  .er-relation { display:none; } /* relations shown via description */
+
+  /* ══════════════════════════════════════════════════════════════ */
+  /*  RESPONSIVE — all device sizes                                */
+  /* ══════════════════════════════════════════════════════════════ */
+
+  /* ── Extra-small phones (≤ 380px) ── */
+  @media (max-width:380px) {
+    .container { padding:10px 8px; }
+    .header { padding:28px 10px 20px; }
+    .header h1 { font-size:1.1rem; }
+    .header .subtitle { font-size:.82rem; }
+    .header .meta span { font-size:.7rem; padding:3px 8px; margin:2px; }
+    .section-title { font-size:1.1rem; gap:8px; }
+    .section-title .num { width:26px; height:26px; font-size:.75rem; }
+    .nav a { font-size:.68rem; padding:4px 8px; }
+    .card { padding:12px; }
+    .stat-card { padding:12px; }
+    .stat-card .value { font-size:1.4rem; }
+    .stat-card .label { font-size:.72rem; }
+    .card-grid { grid-template-columns:1fr; gap:10px; }
+    .tech-grid { grid-template-columns:1fr; gap:8px; }
+    .tech-item { padding:10px 12px; gap:10px; }
+    .tech-icon { width:34px; height:34px; font-size:1rem; }
+    .tech-item .name { font-size:.82rem; }
+    table { font-size:.72rem; }
+    th { padding:8px 6px; font-size:.72rem; }
+    td { padding:6px; }
+    .flow { padding:14px 10px; }
+    .flow-row { flex-direction:column; gap:4px; }
+    .flow-box { min-width:unset; width:100%; max-width:100%; padding:10px 12px; font-size:.78rem; }
+    .flow-arrow { transform:rotate(90deg); font-size:1.1rem; }
+    .er-diagram { flex-direction:column; align-items:stretch; gap:14px; padding:10px; }
+    .er-table { min-width:unset; width:100%; }
+    .er-col { font-size:.7rem; padding:4px 10px; }
+    .bar-label { width:60px; font-size:.72rem; }
+    .bar-fill { font-size:.65rem; padding-left:6px; }
+    .bar-track { height:22px; }
+    .issue { padding:12px 14px; }
+    .issue .issue-title { font-size:.85rem; }
+    .issue .issue-desc { font-size:.78rem; }
+    .defense-card { padding:14px; }
+    .defense-card h4 { font-size:.9rem; }
+    .defense-card blockquote { font-size:.78rem; padding-left:10px; }
+    .badge { font-size:.68rem; padding:2px 6px; }
+    .subsection h3 { font-size:.95rem; }
+  }
+
+  /* ── Small phones (381px – 480px) ── */
+  @media (min-width:381px) and (max-width:480px) {
+    .container { padding:12px; }
+    .header { padding:32px 14px 24px; }
+    .header h1 { font-size:1.25rem; }
+    .header .subtitle { font-size:.88rem; }
+    .header .meta span { font-size:.72rem; padding:3px 9px; }
+    .section-title { font-size:1.2rem; }
+    .card-grid { grid-template-columns:1fr; gap:12px; }
+    .tech-grid { grid-template-columns:1fr; gap:10px; }
+    .stat-card .value { font-size:1.6rem; }
+    .flow-row { flex-direction:column; gap:6px; }
+    .flow-box { min-width:unset; width:100%; max-width:100%; padding:12px 14px; font-size:.8rem; }
+    .flow-arrow { transform:rotate(90deg); }
+    .er-diagram { flex-direction:column; align-items:stretch; gap:16px; }
+    .er-table { min-width:unset; width:100%; }
+    table { font-size:.76rem; }
+    th { padding:9px 8px; }
+    td { padding:8px; }
+    .bar-label { width:70px; font-size:.76rem; }
+    .defense-card blockquote { font-size:.82rem; }
+  }
+
+  /* ── Large phones (481px – 639px) ── */
+  @media (min-width:481px) and (max-width:639px) {
+    .container { padding:14px; }
+    .header h1 { font-size:1.4rem; }
+    .card-grid { grid-template-columns:repeat(2,1fr); gap:12px; }
+    .tech-grid { grid-template-columns:1fr; gap:10px; }
+    .stat-card .value { font-size:1.7rem; }
+    .flow-row { flex-direction:column; gap:6px; }
+    .flow-box { min-width:unset; width:100%; max-width:100%; }
+    .flow-arrow { transform:rotate(90deg); }
+    .er-diagram { flex-direction:column; align-items:center; gap:18px; }
+    .er-table { min-width:unset; width:90%; max-width:320px; }
+    table { font-size:.8rem; }
+  }
+
+  /* ── Small tablets / landscape phones (640px – 767px) ── */
+  @media (min-width:640px) and (max-width:767px) {
+    .container { padding:16px; }
+    .header h1 { font-size:1.5rem; }
+    .card-grid { grid-template-columns:repeat(2,1fr); }
+    .tech-grid { grid-template-columns:repeat(2,1fr); }
+    .flow-row { flex-direction:row; flex-wrap:wrap; }
+    .flow-box { min-width:120px; max-width:180px; font-size:.8rem; }
+    .flow-arrow { transform:none; }
+    .er-diagram { flex-wrap:wrap; justify-content:center; }
+    .er-table { min-width:200px; max-width:260px; }
+  }
+
+  /* ── Tablets portrait (768px – 1023px) ── */
+  @media (min-width:768px) and (max-width:1023px) {
+    .container { padding:18px; }
+    .header h1 { font-size:1.7rem; }
+    .card-grid { grid-template-columns:repeat(2,1fr); }
+    .tech-grid { grid-template-columns:repeat(2,1fr); }
+    .flow-box { min-width:130px; max-width:200px; }
+    .er-diagram { gap:20px; }
+    .er-table { min-width:210px; }
+  }
+
+  /* ── Tablets landscape / small laptops (1024px – 1279px) ── */
+  @media (min-width:1024px) and (max-width:1279px) {
+    .card-grid { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+    .tech-grid { grid-template-columns:repeat(3,1fr); }
+  }
+
+  /* ── Large screens / desktops (≥ 1280px) — default styles apply ── */
+
+  /* ── Ultra-wide (≥ 1600px) ── */
+  @media (min-width:1600px) {
+    .container { max-width:1400px; }
+    .card-grid { grid-template-columns:repeat(4,1fr); }
+    .tech-grid { grid-template-columns:repeat(4,1fr); }
+    .header h1 { font-size:2.4rem; }
+    .section-title { font-size:1.7rem; }
+  }
+
+  /* ── Touch device helpers ── */
+  @media (hover:none) and (pointer:coarse) {
+    .nav a { padding:8px 16px; font-size:.82rem; min-height:40px; display:inline-flex; align-items:center; }
+    tr:hover td { background:transparent; }
+  }
+
+  /* ── Landscape phones (short height) ── */
+  @media (max-height:500px) and (orientation:landscape) {
+    .header { padding:16px 20px 12px; }
+    .header h1 { font-size:1.2rem; }
+    .header .subtitle { font-size:.8rem; }
+    .header .meta { margin-top:6px; }
+    .nav { padding:6px 0; }
+    .section { margin-bottom:24px; }
+  }
+
+  /* ══════════════════════════════════════════════════════════════ */
+  /*  PRINT                                                        */
+  /* ══════════════════════════════════════════════════════════════ */
+  @media print {
+    body { background:#fff; color:#000; font-size:11pt; }
+    .nav { display:none; }
+    .header { background:none; border-bottom:2px solid #333; padding:20px 0; }
+    .header h1 { color:#111; }
+    .header .subtitle, .header .meta { color:#555; }
+    .header .meta span { background:#eee; color:#333; }
+    .container { max-width:100%; padding:0 20px; }
+    .card, .flow, .table-wrap, .issue, .defense-card, .stat-card, .tech-item, .er-table { border-color:#ccc; background:#fff; }
+    .stat-card .value, .section-title, .section-title .num { color:#111; }
+    .section-title .num { background:#ddd; }
+    th { background:#eee; color:#000; }
+    td { color:#222; }
+    .flow-box { border-color:#999; color:#222 !important; background:#f8f8f8 !important; }
+    .flow-arrow { color:#666; }
+    .badge { border:1px solid #aaa; }
+    .defense-card { background:#f9f9f9; border-color:#aaa; }
+    .defense-card blockquote { color:#333; }
+    .er-table { background:#f5f5f5; }
+    .issue { background:#fff; }
+    .bar-fill { color:#fff !important; }
+    a { color:#111; text-decoration:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<div class="header">
+  <h1>🐟 IoT Ornamental Fish Counter &amp; Inventory System</h1>
+  <div class="subtitle">Database Structure &amp; System Analysis Report</div>
+  <div class="meta">
+    <span>📅 April 4, 2026</span>
+    <span>🗄️ MariaDB 11.8.6</span>
+    <span>🍓 Raspberry Pi 5</span>
+    <span>🐍 Python 3.13</span>
+    <span>⚛️ React 18</span>
+  </div>
+</div>
+
+<!-- ─── NAVIGATION ─── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#overview">Overview</a>
+    <a href="#tech-stack">Tech Stack</a>
+    <a href="#er-diagram">ER Diagram</a>
+    <a href="#tables">Table Analysis</a>
+    <a href="#data">Data Content</a>
+    <a href="#workflow">System Workflow</a>
+    <a href="#evaluation">Design Evaluation</a>
+    <a href="#problems">Problems &amp; Risks</a>
+    <a href="#optimization">Optimization</a>
+    <a href="#defense">Defense Answers</a>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 0 — OVERVIEW                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="overview">
+  <h2 class="section-title"><span class="num">0</span> System Overview</h2>
+  <div class="card-grid">
+    <div class="stat-card"><div class="value">4</div><div class="label">Deployed Tables</div></div>
+    <div class="stat-card green"><div class="value">237</div><div class="label">Total Inventory Records</div></div>
+    <div class="stat-card orange"><div class="value">3</div><div class="label">Fish Variants Tracked</div></div>
+    <div class="stat-card purple"><div class="value">12</div><div class="label">Tables in Full Schema</div></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <p style="color:var(--muted); font-size:.92rem;">
+      This system is an <strong style="color:var(--text)">IoT-based Ornamental Fish Counter and Inventory Management System</strong> running on a
+      <strong style="color:var(--text)">Raspberry Pi 5</strong>. It uses a <strong style="color:var(--text)">YOLO-based camera detection model</strong>
+      to count fish crossing a virtual line in real-time, and a <strong style="color:var(--text)">React web dashboard</strong> for inventory management.
+      The database is <strong style="color:var(--text)">MariaDB (InnoDB)</strong> optimized for low-resource edge deployment.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — TECH STACK                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="tech-stack">
+  <h2 class="section-title"><span class="num">1</span> Technology Stack &amp; Versions</h2>
+
+  <div class="subsection"><h3>🔧 Hardware / Platform</h3></div>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">🍓</div>
+      <div><div class="name">Raspberry Pi 5</div><div class="ver">4GB / 8GB RAM · aarch64</div><div class="role">Edge computing device</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">📷</div>
+      <div><div class="name">USB Camera (EMEET C60E)</div><div class="ver">1080p / MJPG</div><div class="role">Fish detection input</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(167,139,250,.15);color:var(--purple);">🐧</div>
+      <div><div class="name">Debian 13 (Trixie)</div><div class="ver">Raspberry Pi OS</div><div class="role">Operating system</div></div>
+    </div>
+  </div>
+
+  <div class="subsection"><h3>🐍 Backend (Python)</h3></div>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(250,204,21,.15);color:var(--yellow);">Py</div>
+      <div><div class="name">Python</div><div class="ver">3.13.5</div><div class="role">Primary backend language</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">Fl</div>
+      <div><div class="name">Flask</div><div class="ver">3.1.1</div><div class="role">Web framework / REST API</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">IO</div>
+      <div><div class="name">Flask-SocketIO</div><div class="ver">5.6.1</div><div class="role">Real-time WebSocket events</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">Ev</div>
+      <div><div class="name">Eventlet</div><div class="ver">0.40.4</div><div class="role">Async WSGI server (WebSocket support)</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(167,139,250,.15);color:var(--purple);">DB</div>
+      <div><div class="name">MariaDB Connector</div><div class="ver">1.1.14</div><div class="role">Native DB driver (C-based)</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(167,139,250,.12);color:var(--purple);">My</div>
+      <div><div class="name">PyMySQL</div><div class="ver">1.1.2</div><div class="role">Fallback DB driver (pure Python)</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(248,113,113,.15);color:var(--red);">🔐</div>
+      <div><div class="name">bcrypt</div><div class="ver">4.2.0</div><div class="role">Password / token hashing</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(148,163,184,.15);color:var(--muted);">🔑</div>
+      <div><div class="name">python-dotenv</div><div class="ver">1.0.1</div><div class="role">Environment variable management</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">📡</div>
+      <div><div class="name">Requests</div><div class="ver">2.32.3</div><div class="role">HTTP client for inter-process calls</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(148,163,184,.15);color:var(--muted);">📄</div>
+      <div><div class="name">PyYAML</div><div class="ver">6.0.2</div><div class="role">Configuration file parsing</div></div>
+    </div>
+  </div>
+
+  <div class="subsection"><h3>🤖 AI / Computer Vision</h3></div>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(248,113,113,.15);color:var(--red);">YO</div>
+      <div><div class="name">Ultralytics (YOLOv8)</div><div class="ver">8.4.21</div><div class="role">Object detection model framework</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(251,146,60,.15);color:var(--orange);">🔥</div>
+      <div><div class="name">PyTorch</div><div class="ver">2.10.0+cpu</div><div class="role">Deep learning runtime (CPU mode for RPi5)</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">CV</div>
+      <div><div class="name">OpenCV</div><div class="ver">4.13.0</div><div class="role">Camera capture, image processing, preview</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">NP</div>
+      <div><div class="name">NumPy</div><div class="ver">2.2.4</div><div class="role">Array operations, centroid tracking math</div></div>
+    </div>
+  </div>
+
+  <div class="subsection"><h3>⚛️ Frontend</h3></div>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">⚛️</div>
+      <div><div class="name">React</div><div class="ver">18.x</div><div class="role">UI component framework</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(167,139,250,.15);color:var(--purple);">⚡</div>
+      <div><div class="name">Vite</div><div class="ver">5.x</div><div class="role">Build tool &amp; dev server</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">🎨</div>
+      <div><div class="name">Tailwind CSS</div><div class="ver">3.4.19</div><div class="role">Utility-first CSS framework</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(251,146,60,.15);color:var(--orange);">📊</div>
+      <div><div class="name">Chart.js / Recharts</div><div class="ver">4.x / 3.8</div><div class="role">Data visualization charts</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">🧩</div>
+      <div><div class="name">Zustand</div><div class="ver">5.0.12</div><div class="role">Lightweight state management</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(244,114,182,.15);color:var(--pink);">🎞️</div>
+      <div><div class="name">Framer Motion</div><div class="ver">12.38</div><div class="role">UI animations</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(56,189,248,.15);color:var(--accent);">🔌</div>
+      <div><div class="name">Socket.IO Client</div><div class="ver">4.x</div><div class="role">Real-time WebSocket client</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">📥</div>
+      <div><div class="name">Axios</div><div class="ver">1.x</div><div class="role">HTTP client for API calls</div></div>
+    </div>
+  </div>
+
+  <div class="subsection"><h3>🗄️ Database</h3></div>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(167,139,250,.15);color:var(--purple);">🐬</div>
+      <div><div class="name">MariaDB</div><div class="ver">11.8.6</div><div class="role">Relational database (InnoDB engine)</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(74,222,128,.15);color:var(--green);">🟢</div>
+      <div><div class="name">Node.js</div><div class="ver">20.20.0</div><div class="role">Frontend build toolchain runtime</div></div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon" style="background:rgba(248,113,113,.15);color:var(--red);">📦</div>
+      <div><div class="name">npm</div><div class="ver">10.8.2</div><div class="role">Frontend package manager</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — ER DIAGRAM                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="er-diagram">
+  <h2 class="section-title"><span class="num">2</span> Entity-Relationship Diagram</h2>
+  <p style="color:var(--muted);font-size:.88rem;margin-bottom:16px;">
+    <span class="badge badge-green">● Active</span> = deployed &amp; in use &nbsp;
+    <span class="badge badge-muted">● Planned</span> = in schema but not deployed
+  </p>
+
+  <!-- Deployed tables (visual ER) -->
+  <div class="flow" style="padding:30px;">
+    <div class="er-diagram">
+
+      <!-- counting_state -->
+      <div class="er-table active">
+        <div class="er-table-head">counting_state</div>
+        <div class="er-col pk">id (PK) <span class="type">INT</span></div>
+        <div class="er-col">active <span class="type">TINYINT</span></div>
+        <div class="er-col">updated_at <span class="type">DATETIME</span></div>
+        <div style="padding:6px 14px;font-size:.72rem;color:var(--green);background:rgba(74,222,128,.05);">✓ 1 row · Singleton</div>
+      </div>
+
+      <!-- devices -->
+      <div class="er-table active">
+        <div class="er-table-head">devices</div>
+        <div class="er-col pk">id (PK) <span class="type">VARCHAR(255)</span></div>
+        <div class="er-col">name <span class="type">VARCHAR(120)</span></div>
+        <div class="er-col">location <span class="type">VARCHAR(120)</span></div>
+        <div class="er-col">model <span class="type">VARCHAR(100)</span></div>
+        <div class="er-col">firmware <span class="type">VARCHAR(64)</span></div>
+        <div class="er-col">secret_hash <span class="type">VARCHAR(255)</span></div>
+        <div class="er-col">last_seen <span class="type">TIMESTAMP</span></div>
+        <div class="er-col">active <span class="type">TINYINT</span></div>
+        <div class="er-col">locked_by <span class="type">CHAR(36)</span></div>
+        <div class="er-col">lock_time <span class="type">TIMESTAMP</span></div>
+        <div style="padding:6px 14px;font-size:.72rem;color:var(--orange);background:rgba(251,146,60,.05);">⚠ 0 rows · Multi-device ready</div>
+      </div>
+
+      <!-- inventory -->
+      <div class="er-table active" style="border-color:var(--accent);">
+        <div class="er-table-head" style="background:rgba(56,189,248,.15);color:var(--accent);">inventory ★ Primary</div>
+        <div class="er-col pk">id (PK) <span class="type">INT AUTO_INC</span></div>
+        <div class="er-col">count <span class="type">INT NOT NULL</span></div>
+        <div class="er-col">variant <span class="type">VARCHAR(255)</span></div>
+        <div class="er-col">date <span class="type">DATETIME</span></div>
+        <div class="er-col">notes <span class="type">TEXT</span></div>
+        <div class="er-col">action <span class="type">VARCHAR(32)</span></div>
+        <div class="er-col">deleted <span class="type">TINYINT</span></div>
+        <div style="padding:6px 14px;font-size:.72rem;color:var(--accent);background:rgba(56,189,248,.05);">★ 237 rows · Core data</div>
+      </div>
+
+      <!-- readings -->
+      <div class="er-table active">
+        <div class="er-table-head">readings</div>
+        <div class="er-col pk">id (PK) <span class="type">BIGINT AUTO_INC</span></div>
+        <div class="er-col fk">device_id (FK) <span class="type">→ devices.id</span></div>
+        <div class="er-col">count <span class="type">INT</span></div>
+        <div class="er-col">timestamp <span class="type">TIMESTAMP</span></div>
+        <div class="er-col">firmware <span class="type">VARCHAR(64)</span></div>
+        <div class="er-col">raw_payload <span class="type">TEXT</span></div>
+        <div class="er-col">rssi <span class="type">INT</span></div>
+        <div style="padding:6px 14px;font-size:.72rem;color:var(--orange);background:rgba(251,146,60,.05);">⚠ 0 rows · Telemetry pipeline</div>
+      </div>
+
+    </div>
+
+    <!-- Relationship line description -->
+    <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+      <span style="font-size:.85rem;color:var(--accent);">
+        <strong>readings.device_id</strong> → <strong>devices.id</strong>
+        <span style="color:var(--muted);"> (FK · ON DELETE CASCADE)</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Planned tables summary -->
+  <div class="card">
+    <h3 style="color:var(--muted);font-size:.95rem;margin-bottom:12px;">📋 Planned Tables (in schema.sql, not yet deployed)</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <span class="badge badge-muted">roles</span>
+      <span class="badge badge-muted">users</span>
+      <span class="badge badge-muted">user_roles</span>
+      <span class="badge badge-muted">suppliers</span>
+      <span class="badge badge-muted">purchase_orders</span>
+      <span class="badge badge-muted">purchase_items</span>
+      <span class="badge badge-muted">audit_logs</span>
+      <span class="badge badge-muted">ota_tasks</span>
+      <span class="badge badge-muted">calibrations</span>
+      <span class="badge badge-muted">notifications</span>
+    </div>
+    <p style="color:var(--muted);font-size:.82rem;margin-top:10px;">
+      These tables support future features: user authentication, RBAC, supplier management, audit logging, OTA firmware updates, device calibration records, and multi-channel notifications.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — TABLE ANALYSIS                                      -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="tables">
+  <h2 class="section-title"><span class="num">3</span> Table-by-Table Analysis</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Table</th><th>Rows</th><th>Purpose</th><th>System Role</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>counting_state</strong></td>
+          <td>1</td>
+          <td>Singleton row — tracks whether the YOLO detection process is currently active</td>
+          <td>Real-time counting control (start/stop toggle)</td>
+          <td><span class="badge badge-green">Active</span></td>
+        </tr>
+        <tr>
+          <td><strong>devices</strong></td>
+          <td>0</td>
+          <td>Registry of IoT devices (Pi units with cameras) — stores identity &amp; bcrypt-hashed auth tokens</td>
+          <td>Device authentication &amp; management for multi-node deployments</td>
+          <td><span class="badge badge-orange">Empty</span></td>
+        </tr>
+        <tr>
+          <td><strong>inventory</strong></td>
+          <td>237</td>
+          <td>Core business table — logs every stock change (IN, OUT, WHOLESALE) per fish variant</td>
+          <td>Inventory tracking, dashboard analytics, sales trends</td>
+          <td><span class="badge badge-blue">★ Primary</span></td>
+        </tr>
+        <tr>
+          <td><strong>readings</strong></td>
+          <td>0</td>
+          <td>Raw telemetry — timestamped fish counts submitted by authenticated devices via API</td>
+          <td>Detection data logging, audit trail for counts</td>
+          <td><span class="badge badge-orange">Empty</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Foreign Keys -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="font-size:1rem;color:var(--accent);margin-bottom:10px;">🔗 Foreign Key Relationships</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Constraint</th><th>From Table</th><th>Column</th><th>→ References</th><th>On Delete</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code style="color:var(--green);background:var(--card);padding:2px 8px;border-radius:4px;">fk_readings_device</code></td>
+            <td>readings</td>
+            <td>device_id</td>
+            <td>devices.id</td>
+            <td><span class="badge badge-red">CASCADE</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Indexes -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="font-size:1rem;color:var(--accent);margin-bottom:10px;">📇 Indexes</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Table</th><th>Index Name</th><th>Columns</th><th>Type</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>counting_state</td><td>PRIMARY</td><td>id</td><td><span class="badge badge-green">Unique</span></td></tr>
+          <tr><td>devices</td><td>PRIMARY</td><td>id</td><td><span class="badge badge-green">Unique</span></td></tr>
+          <tr><td>devices</td><td>last_seen</td><td>last_seen</td><td><span class="badge badge-blue">Index</span></td></tr>
+          <tr><td>inventory</td><td>PRIMARY</td><td>id</td><td><span class="badge badge-green">Unique</span></td></tr>
+          <tr><td>readings</td><td>PRIMARY</td><td>id</td><td><span class="badge badge-green">Unique</span></td></tr>
+          <tr><td>readings</td><td>idx_device_time</td><td>device_id, timestamp</td><td><span class="badge badge-blue">Composite</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — DATA CONTENT                                        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="data">
+  <h2 class="section-title"><span class="num">4</span> Data Content Analysis</h2>
+
+  <!-- Stats -->
+  <div class="card-grid">
+    <div class="stat-card"><div class="value">14,700</div><div class="label">Total Fish Recorded (all actions)</div></div>
+    <div class="stat-card green"><div class="value">6,520</div><div class="label">Total IN (stock received)</div></div>
+    <div class="stat-card red"><div class="value">4,329</div><div class="label">Total OUT (sold / died)</div></div>
+    <div class="stat-card purple"><div class="value">3,851</div><div class="label">Total WHOLESALE (net)</div></div>
+  </div>
+
+  <!-- Variant Breakdown -->
+  <div class="card" style="margin-top:20px;">
+    <h3 style="color:var(--accent);margin-bottom:14px;">🐠 Net Stock by Variant</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Variant</th><th>Stock IN</th><th>Stock OUT</th><th>Wholesale IN</th><th>Wholesale OUT</th><th style="color:var(--green);">Net Stock</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>🪙 Platinum</td><td>2,552</td><td>1,811</td><td>1,500</td><td>-200</td><td style="color:var(--green);font-weight:700;">2,041</td></tr>
+          <tr><td>⬛ Black</td><td>2,093</td><td>1,336</td><td>1,500</td><td>-200</td><td style="color:var(--green);font-weight:700;">2,057</td></tr>
+          <tr><td>🍍 Pineapple</td><td>1,875</td><td>1,182</td><td>1,500</td><td>-249</td><td style="color:var(--green);font-weight:700;">1,944</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Visual bars -->
+    <div style="margin-top:20px;">
+      <h4 style="color:var(--muted);font-size:.88rem;margin-bottom:10px;">Stock Composition (IN vs OUT vs WHOLESALE)</h4>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <span class="bar-label">Platinum</span>
+          <div class="bar-track">
+            <div class="bar-fill in" style="width:46%;">IN 2,552</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"></span>
+          <div class="bar-track">
+            <div class="bar-fill out" style="width:33%;">OUT 1,811</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"></span>
+          <div class="bar-track">
+            <div class="bar-fill wholesale" style="width:27%;">WHOLESALE +1,500 / -200</div>
+          </div>
+        </div>
+        <div style="height:10px;"></div>
+        <div class="bar-row">
+          <span class="bar-label">Black</span>
+          <div class="bar-track">
+            <div class="bar-fill in" style="width:38%;">IN 2,093</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"></span>
+          <div class="bar-track">
+            <div class="bar-fill out" style="width:24%;">OUT 1,336</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"></span>
+          <div class="bar-track">
+            <div class="bar-fill wholesale" style="width:27%;">WHOLESALE +1,500 / -200</div>
+          </div>
+        </div>
+        <div style="height:10px;"></div>
+        <div class="bar-row">
+          <span class="bar-label">Pineapple</span>
+          <div class="bar-track">
+            <div class="bar-fill in" style="width:34%;">IN 1,875</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"></span>
+          <div class="bar-track">
+            <div class="bar-fill out" style="width:21%;">OUT 1,182</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"></span>
+          <div class="bar-track">
+            <div class="bar-fill wholesale" style="width:27%;">WHOLESALE +1,500 / -249</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Distribution -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--accent);margin-bottom:10px;">📊 Action Distribution</h3>
+    <div class="card-grid">
+      <div class="stat-card green"><div class="value">113</div><div class="label">IN records</div></div>
+      <div class="stat-card red"><div class="value">112</div><div class="label">OUT records</div></div>
+      <div class="stat-card purple"><div class="value">9</div><div class="label">WHOLESALE records</div></div>
+      <div class="stat-card" style="border-color:var(--muted);"><div class="value" style="color:var(--muted);">3</div><div class="label">Soft-deleted records</div></div>
+    </div>
+    <p style="color:var(--muted);font-size:.82rem;margin-top:12px;">
+      📅 Data range: <strong>January 1, 2025</strong> → <strong>April 3, 2026</strong> (15 months)
+    </p>
+  </div>
+
+  <!-- Data Origin -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--accent);margin-bottom:10px;">📝 Data Origin Patterns</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Period</th><th>Notes Pattern</th><th>Source</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Jan–Dec 2025</td><td><em>"Backfill stock-in"</em>, <em>"Backfill sold"</em>, <em>"Backfill died"</em></td><td>Migration script</td><td>Historical data imported from manual records to establish baseline</td></tr>
+          <tr><td>Mar 2026</td><td><em>"Manual stock addition: +1500 wholesale"</em></td><td>Utility script</td><td>Bulk wholesale stock loaded via <code style="color:var(--green);">backfill_wholesale_1500.py</code></td></tr>
+          <tr><td>Mar–Apr 2026</td><td><em>"Saved from React"</em>, <em>"Sold."</em>, <em>"Died."</em></td><td>React dashboard</td><td>Real-time entries via the web UI after counting fish</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Why Tables Are Empty -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--orange);margin-bottom:10px;">❓ Why Some Tables Are Empty</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Table</th><th>Rows</th><th>Reason</th><th>Category</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>devices</strong></td>
+            <td>0</td>
+            <td>Single-Pi deployment — camera &amp; server run on same device, so device registration/token auth pipeline is bypassed. Fish counts go directly to inventory via the React dashboard.</td>
+            <td><span class="badge badge-blue">By Design</span></td>
+          </tr>
+          <tr>
+            <td><strong>readings</strong></td>
+            <td>0</td>
+            <td>The <code style="color:var(--green);">/api/v1/ingest</code> endpoint requires a registered device token. Since <code style="color:var(--green);">devices</code> is empty, no device can authenticate → no readings are stored. Counts flow through in-memory <code style="color:var(--green);">RuntimeState</code> instead.</td>
+            <td><span class="badge badge-blue">By Design</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — SYSTEM WORKFLOW                                     -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="workflow">
+  <h2 class="section-title"><span class="num">5</span> System Workflow &amp; Data Flow</h2>
+
+  <!-- Current Flow -->
+  <div class="subsection"><h3>🟢 Current Flow (Single-Pi Deployment)</h3></div>
+  <div class="flow">
+    <p style="text-align:center;color:var(--muted);font-size:.82rem;margin-bottom:16px;">How data moves from camera detection to dashboard</p>
+
+    <!-- Step 1: Camera -->
+    <div class="flow-row">
+      <div class="flow-box camera">
+        📷 USB Camera<br>
+        <span style="font-size:.75rem;font-weight:400;">EMEET C60E · 1080p MJPG</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box camera">
+        🤖 YOLO v8 Detection<br>
+        <span style="font-size:.75rem;font-weight:400;">fish_counter.py · ONNX model<br>3 classes: Platinum, Black, Pineapple</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box state">
+        🔢 Virtual Line Counting<br>
+        <span style="font-size:.75rem;font-weight:400;">Centroid tracker + hysteresis<br>Top → Bottom crossing = count</span>
+      </div>
+    </div>
+
+    <!-- Step 2: to Server -->
+    <div style="text-align:center;margin:4px 0;"><div class="flow-arrow" style="display:inline-block;transform:rotate(90deg);">→</div></div>
+
+    <div class="flow-row">
+      <div class="flow-box server">
+        🖥️ Flask Server<br>
+        <span style="font-size:.75rem;font-weight:400;">HTTP POST /update_count<br>RuntimeState.fish_count updated</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box server">
+        ⚡ SocketIO Emit<br>
+        <span style="font-size:.75rem;font-weight:400;">Real-time 'count_update' event<br>Pushes to all connected clients</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ui">
+        ⚛️ React Dashboard<br>
+        <span style="font-size:.75rem;font-weight:400;">Counter component<br>Shows live fish count</span>
+      </div>
+    </div>
+
+    <!-- Step 3: Save to DB -->
+    <div style="text-align:center;margin:4px 0;"><div class="flow-arrow" style="display:inline-block;transform:rotate(90deg);">→</div></div>
+
+    <div class="flow-row">
+      <div class="flow-box ui">
+        👆 User Clicks "Save"<br>
+        <span style="font-size:.75rem;font-weight:400;">Selects variant &amp; action<br>POST /save_inventory</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box db">
+        🗄️ MariaDB: inventory<br>
+        <span style="font-size:.75rem;font-weight:400;">INSERT (count, variant, date,<br>action, notes)</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ui">
+        📊 Dashboard Analytics<br>
+        <span style="font-size:.75rem;font-weight:400;">GET /get_inventory<br>Charts, trends, stock summary</span>
+      </div>
+    </div>
+
+    <!-- counting_state -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px dashed var(--border);text-align:center;">
+      <div class="flow-box state" style="display:inline-block;">
+        🔄 counting_state (DB)<br>
+        <span style="font-size:.75rem;font-weight:400;">active=0/1 · Controls start/stop<br>PID-based crash recovery on startup</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Future Multi-Device Flow -->
+  <div class="subsection"><h3>🔮 Designed Flow (Multi-Device, Future)</h3></div>
+  <div class="flow">
+    <p style="text-align:center;color:var(--muted);font-size:.82rem;margin-bottom:16px;">Architecture for scaling to multiple camera nodes</p>
+
+    <div class="flow-row">
+      <div class="flow-box camera" style="min-width:100px;">📷 RPi #1<br><span style="font-size:.72rem;">Camera A</span></div>
+      <div class="flow-box camera" style="min-width:100px;">📷 RPi #2<br><span style="font-size:.72rem;">Camera B</span></div>
+      <div class="flow-box camera" style="min-width:100px;">📷 RPi #N<br><span style="font-size:.72rem;">Camera N</span></div>
+    </div>
+
+    <div style="text-align:center;margin:4px 0;"><div class="flow-arrow" style="display:inline-block;transform:rotate(90deg);">→</div></div>
+    <p style="text-align:center;font-size:.78rem;color:var(--accent);">Bearer Token Authentication (bcrypt verified)</p>
+    <div style="text-align:center;margin:4px 0;"><div class="flow-arrow" style="display:inline-block;transform:rotate(90deg);">→</div></div>
+
+    <div class="flow-row">
+      <div class="flow-box server">
+        🖥️ Central Flask Server<br>
+        <span style="font-size:.75rem;font-weight:400;">POST /api/v1/ingest<br>verify_device_token()</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box db">
+        🗄️ devices table<br>
+        <span style="font-size:.75rem;font-weight:400;">Auth lookup</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box db">
+        🗄️ readings table<br>
+        <span style="font-size:.75rem;font-weight:400;">Raw telemetry log</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ui">
+        📊 Dashboard<br>
+        <span style="font-size:.75rem;font-weight:400;">Multi-device view</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Usage Map -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--accent);margin-bottom:10px;">📋 Table Usage by System Function</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>System Function</th><th>Tables Used</th><th>How</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>🎯 Real-time counting</td><td><span class="badge badge-green">counting_state</span></td><td>Start/stop toggle; PID-based crash recovery</td></tr>
+          <tr><td>📦 Inventory updates</td><td><span class="badge badge-blue">inventory</span></td><td>INSERT with action IN/OUT/WHOLESALE</td></tr>
+          <tr><td>📈 Historical tracking</td><td><span class="badge badge-blue">inventory</span></td><td>Filtered queries by date, variant, action</td></tr>
+          <tr><td>📊 Dashboard analytics</td><td><span class="badge badge-blue">inventory</span></td><td>SUM, GROUP BY aggregations for charts</td></tr>
+          <tr><td>🔐 Device management</td><td><span class="badge badge-orange">devices</span></td><td>Register, lock, unlock, list (future)</td></tr>
+          <tr><td>📡 Telemetry ingestion</td><td><span class="badge badge-orange">readings</span> <span class="badge badge-orange">devices</span></td><td>Auth + raw count storage (future)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — DESIGN EVALUATION                                   -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="evaluation">
+  <h2 class="section-title"><span class="num">6</span> Database Design Evaluation</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="color:var(--green);margin-bottom:10px;">✅ Strengths</h3>
+      <ul style="list-style:none;font-size:.88rem;">
+        <li style="padding:4px 0;">✓ <strong>InnoDB engine</strong> — ACID transactions, row-level locking</li>
+        <li style="padding:4px 0;">✓ <strong>utf8mb4 charset</strong> — full Unicode support throughout</li>
+        <li style="padding:4px 0;">✓ <strong>Soft deletes</strong> — <code>inventory.deleted</code> preserves data for recovery</li>
+        <li style="padding:4px 0;">✓ <strong>Singleton pattern</strong> — <code>counting_state</code> id=1 is clean for global flags</li>
+        <li style="padding:4px 0;">✓ <strong>Composite index</strong> — <code>idx_device_time</code> on readings is optimal for time-series</li>
+        <li style="padding:4px 0;">✓ <strong>bcrypt auth</strong> — industry-standard token hashing in devices</li>
+        <li style="padding:4px 0;">✓ <strong>Lightweight runtime</strong> — only 4 tables deployed, minimal RPi overhead</li>
+        <li style="padding:4px 0;">✓ <strong>Reasonably normalized</strong> — 2NF-3NF, acceptable denormalization for variant</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--orange);margin-bottom:10px;">⚠️ Issues Found</h3>
+      <ul style="list-style:none;font-size:.88rem;">
+        <li style="padding:4px 0;">⚠ <strong>Missing index</strong> — <code>inventory (deleted, action)</code> not in live DB</li>
+        <li style="padding:4px 0;">⚠ <strong>Missing FK</strong> — runtime <code>readings</code> has no FK on <code>device_id</code></li>
+        <li style="padding:4px 0;">⚠ <strong>VARCHAR vs ENUM</strong> — <code>action</code> is VARCHAR(32), allows invalid values</li>
+        <li style="padding:4px 0;">⚠ <strong>Negative counts</strong> — wholesale deductions use <code>count = -100</code>, no CHECK constraint</li>
+        <li style="padding:4px 0;">⚠ <strong>No variant lookup</strong> — variant is free-text, typos create phantom variants</li>
+        <li style="padding:4px 0;">⚠ <strong>Schema gap</strong> — 8 planned tables not deployed (by design)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Normalization Assessment -->
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--accent);margin-bottom:10px;">📐 Normalization Assessment</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Normal Form</th><th>Status</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1NF</td>
+            <td><span class="badge badge-green">✓ Met</span></td>
+            <td>All columns are atomic, no repeating groups</td>
+          </tr>
+          <tr>
+            <td>2NF</td>
+            <td><span class="badge badge-green">✓ Met</span></td>
+            <td>No partial dependencies — all non-key attributes depend on the full primary key</td>
+          </tr>
+          <tr>
+            <td>3NF</td>
+            <td><span class="badge badge-green">✓ Mostly Met</span></td>
+            <td><code>variant</code> as inline VARCHAR vs. a lookup table is an acceptable pragmatic denormalization for a 3-variant system</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — PROBLEMS & RISKS                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="problems">
+  <h2 class="section-title"><span class="num">7</span> Problems &amp; Risks</h2>
+
+  <div class="issue critical">
+    <div class="issue-title">🔴 Duplicate Entry Risk</div>
+    <div class="issue-desc">
+      The <code>/save_inventory</code> endpoint has <strong>no idempotency check</strong>. Double-clicking "Save" or retried network requests can insert the same fish count twice.
+      <br><strong>Fix:</strong> Add a unique constraint on a request fingerprint, or implement application-level debounce with a cooldown window.
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-title">🟠 Inconsistent Count Convention</div>
+    <div class="issue-desc">
+      <code>IN</code> records use positive counts. <code>OUT</code> records use positive counts (interpreted as subtracted). But <code>WHOLESALE</code> deductions use <strong>negative counts</strong> (<code>-100</code>). This mixed-sign convention complicates aggregation queries.
+      <br><strong>Fix:</strong> Standardize all counts as positive values — let the <code>action</code> column determine the direction.
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-title">🟠 Missing Constraints</div>
+    <div class="issue-desc">
+      <ul style="margin: 6px 0 0 16px;">
+        <li>No <code>CHECK</code> on <code>inventory.count</code> to prevent zero values</li>
+        <li><code>action</code> is <code>VARCHAR(32)</code> — should be <code>ENUM('IN','OUT','WHOLESALE')</code></li>
+        <li>No unique constraint or validation on variant names</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="issue info">
+    <div class="issue-title">🔵 Stale Counting State (Mitigated)</div>
+    <div class="issue-desc">
+      If <code>fish_counter.py</code> crashes, <code>counting_state.active</code> stays <code>1</code>. However, the system already has <strong>crash recovery</strong>: <code>startup_clear_stale_state()</code> checks the PID file on boot and resets the flag. ✅ Already handled.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — OPTIMIZATION                                        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="optimization">
+  <h2 class="section-title"><span class="num">8</span> Optimization Recommendations</h2>
+
+  <div class="card">
+    <h3 style="color:var(--accent);margin-bottom:12px;">📇 Indexing Strategy</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>SQL Command</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>CREATE INDEX idx_inventory_deleted_action ON inventory (deleted, action);</code></td>
+            <td>Speeds up all dashboard queries that filter <code>WHERE deleted=0</code></td>
+          </tr>
+          <tr>
+            <td><code>CREATE INDEX idx_inventory_variant_date ON inventory (variant, date);</code></td>
+            <td>Speeds up variant-specific time-range analytics</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--accent);margin-bottom:12px;">🏗️ Schema Improvements</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Improvement</th><th>SQL</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Enforce action ENUM</td>
+            <td><code>ALTER TABLE inventory MODIFY action ENUM('IN','OUT','WHOLESALE') NOT NULL DEFAULT 'IN';</code></td>
+          </tr>
+          <tr>
+            <td>Add source tracking</td>
+            <td><code>ALTER TABLE inventory ADD COLUMN source VARCHAR(64) DEFAULT 'dashboard';</code></td>
+          </tr>
+          <tr>
+            <td>Link to camera device</td>
+            <td><code>ALTER TABLE inventory ADD COLUMN device_id VARCHAR(255) NULL;</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="color:var(--accent);margin-bottom:12px;">🍓 Raspberry Pi 5 Tuning</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>MariaDB Setting</th><th>Recommended Value</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>innodb_buffer_pool_size</code></td><td>128–256 MB</td><td>Keeps hot data in RAM, reduces SD card I/O</td></tr>
+          <tr><td><code>innodb_log_file_size</code></td><td>32–64 MB</td><td>Smaller logs save storage on SD card</td></tr>
+          <tr><td><code>innodb_flush_log_at_trx_commit</code></td><td>2</td><td>Flush once/sec instead of every commit — major write speed boost</td></tr>
+          <tr><td><code>max_connections</code></td><td>20</td><td>Single-user system — saves memory overhead</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION — DEFENSE ANSWERS                                     -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="defense">
+  <h2 class="section-title"><span class="num">9</span> Defense-Ready Explanations</h2>
+
+  <div class="defense-card">
+    <h4>❓ "Why are some tables empty?"</h4>
+    <blockquote>
+      The system was designed with a <strong>scalable multi-device architecture</strong> in mind, where multiple Raspberry Pi cameras could report to a central server. Tables like <code>devices</code> and <code>readings</code> support this multi-node deployment, including secure device authentication with bcrypt-hashed tokens and raw telemetry logging.
+      <br><br>
+      In our current thesis deployment, we use a <strong>single Raspberry Pi 5</strong> where the camera and server run on the same device. In this configuration, fish counts flow directly from the YOLO detection module into the inventory table through the web dashboard, so the device registry and raw readings pipeline are not activated.
+      <br><br>
+      These tables are <strong>structurally ready</strong> and will be populated when the system scales to multiple cameras.
+    </blockquote>
+  </div>
+
+  <div class="defense-card">
+    <h4>❓ "How does the database support the system?"</h4>
+    <blockquote>
+      The database plays three critical roles:
+      <br><br>
+      <strong>1. Real-time control</strong> — The <code>counting_state</code> table acts as a global switch that the web dashboard uses to start and stop the YOLO detection process. It includes crash recovery: if the detection process crashes, the system automatically resets this flag on restart.
+      <br><br>
+      <strong>2. Inventory management</strong> — The <code>inventory</code> table records every stock movement with the action type (IN, OUT, WHOLESALE), fish variant (Platinum, Black, Pineapple), count, date, and notes. This supports the dashboard's stock summary, sales trends, and analytics views. Soft deletes preserve data integrity.
+      <br><br>
+      <strong>3. Scalable telemetry</strong> — The <code>devices</code> and <code>readings</code> tables form a secure IoT data pipeline with bearer-token authentication and indexed time-series storage, ready for multi-camera deployment.
+    </blockquote>
+  </div>
+
+  <div class="defense-card">
+    <h4>❓ "Why was this design chosen?"</h4>
+    <blockquote>
+      We chose MariaDB on InnoDB for several reasons:
+      <br><br>
+      • <strong>ACID transactions</strong> ensure inventory counts are never partially written, even during power failures on the Raspberry Pi.
+      <br>
+      • <strong>Row-level locking</strong> allows the detection module and web dashboard to write simultaneously without blocking each other.
+      <br>
+      • <strong>Lightweight footprint</strong> — with only 4 active tables and tuned buffer settings (128 MB), the database runs efficiently within the RPi 5's resource constraints.
+      <br>
+      • <strong>Phased design</strong> — we designed the full schema with 12 tables covering users, roles, suppliers, purchase orders, OTA firmware updates, calibrations, audit logs, and notifications. We deployed only the 4 tables needed for the thesis prototype, following a pragmatic approach: <em>"build what you need now, design for what you'll need later."</em> This demonstrates system extensibility without overcomplicating the prototype.
+    </blockquote>
+  </div>
+</section>
+
+<!-- Footer -->
+<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:.78rem;border-top:1px solid var(--border);margin-top:40px;">
+  Generated from live database analysis (MariaDB 11.8.6) and source code inspection · April 4, 2026<br>
+  IoT-based Ornamental Fish Counter &amp; Inventory Management System · Thesis Documentation
+</div>
+
+</div><!-- /container -->
+
+</body>
+</html>

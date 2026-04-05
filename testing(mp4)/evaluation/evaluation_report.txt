@@ -1,0 +1,104 @@
+========================================================================
+  YOLO Model Evaluation Report — Raspberry Pi 5
+  Date: 2026-04-05 12:02:19
+  System: Raspberry Pi 5, aarch64, CPU-only
+  ONNX Runtime: 1.24.3
+  Classes: ['Black', 'Pineapple', 'Platinum']
+  Conf threshold: 0.35, IoU: 0.45
+========================================================================
+
+────────────────────────────────────────────────────────────
+  YOLOv11n_640 (640×640, 10.1 MB)
+  FPS: 5.5 | Latency: 182.6ms
+  Macro P/R/F1: 0.9894 / 0.9552 / 0.9708
+  Accuracy: 0.9900
+
+  Per-class:
+    Black: P=0.9958 R=0.8662 F1=0.9265
+    Pineapple: P=1.0000 R=0.9996 F1=0.9998
+    Platinum: P=0.9724 R=1.0000 F1=0.9860
+
+  Confusion Matrix:
+                     Black   Pineapple    Platinum
+       Black         479           0          74
+   Pineapple           2        4457           0
+    Platinum           0           0        2610
+
+  Normalized:
+                     Black   Pineapple    Platinum
+       Black      0.8662      0.0000      0.1338
+   Pineapple      0.0004      0.9996      0.0000
+    Platinum      0.0000      0.0000      1.0000
+
+────────────────────────────────────────────────────────────
+  YOLOv11n_480 (480×480, 10.0 MB)
+  FPS: 9.1 | Latency: 110.3ms
+  Macro P/R/F1: 0.9905 / 0.9540 / 0.9705
+  Accuracy: 0.9890
+
+  Per-class:
+    Black: P=1.0000 R=0.8621 F1=0.9260
+    Pineapple: P=0.9991 R=1.0000 F1=0.9995
+    Platinum: P=0.9725 R=1.0000 F1=0.9860
+
+  Confusion Matrix:
+                     Black   Pineapple    Platinum
+       Black         394           3          60
+   Pineapple           0        3167           0
+    Platinum           0           0        2118
+
+  Normalized:
+                     Black   Pineapple    Platinum
+       Black      0.8621      0.0066      0.1313
+   Pineapple      0.0000      1.0000      0.0000
+    Platinum      0.0000      0.0000      1.0000
+
+────────────────────────────────────────────────────────────
+  YOLOv11n_320 (320×320, 10.0 MB)
+  FPS: 22.0 | Latency: 45.5ms
+  Macro P/R/F1: 0.9623 / 0.8620 / 0.8986
+  Accuracy: 0.9740
+
+  Per-class:
+    Black: P=0.9444 R=0.5930 F1=0.7286
+    Pineapple: P=0.9842 R=0.9969 F1=0.9905
+    Platinum: P=0.9581 R=0.9960 F1=0.9767
+
+  Confusion Matrix:
+                     Black   Pineapple    Platinum
+       Black         153          40          65
+   Pineapple           9        2864           0
+    Platinum           0           6        1487
+
+  Normalized:
+                     Black   Pineapple    Platinum
+       Black      0.5930      0.1550      0.2519
+   Pineapple      0.0031      0.9969      0.0000
+    Platinum      0.0000      0.0040      0.9960
+
+────────────────────────────────────────────────────────────
+  YOLOv11s_640 (640×640, 36.2 MB)
+  FPS: 2.1 | Latency: 470.2ms
+  Macro P/R/F1: 0.9783 / 0.9738 / 0.9760
+  Accuracy: 0.9884
+
+  Per-class:
+    Black: P=0.9546 R=0.9364 F1=0.9454
+    Pineapple: P=0.9949 R=0.9925 F1=0.9937
+    Platinum: P=0.9853 R=0.9924 F1=0.9889
+
+  Confusion Matrix:
+                     Black   Pineapple    Platinum
+       Black         589           0          40
+   Pineapple          28        4662           7
+    Platinum           0          24        3153
+
+  Normalized:
+                     Black   Pineapple    Platinum
+       Black      0.9364      0.0000      0.0636
+   Pineapple      0.0060      0.9925      0.0015
+    Platinum      0.0000      0.0076      0.9924
+
+============================================================
+  RECOMMENDED: YOLOv11n_320
+============================================================

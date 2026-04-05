@@ -1,0 +1,141 @@
+FISH COUNTER TO RASPBERRY PI 5 (SERVER MODE)
+Date: 2026-03-03
+
+[A] PREP SA WINDOWS PC
+1) I-push muna latest code mo sa GitHub/GitLab.
+	- git add .
+	- git commit -m "ready for rpi5 deploy"
+	- git push
+
+2) Hanapin ang IP ng Raspberry Pi (hal. 192.168.1.50), then SSH:
+	- ssh <rpi_user>@<rpi_ip>
+
+
+[B] CLONE + ONE-COMMAND SETUP SA RPI 5
+1) Sa Raspberry Pi terminal:
+	- git clone <YOUR_REPO_URL> Fish-Counter
+	- cd Fish-Counter
+
+2) Optional: kung backend lang muna (walang AI + walang frontend build):
+	- INSTALL_AI=0 INSTALL_FRONTEND=0 ./scripts/setup_rpi5.sh
+
+3) Full setup (recommended kung complete stack):
+	- chmod +x scripts/setup_rpi5.sh
+	- ./scripts/setup_rpi5.sh
+
+Ano ang ginagawa ng script:
+- nag-iinstall ng system deps (python, mariadb, node)
+- gumagawa ng .venv
+- nag-iinstall Python packages
+- gumagawa ng .env
+- nagse-setup ng MariaDB database/user
+- nag-iinit ng schema
+- nagbu-build ng frontend
+
+
+[C] MANUAL CHECK AFTER SETUP
+1) Verify .env sa project root:
+	- nano .env
+
+	Dapat may values na ganito (palitan kung kailangan):
+	DB_HOST=localhost
+	DB_PORT=3306
+	DB_NAME=inventory
+	DB_USER=fishuser
+	DB_PASSWORD=fishpass
+	APP_HOST=0.0.0.0
+	APP_PORT=5000
+	APP_DEBUG=false
+
+2) Test run manually:
+	- source .venv/bin/activate
+	- python app.py
+	- or use helper script (recommended):
+	  ./scripts/run_server.sh
+
+	Stable access URL (no need to memorize changing Wi-Fi IP):
+	- http://aquaculture-fish-counter.local:5000
+
+3) Sa phone/laptop (same LAN), open:
+	- http://<rpi_ip>:5000
+
+
+[D] GAWING ALWAYS-ON SERVER (SYSTEMD)
+1) Gumawa ng service file:
+	- sudo nano /etc/systemd/system/fish-counter.service
+
+2) I-paste ito (palitan ang User at WorkingDirectory):
+
+	[Unit]
+	Description=Fish Counter Flask-SocketIO Service
+	After=network.target mariadb.service
+	Wants=mariadb.service
+
+	[Service]
+	Type=simple
+	User=pi
+	WorkingDirectory=/home/pi/Fish-Counter
+	EnvironmentFile=/home/pi/Fish-Counter/.env
+	ExecStart=/home/pi/Fish-Counter/.venv/bin/python /home/pi/Fish-Counter/app.py
+	Restart=always
+	RestartSec=3
+
+	[Install]
+	WantedBy=multi-user.target
+
+3) Enable at start service:
+	- sudo systemctl daemon-reload
+	- sudo systemctl enable fish-counter
+	- sudo systemctl start fish-counter
+
+4) Check status/logs:
+	- sudo systemctl status fish-counter
+	- journalctl -u fish-counter -f
+
+
+[E] FIREWALL / NETWORK
+Kung may UFW:
+1) sudo ufw allow 5000/tcp
+2) sudo ufw status
+
+Tip: para hindi pabago-bago ang IP ng RPi, mag-set ng DHCP reservation sa router.
+
+
+[F] UPDATE FLOW (KAPAG MAY BAGONG CODE)
+1) ssh <rpi_user>@<rpi_ip>
+2) cd Fish-Counter
+3) git pull
+4) source .venv/bin/activate
+5) pip install -r requirements.txt
+6) cd frontend && npm install && npm run build && cd ..
+7) sudo systemctl restart fish-counter
+
+
+[G] QUICK TROUBLESHOOTING
+1) Hindi maka-connect sa DB:
+	- sudo systemctl status mariadb
+	- check DB_* values sa .env
+
+2) Blank page sa frontend:
+	- cd frontend && npm run build
+	- verify may frontend/dist/index.html
+
+3) Hindi ma-access sa ibang device:
+	- confirm APP_HOST=0.0.0.0
+	- check correct IP at port 5000
+	- check firewall/router isolation settings
+
+4) AI package errors sa ARM (torch/ultralytics):
+	- gamitin muna backend-only setup:
+	  INSTALL_AI=0 INSTALL_FRONTEND=0 ./scripts/setup_rpi5.sh
+
+[H] AUTO-OPEN FIREFOX SA RPI STARTUP (INVENTORY + 67% ZOOM)
+1) Sa project root:
+	- chmod +x scripts/setup_rpi_firefox_inventory.sh
+	- APP_URL="http://$(hostname).local:5000/?tab=inventory" ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh
+
+2) Reboot or log out/log in sa desktop session.
+
+3) Siguraduhin naka-run ang backend service bago mag-autolaunch browser:
+	- sudo systemctl enable fish-counter
+	- sudo systemctl restart fish-counter
