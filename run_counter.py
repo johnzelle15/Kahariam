@@ -10,5 +10,5 @@ Environment variables:
 """
 
 if __name__ == "__main__":
-    from src.fish_counter import main
+    from vision.fish_counter import main
     main()

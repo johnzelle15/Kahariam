@@ -38,7 +38,7 @@ python3 -m pip install -r requirements.txt
 
 ```bash
 # ensure env vars set, then run Python
-python -c "from backend.db import init_db; init_db()"
+python -c "from backend.core.db import init_db; init_db()"
 ```
 
 6. Run the app

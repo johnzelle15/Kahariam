@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
 Root-level wrapper for Fish Counter application.
-Imports and runs the app from src/ directory.
+Imports and runs the app from backend/ package.
 """
 import sys
 from pathlib import Path
 
-# Add project root to path so src imports work
+# Add project root to path so package imports work
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.app import app, socketio
+from backend.app import app, socketio
 
 if __name__ == "__main__":
     import os

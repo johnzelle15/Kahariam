@@ -45,7 +45,7 @@ sudo mariadb -e "CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY 
 sudo mariadb -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';"
 sudo mariadb -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'127.0.0.1'; FLUSH PRIVILEGES;"
 
-python -c "from backend.db import init_db; init_db()"
+python -c "from backend.core.db import init_db; init_db()"
 
 if [ "$INSTALL_FRONTEND" = "1" ]; then
   cd frontend

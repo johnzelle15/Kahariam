@@ -6,12 +6,12 @@ Usage:
     python run_app.py
     
 Or with gunicorn:
-    gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 'src.app:app'
+    gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 'backend.app:app'
 """
 
 if __name__ == "__main__":
-    from src.app import app, socketio
-    from src.core.config import APP_HOST, APP_PORT, is_debug_enabled
+    from backend.app import app, socketio
+    from backend.core.config import APP_HOST, APP_PORT, is_debug_enabled
     
     print("=" * 50)
     print("FISH COUNTER - WEB APPLICATION")

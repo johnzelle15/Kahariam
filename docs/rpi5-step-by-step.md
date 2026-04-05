@@ -73,7 +73,7 @@ APP_DEBUG=false
 ## 8) Initialize schema
 
 ```bash
-python -c "from backend.db import init_db; init_db()"
+python -c "from backend.core.db import init_db; init_db()"
 ```
 
 ## 9) Install at build frontend (React)
