@@ -95,7 +95,7 @@ function FishIcon() {
   return (
     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-      className="text-emerald-400">
+      className="text-[#7cb342]">
       <path d="M6.5 12c3-6 11-6 14.5 0-3.5 6-11.5 6-14.5 0z" />
       <path d="M3 12c-1.5-2-2-4-1-5.5 2 1 3.5 2.5 4.5 5.5" />
       <path d="M3 12c-1.5 2-2 4-1 5.5 2-1 3.5-2.5 4.5-5.5" />
@@ -127,21 +127,21 @@ export default function WelcomeScreen({ onEnter }) {
   return (
     <motion.div
       className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #020617 0%, #0f172a 40%, #020617 100%)' }}
+      style={{ background: 'linear-gradient(135deg, #0a0f0a 0%, #161c16 40%, #0a0f0a 100%)' }}
       exit={{ opacity: 0, scale: 0.97, filter: 'blur(8px)' }}
       transition={{ duration: 0.6, ease }}
     >
       {/* ── Ambient lighting orbs ── */}
-      <Orb color="rgba(52, 211, 153, 0.15)" size="500px" x="-10%" y="-15%" delay={0} />
-      <Orb color="rgba(96, 165, 250, 0.12)"  size="450px" x="60%"  y="55%"  delay={2} />
-      <Orb color="rgba(167, 139, 250, 0.10)" size="350px" x="70%"  y="-10%" delay={4} />
+      <Orb color="rgba(124, 179, 66, 0.15)" size="500px" x="-10%" y="-15%" delay={0} />
+      <Orb color="rgba(111, 179, 172, 0.12)" size="450px" x="60%"  y="55%"  delay={2} />
+      <Orb color="rgba(224, 162, 79, 0.10)"  size="350px" x="70%"  y="-10%" delay={4} />
 
       {/* ── Particles ── */}
       <Particles count={25} />
 
       {/* ── Radial vignette overlay ── */}
       <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(2,6,23,0.7) 100%)' }} />
+        style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(10,14,10,0.7) 100%)' }} />
 
       {/* ── Glass card ── */}
       <motion.div
@@ -162,7 +162,7 @@ export default function WelcomeScreen({ onEnter }) {
           <div
             className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-40 pointer-events-none"
             style={{
-              background: 'radial-gradient(ellipse, rgba(52,211,153,0.12) 0%, transparent 70%)',
+              background: 'radial-gradient(ellipse, rgba(124,179,66,0.12) 0%, transparent 70%)',
               filter: 'blur(40px)',
             }}
           />
@@ -178,8 +178,8 @@ export default function WelcomeScreen({ onEnter }) {
             >
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center border border-white/[0.08]"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(52,211,153,0.1), rgba(96,165,250,0.08))',
-                  boxShadow: '0 0 40px rgba(52,211,153,0.08)',
+                  background: 'linear-gradient(135deg, rgba(124,179,66,0.1), rgba(111,179,172,0.08))',
+                  boxShadow: '0 0 40px rgba(124,179,66,0.08)',
                 }}>
                 <FishIcon />
               </div>
@@ -191,7 +191,7 @@ export default function WelcomeScreen({ onEnter }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease, delay: 0.45 }}
               className="text-xs font-medium tracking-[0.25em] uppercase mb-3"
-              style={{ color: 'rgba(52, 211, 153, 0.8)' }}
+              style={{ color: 'rgba(124, 179, 66, 0.8)' }}
             >
               Welcome back
             </motion.p>
@@ -202,11 +202,11 @@ export default function WelcomeScreen({ onEnter }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, ease, delay: 0.55 }}
               className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2"
-              style={{ color: '#e8ecf2' }}
+              style={{ color: '#edefe9' }}
             >
-              Aquaculture
+              Kahariam Farms
               <span className="block text-transparent bg-clip-text"
-                style={{ backgroundImage: 'linear-gradient(135deg, #34d399, #60a5fa, #a78bfa)' }}>
+                style={{ backgroundImage: 'linear-gradient(135deg, #7cb342, #6fb3ac, #e0a24f)' }}>
                 Dashboard
               </span>
             </motion.h1>
@@ -217,7 +217,7 @@ export default function WelcomeScreen({ onEnter }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease, delay: 0.7 }}
               className="text-sm mb-6"
-              style={{ color: '#5a6478' }}
+              style={{ color: '#8fa089' }}
             >
               Smart insights for smarter farming
             </motion.p>
@@ -241,12 +241,12 @@ export default function WelcomeScreen({ onEnter }) {
             >
               <motion.span
                 className="w-1.5 h-1.5 rounded-full"
-                style={{ background: ready ? '#34d399' : '#fbbf24' }}
+                style={{ background: ready ? '#7cb342' : '#e0a24f' }}
                 animate={ready ? {} : { opacity: [1, 0.4, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
               />
               <span className="text-[11px] font-medium tracking-wide"
-                style={{ color: ready ? '#34d399' : '#5a6478' }}>
+                style={{ color: ready ? '#7cb342' : '#8fa089' }}>
                 {statusText}
               </span>
             </motion.div>
@@ -256,19 +256,19 @@ export default function WelcomeScreen({ onEnter }) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: ready ? 1 : 0.3, y: 0 }}
               transition={{ duration: 0.6, ease, delay: 0.95 }}
-              whileHover={ready ? { scale: 1.04, boxShadow: '0 0 40px rgba(52,211,153,0.3), 0 8px 32px rgba(0,0,0,0.3)' } : {}}
+              whileHover={ready ? { scale: 1.04, boxShadow: '0 0 40px rgba(124,179,66,0.3), 0 8px 32px rgba(0,0,0,0.3)' } : {}}
               whileTap={ready ? { scale: 0.97 } : {}}
               disabled={!ready}
               onClick={onEnter}
               className="relative px-8 py-3 rounded-xl font-semibold text-sm text-white overflow-hidden transition-all duration-300 disabled:cursor-not-allowed"
               style={{
                 background: ready
-                  ? 'linear-gradient(135deg, #059669, #34d399)'
-                  : 'linear-gradient(135deg, rgba(5,150,105,0.3), rgba(52,211,153,0.2))',
+                  ? 'linear-gradient(135deg, #4c7a3d, #7cb342)'
+                  : 'linear-gradient(135deg, rgba(76,122,61,0.3), rgba(124,179,66,0.2))',
                 boxShadow: ready
-                  ? '0 0 24px rgba(52,211,153,0.2), 0 4px 16px rgba(0,0,0,0.25)'
+                  ? '0 0 24px rgba(124,179,66,0.2), 0 4px 16px rgba(0,0,0,0.25)'
                   : 'none',
-                border: '1px solid rgba(52,211,153,0.2)',
+                border: '1px solid rgba(124,179,66,0.2)',
               }}
             >
               {/* Button shimmer */}
@@ -289,9 +289,9 @@ export default function WelcomeScreen({ onEnter }) {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 1.2 }}
               className="mt-6 text-[10px] font-medium tracking-wider"
-              style={{ color: '#3a4258' }}
+              style={{ color: '#4a5449' }}
             >
-              POWERED BY AQUACULTURE INTELLIGENCE
+              KAHARIAM FARMS · FISH MANAGEMENT
             </motion.p>
           </div>
         </div>
