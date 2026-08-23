@@ -23,7 +23,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         aria-modal="true"
         aria-labelledby="modal-title"
         className={clsx(
-          'w-full rounded-2xl border bg-[var(--bg-secondary)] border-[var(--glass-border)] p-6 shadow-xl',
+          'w-full rounded-2xl border bg-dark-800 border-[var(--glass-border)] p-6 shadow-xl',
           size === 'sm' && 'max-w-sm',
           size === 'md' && 'max-w-md',
           size === 'lg' && 'max-w-lg'
