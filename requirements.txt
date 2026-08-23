@@ -17,6 +17,7 @@ simple-websocket
 mariadb
 pymysql
 bcrypt
+PyJWT
 
 # =====================
 # Config and HTTP client

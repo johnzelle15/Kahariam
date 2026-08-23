@@ -69,6 +69,7 @@ from ultralytics import YOLO
 
 from backend.core.config import INGEST_URL, LEGACY_UPDATE_COUNT_URL
 from vision.tracker import CentroidTracker, TrackedObject
+from vision.kalman_tracker import KalmanSortTracker
 
 # Class names must match the model's training order (alphabetical: 0=black, 1=pineapple, 2=platinum)
 CLASS_NAMES = ['Black', 'Pineapple', 'Platinum']
@@ -128,8 +129,8 @@ CAMERA_ID = env_int('CAMERA_ID', 0, minimum=0)
 CAMERA_FPS = env_int('CAMERA_FPS', 60, minimum=5, maximum=120)
 CAMERA_FORCE_FPS_LOCK = env_bool('CAMERA_FORCE_FPS_LOCK', False)
 LINE_POSITION = env_int('LINE_POSITION', 200, minimum=0)
-CONFIDENCE_THRESHOLD = env_float('CONFIDENCE_THRESHOLD', 0.25, minimum=0.01, maximum=0.95)
-TRACK_IOU_THRESHOLD = env_float('TRACK_IOU_THRESHOLD', 0.50, minimum=0.05, maximum=0.95)
+CONFIDENCE_THRESHOLD = env_float('CONFIDENCE_THRESHOLD', 0.50, minimum=0.01, maximum=0.95)
+TRACK_IOU_THRESHOLD = env_float('TRACK_IOU_THRESHOLD', 0.45, minimum=0.05, maximum=0.95)
 FPS_TARGET = env_int('FPS_TARGET', 60, minimum=5, maximum=120)
 FRAME_DELAY = int(1000 / FPS_TARGET)
 FRAME_SKIP = env_int('FRAME_SKIP', 1, minimum=1, maximum=6)
@@ -143,8 +144,17 @@ INPUT_SIZE = env_int('INPUT_SIZE', 480, minimum=320, maximum=960)
 CAPTURE_WIDTH = env_int('CAPTURE_WIDTH', 640, minimum=320, maximum=1920)
 CAPTURE_HEIGHT = env_int('CAPTURE_HEIGHT', 360, minimum=240, maximum=1080)
 ROI_BAND_HEIGHT = env_int('ROI_BAND_HEIGHT', 200, minimum=40)
-LINE_HYSTERESIS_PX = env_int('LINE_HYSTERESIS_PX', 48, minimum=4)
-MIN_CROSSING_FRAMES = env_int('MIN_CROSSING_FRAMES', 8, minimum=1, maximum=120)
+LINE_HYSTERESIS_PX = env_int('LINE_HYSTERESIS_PX', 60, minimum=4)
+MIN_CROSSING_FRAMES = env_int('MIN_CROSSING_FRAMES', 12, minimum=1, maximum=120)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Classification Filtering
+# ─────────────────────────────────────────────────────────────────────────────
+# Minimum confidence to trust the class label.  Detections with confidence
+# below this threshold are kept for tracking but their class_id is set to
+# the dominant class in their recent history, reducing false positives from
+# low-confidence mis-classifications (e.g. Black fish labelled as Pineapple).
+CLASS_CONF_THRESHOLD = env_float('CLASS_CONF_THRESHOLD', 0.55, minimum=0.0, maximum=1.0)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # USB Camera Configuration (for USB webcams like EMEET C60E)
@@ -194,7 +204,7 @@ CSI_AWB_LOCK_DELAY = env_float('CSI_AWB_LOCK_DELAY', 2.0, minimum=0.5, maximum=1
 CSI_SATURATION = env_float('CSI_SATURATION', 1.0, minimum=0.0, maximum=4.0)
 
 FRAME_ROTATE = env_int('FRAME_ROTATE', 0, minimum=0, maximum=270)
-LINE_POSITION_PERCENT = env_float('LINE_POSITION_PERCENT', 58.0, minimum=-1.0, maximum=100.0)
+LINE_POSITION_PERCENT = env_float('LINE_POSITION_PERCENT', 85.0, minimum=-1.0, maximum=100.0)
 PREVIEW_SCALE = env_float('PREVIEW_SCALE', 1.0, minimum=0.2, maximum=1.0)
 PREVIEW_MAX_WIDTH = env_int('PREVIEW_MAX_WIDTH', 0, minimum=0, maximum=3840)
 PREVIEW_MAX_HEIGHT = env_int('PREVIEW_MAX_HEIGHT', 0, minimum=0, maximum=2160)
@@ -204,13 +214,22 @@ PREVIEW_MAX_HEIGHT = env_int('PREVIEW_MAX_HEIGHT', 0, minimum=0, maximum=2160)
 # ─────────────────────────────────────────────────────────────────────────────
 # Controls for the centroid tracker that provides stable object tracking
 
-TRACKER_MAX_DISAPPEARED = env_int('TRACKER_MAX_DISAPPEARED', 3, minimum=1, maximum=60)
-TRACKER_MAX_DISTANCE = env_float('TRACKER_MAX_DISTANCE', 100.0, minimum=20.0, maximum=300.0)
-TRACKER_EMA_ALPHA = env_float('TRACKER_EMA_ALPHA', 1.0, minimum=0.1, maximum=1.0)
-MIN_TRACK_AGE_FOR_COUNT = env_int('MIN_TRACK_AGE_FOR_COUNT', 3, minimum=1, maximum=20)
+TRACKER_MAX_DISAPPEARED = env_int('TRACKER_MAX_DISAPPEARED', 5, minimum=1, maximum=60)
+TRACKER_MAX_DISTANCE = env_float('TRACKER_MAX_DISTANCE', 80.0, minimum=20.0, maximum=300.0)
+TRACKER_EMA_ALPHA = env_float('TRACKER_EMA_ALPHA', 0.6, minimum=0.1, maximum=1.0)
+MIN_TRACK_AGE_FOR_COUNT = env_int('MIN_TRACK_AGE_FOR_COUNT', 5, minimum=1, maximum=20)
 
 # Enable/disable YOLO's built-in tracker (falls back to centroid tracker if disabled)
 USE_YOLO_TRACKER = env_bool('USE_YOLO_TRACKER', True)
+
+# ─── Kalman / SORT Tracker ───────────────────────────────────────────────────
+# Set USE_KALMAN_TRACKER=true to use the SORT-style Kalman filter tracker
+# instead of the legacy centroid tracker. Provides motion prediction,
+# IoU-based matching, and better handling of fast-moving fish.
+USE_KALMAN_TRACKER = env_bool('USE_KALMAN_TRACKER', True)
+KALMAN_MAX_AGE = env_int('KALMAN_MAX_AGE', 20, minimum=1, maximum=60)
+KALMAN_MIN_HITS = env_int('KALMAN_MIN_HITS', 3, minimum=1, maximum=10)
+KALMAN_IOU_THRESHOLD = env_float('KALMAN_IOU_THRESHOLD', 0.20, minimum=0.05, maximum=0.90)
 
 # Bidirectional counting: 'down' = top-to-bottom, 'up' = bottom-to-top, 'both' = count both
 COUNTING_DIRECTION = os.environ.get('COUNTING_DIRECTION', 'down').strip().lower()
@@ -814,8 +833,17 @@ def draw_counting_zones(
     upper = max(0, line_y - hysteresis // 2)
     lower = min(frame.shape[0] - 1, line_y + hysteresis // 2)
     
-    # Draw main counting line only (solid, thicker)
-    cv2.line(frame, (0, line_y), (frame_w, line_y), COLOR_LINE, 4)
+    # Draw semi-transparent hysteresis band
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, upper), (frame_w, lower), COLOR_LINE_ZONE, -1)
+    cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
+    
+    # Draw main counting line (solid, thick, bright red)
+    cv2.line(frame, (0, line_y), (frame_w, line_y), (0, 0, 255), 3)
+    
+    # Draw hysteresis boundaries (thin dashed-style lines)
+    cv2.line(frame, (0, upper), (frame_w, upper), COLOR_LINE_ZONE, 1)
+    cv2.line(frame, (0, lower), (frame_w, lower), COLOR_LINE_ZONE, 1)
 
 
 def draw_tracked_object(
@@ -997,15 +1025,26 @@ def run_counter(post_count) -> None:
     # ─────────────────────────────────────────────────────────────────────────
     # Initialize Tracker
     # ─────────────────────────────────────────────────────────────────────────
-    # CentroidTracker provides smooth tracking with EMA smoothing
-    # and handles ID persistence across frames
-    
-    tracker = CentroidTracker(
-        max_disappeared=TRACKER_MAX_DISAPPEARED,
-        max_distance=TRACKER_MAX_DISTANCE,
-        ema_alpha=TRACKER_EMA_ALPHA,
-    )
-    tracker.MIN_TRACK_AGE_FOR_COUNT = MIN_TRACK_AGE_FOR_COUNT
+    if USE_KALMAN_TRACKER:
+        # SORT-style Kalman filter tracker — predicts fish positions
+        # across detection gaps for better accuracy with fast-moving fish
+        tracker = KalmanSortTracker(
+            max_age=KALMAN_MAX_AGE,
+            min_hits=KALMAN_MIN_HITS,
+            iou_threshold=KALMAN_IOU_THRESHOLD,
+        )
+        tracker.MIN_TRACK_AGE_FOR_COUNT = MIN_TRACK_AGE_FOR_COUNT
+        print(f"[INFO] Tracker: KalmanSORT (max_age={KALMAN_MAX_AGE}, "
+              f"min_hits={KALMAN_MIN_HITS}, iou={KALMAN_IOU_THRESHOLD})")
+    else:
+        # Legacy centroid tracker with EMA smoothing
+        tracker = CentroidTracker(
+            max_disappeared=TRACKER_MAX_DISAPPEARED,
+            max_distance=TRACKER_MAX_DISTANCE,
+            ema_alpha=TRACKER_EMA_ALPHA,
+        )
+        tracker.MIN_TRACK_AGE_FOR_COUNT = MIN_TRACK_AGE_FOR_COUNT
+        print(f"[INFO] Tracker: CentroidTracker (legacy)")
 
     # ─────────────────────────────────────────────────────────────────────────
     # State Variables
@@ -1075,6 +1114,11 @@ def run_counter(post_count) -> None:
         current_skip = adaptive_skip if ADAPTIVE_FRAME_SKIP else FRAME_SKIP
         skip_detection = (current_skip > 1) and (frame_index % current_skip != 0)
 
+        if skip_detection and USE_KALMAN_TRACKER:
+            # Kalman tracker: predict positions forward even on skipped frames
+            # so zone updates remain accurate and fish can be counted mid-skip
+            tracker.predict_only()
+
         if not skip_detection:
             # ─────────────────────────────────────────────────────────────────
             # Run Detection
@@ -1133,12 +1177,29 @@ def run_counter(post_count) -> None:
                         detections.append(((x1, y1, x2, y2), float(conf), int(cls)))
 
             # ─────────────────────────────────────────────────────────────────
-            # Update Centroid Tracker
+            # Low-Confidence Class Filtering
             # ─────────────────────────────────────────────────────────────────
-            # The centroid tracker provides:
-            # - Smooth position updates via EMA
+            # Detections below CLASS_CONF_THRESHOLD are unreliable for
+            # classification (e.g. dark Black fish misclassified as
+            # Pineapple at low confidence).  We keep the detection for
+            # tracking but flag its class_id as -1 so the tracker can
+            # fall back to the dominant class from the track's history.
+            if CLASS_CONF_THRESHOLD > 0:
+                filtered = []
+                for bbox, conf, cls_id in detections:
+                    if conf < CLASS_CONF_THRESHOLD:
+                        cls_id = -1  # unreliable class — tracker will resolve
+                    filtered.append((bbox, conf, cls_id))
+                detections = filtered
+
+            # ─────────────────────────────────────────────────────────────────
+            # Update Tracker
+            # ─────────────────────────────────────────────────────────────────
+            # The tracker provides:
+            # - Smooth position updates via EMA / Kalman prediction
             # - Consistent ID assignment across frames
             # - Detection flickering suppression
+            # - Class stabilization from confidence history
             
             tracker.update(detections)
             last_detection_count = len(detections)

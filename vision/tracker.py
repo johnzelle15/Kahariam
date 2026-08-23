@@ -369,7 +369,7 @@ class CentroidTracker:
             obj.centroid = smoothed
             obj.bbox = input_bboxes[col]
             obj.confidence = input_confs[col]
-            obj.class_id = input_classes[col]
+            obj.class_id = input_classes[col] if input_classes[col] >= 0 else obj.class_id
             obj.disappeared = 0
             obj.age += 1
             

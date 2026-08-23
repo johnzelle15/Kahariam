@@ -1,43 +1,45 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import logoImg from '../assets/logo.png'
 import {
   LayoutDashboard,
   ScanLine,
   Package,
   Settings2,
+  Settings,
   ChevronLeft,
   ChevronRight,
-  Fish,
   X,
   Sun,
   Moon,
-  Droplets,
+  LogOut,
 } from 'lucide-react'
 import useThemeStore, { THEMES } from '../store/themeStore'
+import useAuthStore from '../store/authStore'
 
-const NAV_ITEMS = [
-  { id: 'dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'View analytics & KPIs' },
-  { id: 'counter',     label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting' },
-  { id: 'inventory',   label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records' },
-  { id: 'adjustments', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments' },
+const ALL_NAV_ITEMS = [
+  { id: 'dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'View analytics & KPIs',      adminOnly: true },
+  { id: 'counter',     label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',          adminOnly: false },
+  { id: 'inventory',   label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',        adminOnly: true },
+  { id: 'adjustments', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments',  adminOnly: true },
+  { id: 'settings',    label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',   adminOnly: false },
 ]
 
-const THEME_ICONS = { dark: Moon, light: Sun, aqua: Droplets }
+const THEME_ICONS = { dark: Moon, light: Sun }
 
 function ThemeSwitcher({ collapsed }) {
   const { theme, setTheme } = useThemeStore()
 
   if (collapsed) {
-    // Cycle through themes on click when collapsed
-    const order = ['dark', 'light', 'aqua']
-    const next = order[(order.indexOf(theme) + 1) % order.length]
+    const next = theme === 'dark' ? 'light' : 'dark'
     const Icon = THEME_ICONS[theme]
     return (
       <button
         onClick={() => setTheme(next)}
-        className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer"
+        className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer tap-feedback"
         style={{ color: 'var(--text-muted)', background: 'var(--btn-secondary-bg)' }}
         title={`Theme: ${THEMES[theme].label} — click to switch`}
+        aria-label={`Switch to ${THEMES[next].label} theme`}
       >
         <Icon className="w-4 h-4" />
       </button>
@@ -61,15 +63,52 @@ function ThemeSwitcher({ collapsed }) {
   )
 }
 
+function LogoutButton({ collapsed }) {
+  const logout = useAuthStore(s => s.logout)
+  const user = useAuthStore(s => s.user)
+
+  if (collapsed) {
+    return (
+      <button
+        onClick={logout}
+        className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer"
+        style={{ color: 'var(--accent-red)', background: 'transparent' }}
+        title="Sign out"
+        aria-label="Sign out"
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      >
+        <LogOut className="w-4 h-4" />
+      </button>
+    )
+  }
+
+  return (
+    <button
+      onClick={logout}
+      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors duration-150 border-none cursor-pointer text-xs font-medium"
+      style={{ color: 'var(--text-muted)', background: 'transparent' }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+    >
+      <LogOut className="w-3.5 h-3.5" />
+      <span className="truncate">{user?.username ? `Sign out (${user.username})` : 'Sign out'}</span>
+    </button>
+  )
+}
+
 export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, onMobileClose }) {
+  const user = useAuthStore(s => s.user)
+  const isAdmin = user?.role === 'admin'
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => isAdmin || !item.adminOnly)
+
   const navContent = (isMobile) => (
     <>
       {/* Logo */}
       <div className={`flex items-center gap-3 px-5 py-6 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-blue))' }}>
-          <Fish className="w-5 h-5 text-white" />
+        <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden">
+          <img src={logoImg} alt="Aquaculture Logo" className="w-full h-full object-cover" />
         </div>
         {(isMobile || !collapsed) && (
           <div className="overflow-hidden flex-1">
@@ -105,7 +144,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
               aria-current={isActive ? 'page' : undefined}
               className={`
                 group relative flex items-center gap-3 rounded-xl
-                transition-all duration-200 border-none cursor-pointer
+                transition-all duration-200 border-none cursor-pointer tap-feedback
                 ${!isMobile && collapsed ? 'justify-center p-3' : 'px-4 py-3'}
               `}
               style={{
@@ -172,6 +211,11 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
         <div className="pt-3">
           <ThemeSwitcher collapsed={!isMobile && collapsed} />
         </div>
+      </div>
+
+      {/* Logout */}
+      <div className="px-3 pb-1">
+        <LogoutButton collapsed={!isMobile && collapsed} />
       </div>
 
       {/* Collapse toggle (desktop only) */}

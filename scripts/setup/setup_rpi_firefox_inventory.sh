@@ -20,7 +20,7 @@ resolve_local_hostname() {
 }
 
 APP_HOST="${APP_HOST:-$(resolve_local_hostname)}"
-APP_URL="${APP_URL:-http://${APP_HOST}:5000/?tab=inventory}"
+APP_URL="${APP_URL:-http://${APP_HOST}:5000/?tab=dashboard}"
 ZOOM_PERCENT="${ZOOM_PERCENT:-67}"
 INSTALL_PACKAGES="${INSTALL_PACKAGES:-1}"
 PROFILE_NAME="${PROFILE_NAME:-fish-counter-profile}"
@@ -37,7 +37,7 @@ fi
 
 if [ "$EUID" -eq 0 ]; then
   echo "Run this as your desktop user (not root)."
-  echo "Example: APP_URL=http://$(resolve_local_hostname):5000/?tab=inventory ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh"
+  echo "Example: APP_URL=http://$(resolve_local_hostname):5000/?tab=dashboard ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh"
   exit 1
 fi
 

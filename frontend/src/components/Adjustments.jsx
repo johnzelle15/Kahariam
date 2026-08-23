@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
 
-const REASONS = ['Sold', 'Died']
+const REASONS_RETAIL = ['Sold', 'Died']
+const REASONS_WHOLESALE = ['Sold']
 const VARIANTS = ['Black', 'Platinum', 'Pineapple']
-const PER_PAGE_OPTIONS = [10, 20, 50]
+const PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -51,7 +52,7 @@ export default function Adjustments() {
   const [records, setRecords] = useState([])
   const [historyVariant, setHistoryVariant] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
+  const [perPage, setPerPage] = useState(5)
   const [totalPages, setTotalPages] = useState(1)
   const [totalRecords, setTotalRecords] = useState(0)
 
@@ -82,12 +83,13 @@ export default function Adjustments() {
       if (searchStartDate) params.set('start_date', searchStartDate)
       if (searchEndDate) params.set('end_date', searchEndDate)
       const res = await axios.get(`/get_adjustments?${params}`)
+      const outOnly = items => items.filter(r => getDirection(r) === 'OUT')
       if (res.data && res.data.items) {
-        setRecords(res.data.items)
+        setRecords(outOnly(res.data.items))
         setTotalPages(res.data.pages || 1)
         setTotalRecords(res.data.total || 0)
       } else {
-        const arr = Array.isArray(res.data) ? res.data : []
+        const arr = outOnly(Array.isArray(res.data) ? res.data : [])
         setRecords(arr)
         setTotalPages(1)
         setTotalRecords(arr.length)
@@ -192,9 +194,14 @@ export default function Adjustments() {
     return VARIANTS.filter(v => !usedVariants.includes(v))
   }
 
+  const WHOLESALE_MIN = 300
+
   function batchTotal() {
     return batchItems.reduce((sum, item) => sum + (item.count || 0), 0)
   }
+
+  // Wholesale-only: true when source is wholesale, reason is Sold, and total < minimum
+  const wholesaleMinNotMet = source === 'wholesale' && reason === 'Sold' && batchTotal() < WHOLESALE_MIN
 
   async function submitAdjustment() {
     setFormError('')
@@ -211,6 +218,12 @@ export default function Adjustments() {
     const variants = validItems.map(i => i.variant)
     if (new Set(variants).size !== variants.length) {
       setFormError('Duplicate variants found. Each variant can only appear once.')
+      return
+    }
+
+    // Wholesale minimum order validation (only for Sold, not Died)
+    if (source === 'wholesale' && reason === 'Sold' && batchTotal() < WHOLESALE_MIN) {
+      setFormError(`Minimum wholesale amount is ${WHOLESALE_MIN} fish to submit an adjustment note.`)
       return
     }
 
@@ -256,6 +269,9 @@ export default function Adjustments() {
   }
 
   function getDirection(entry) {
+    const tx = (entry?.transaction_type || '').toUpperCase()
+    if (tx === 'WHOLESALE_SOLD' || tx === 'SOLD') return 'OUT'
+    if (tx === 'TANK_IN' || tx === 'WHOLESALE_IN') return 'IN'
     const action = (entry?.action || '').toUpperCase()
     if (action === 'IN') return 'IN'
     if (action === 'OUT') return 'OUT'
@@ -269,9 +285,10 @@ export default function Adjustments() {
   }
 
   function getReason(entry) {
+    const tx = (entry?.transaction_type || '').toUpperCase()
     const n = (entry?.notes || '').toLowerCase()
-    if (n.startsWith('died')) return 'Died'
-    if (n.startsWith('sold')) return 'Sold'
+    if (tx === 'DIED' || n.startsWith('died')) return 'Died'
+    if (tx === 'SOLD' || n.startsWith('sold')) return 'Sold'
     return null
   }
 
@@ -312,13 +329,13 @@ export default function Adjustments() {
 
         {/* Source Toggle */}
         <div className="flex gap-2 mb-5">
-          <button onClick={() => setSource('wholesale')}
+          <button onClick={() => { setSource('wholesale'); setReason('Sold'); setFormError('') }}
             className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
               source === 'wholesale'
                 ? 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-lg shadow-accent-purple/20'
                 : 'bg-white/5 text-text-muted hover:bg-white/10'
             }`}>Wholesale Storage</button>
-          <button onClick={() => setSource('tank')}
+          <button onClick={() => { setSource('tank'); setFormError('') }}
             className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
               source === 'tank'
                 ? 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-lg shadow-accent-purple/20'
@@ -385,10 +402,18 @@ export default function Adjustments() {
           )}
 
           {batchItems.filter(i => i.variant && i.count > 0).length > 0 && (
-            <p className="text-xs text-text-muted">
-              Total: <span className="font-bold text-text-primary">{batchTotal()}</span> fish across{' '}
-              <span className="font-bold text-text-primary">{batchItems.filter(i => i.variant && i.count > 0).length}</span> variant(s)
-            </p>
+            <div className="space-y-1.5">
+              <p className="text-xs text-text-muted">
+                Total: <span className="font-bold text-text-primary">{batchTotal()}</span> fish across{' '}
+                <span className="font-bold text-text-primary">{batchItems.filter(i => i.variant && i.count > 0).length}</span> variant(s)
+              </p>
+              {wholesaleMinNotMet && (
+                <p className="text-xs font-semibold text-accent-red flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  Minimum wholesale order is {WHOLESALE_MIN} fish. ({WHOLESALE_MIN - batchTotal()} more needed)
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -397,7 +422,7 @@ export default function Adjustments() {
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Reason</label>
             <select value={reason} onChange={e => setReason(e.target.value)} className="neu-input">
-              {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+              {(source === 'wholesale' ? REASONS_WHOLESALE : REASONS_RETAIL).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-2 sm:col-span-1">
@@ -421,8 +446,9 @@ export default function Adjustments() {
         )}
 
         <div className="flex justify-center">
-          <button onClick={submitAdjustment} disabled={submitting}
-            className={`glow-btn flex items-center gap-2 ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+          <button onClick={submitAdjustment} disabled={submitting || wholesaleMinNotMet}
+            className={`glow-btn flex items-center gap-2 ${(submitting || wholesaleMinNotMet) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}>
             <Send className="w-4 h-4" /> {submitting ? 'Submitting...' : 'Submit Adjustment'}
           </button>
         </div>
@@ -538,6 +564,7 @@ export default function Adjustments() {
               const dir = getDirection(r)
               const displayCount = Math.abs(Number(r.count) || 0)
               const isOut = dir === 'OUT'
+              const isWholesaleSold = (r?.transaction_type || '').toUpperCase() === 'WHOLESALE_SOLD'
               const reasonTag = getReason(r)
               const isDied = reasonTag === 'Died'
               return (
@@ -578,7 +605,7 @@ export default function Adjustments() {
                         )}
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
                           ${isOut ? 'bg-accent-red/20 text-accent-red' : 'bg-accent-green/20 text-accent-green'}`}>
-                          {isOut ? 'OUT' : 'IN'}
+                          {isWholesaleSold ? 'WHOLESALE SOLD' : isOut ? 'OUT' : 'IN'}
                         </span>
                       </div>
                       <p className="text-xs text-text-muted mt-1">{searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}</p>

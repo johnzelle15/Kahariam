@@ -619,6 +619,25 @@ label {
 .adjust-card-stock { color: var(--accent-blue) !important; }
 .adjust-card-stock-label { color: var(--text-muted) !important; }
 
+.adjust-stock-summary {
+  background: linear-gradient(135deg, rgba(0, 188, 212, 0.1) 0%, rgba(0, 150, 170, 0.05) 100%) !important;
+  border-color: rgba(0, 188, 212, 0.2) !important;
+}
+
+.adjust-stock-summary-total {
+  border-right-color: rgba(0, 188, 212, 0.2) !important;
+}
+
+.adjust-stock-summary-label {
+  color: var(--text-muted) !important;
+}
+
+.adjust-stock-chip {
+  background: var(--glass) !important;
+  border-color: var(--glass-border) !important;
+  color: var(--text-secondary) !important;
+}
+
 .adjust-reason-card {
   background: var(--glass) !important;
   border: 1px solid var(--glass-border) !important;

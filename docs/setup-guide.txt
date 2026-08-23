@@ -132,7 +132,7 @@ Tip: para hindi pabago-bago ang IP ng RPi, mag-set ng DHCP reservation sa router
 [H] AUTO-OPEN FIREFOX SA RPI STARTUP (INVENTORY + 67% ZOOM)
 1) Sa project root:
 	- chmod +x scripts/setup_rpi_firefox_inventory.sh
-	- APP_URL="http://$(hostname).local:5000/?tab=inventory" ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh
+	- APP_URL="http://$(hostname).local:5000/?tab=dashboard" ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh
 
 2) Reboot or log out/log in sa desktop session.
 

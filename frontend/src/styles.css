@@ -113,59 +113,6 @@
   --btn-secondary-hover: rgba(0, 0, 0, 0.06);
 }
 
-/* ── Aqua Theme ── */
-.theme-aqua {
-  --bg-primary: 10 16 28;
-  --bg-secondary: 13 21 38;
-  --bg-tertiary: 20 32 52;
-  --bg-elevated: 30 45 68;
-
-  --glass-bg: rgba(56, 189, 210, 0.035);
-  --glass-bg-hover: rgba(56, 189, 210, 0.06);
-  --glass-border: rgba(56, 189, 210, 0.07);
-  --glass-border-hover: rgba(56, 189, 210, 0.12);
-
-  --text-primary: #d0e8ec;
-  --text-secondary: #7ba8b0;
-  --text-muted: #506e78;
-
-  --accent-purple: #5eaab8;
-  --accent-blue: #4a9ed8;
-  --accent-cyan: #6ecfdf;
-  --accent-green: #48c9a8;
-  --accent-red: #ef7b7b;
-  --accent-amber: #f0c060;
-
-  --input-bg: rgba(13, 21, 38, 0.88);
-  --input-border: rgba(56, 189, 210, 0.08);
-  --input-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.3), inset -1px -1px 2px rgba(56, 189, 210, 0.02);
-  --input-focus-shadow: 0 0 0 3px rgba(94, 170, 184, 0.12);
-
-  --sidebar-bg: rgba(13, 21, 38, 0.72);
-  --sidebar-border: rgba(56, 189, 210, 0.06);
-
-  --tooltip-bg: rgba(13, 21, 38, 0.96);
-  --tooltip-border: rgba(56, 189, 210, 0.08);
-
-  --chart-grid: rgba(56, 189, 210, 0.04);
-  --chart-text: #506e78;
-
-  --scrollbar-thumb: rgba(56, 189, 210, 0.08);
-  --scrollbar-thumb-hover: rgba(56, 189, 210, 0.16);
-
-  --skeleton-from: rgba(56, 189, 210, 0.025);
-  --skeleton-via: rgba(56, 189, 210, 0.06);
-
-  --modal-overlay: rgba(0, 0, 0, 0.55);
-
-  --table-border: rgba(56, 189, 210, 0.05);
-  --table-row-hover: rgba(56, 189, 210, 0.025);
-
-  --btn-secondary-bg: rgba(56, 189, 210, 0.045);
-  --btn-secondary-border: rgba(56, 189, 210, 0.08);
-  --btn-secondary-hover: rgba(56, 189, 210, 0.08);
-}
-
 /* ═══════════════════════════════════════════
    BASE STYLES
    ═══════════════════════════════════════════ */
@@ -605,4 +552,157 @@ body {
   min-width: 320px;
   max-width: 480px;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════
+   SMOOTH SCROLLING
+   ═══════════════════════════════════════════ */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ═══════════════════════════════════════════
+   TOUCH FEEDBACK & INTERACTIONS
+   ═══════════════════════════════════════════ */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  button, select, input, .neu-input, .glow-btn {
+    min-height: 44px;
+  }
+
+  .dark-table tbody td {
+    padding: 0.875rem 0.75rem;
+  }
+
+  .dark-table thead th {
+    padding: 0.75rem;
+  }
+}
+
+.tap-feedback {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.tap-feedback:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════
+   ARCHIVE BUTTON (neutral)
+   ═══════════════════════════════════════════ */
+.archive-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--btn-secondary-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--btn-secondary-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 36px;
+  width: 36px;
+  margin: 0 auto;
+}
+.archive-btn:hover {
+  background: var(--btn-secondary-hover);
+  color: var(--text-secondary);
+  border-color: var(--glass-border-hover);
+}
+.archive-btn:active {
+  transform: scale(0.96);
+}
+
+@media (pointer: coarse) {
+  .archive-btn {
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   SNACKBAR / TOAST (undo)
+   ═══════════════════════════════════════════ */
+.snackbar {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  border-radius: 1rem;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.snackbar-undo {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+.snackbar-undo:hover {
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════
+   NOTE FALLBACK STYLING
+   ═══════════════════════════════════════════ */
+.note-fallback {
+  font-style: italic;
+  opacity: 0.55;
+}
+
+/* ═══════════════════════════════════════════
+   7-INCH TOUCH DISPLAY OPTIMIZATIONS
+   ═══════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .glass-card {
+    border-radius: 0.625rem;
+    padding: 0.75rem;
+  }
+
+  .dark-table thead th,
+  .dark-table tbody td {
+    padding: 0.625rem 0.5rem;
+    font-size: 0.6875rem;
+  }
+
+  .glow-btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.75rem;
+    border-radius: 0.625rem;
+  }
+
+  .neu-input {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.75rem;
+    border-radius: 0.625rem;
+  }
+
+  .theme-pill button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }

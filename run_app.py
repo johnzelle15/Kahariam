@@ -10,6 +10,9 @@ Or with gunicorn:
 """
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+
     from backend.app import app, socketio
     from backend.core.config import APP_HOST, APP_PORT, is_debug_enabled
     

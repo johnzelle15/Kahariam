@@ -1,0 +1,75 @@
+======================================================================
+  YOLOv11n ONNX Fish Detection — Evaluation Log
+  Generated: 2026-04-05 15:42:29
+======================================================================
+
+MODEL DETAILS
+  Architecture:      YOLOv11n (Nano)
+  Format:            ONNX
+  Input Size:        480×480
+  Model Size:        10.0 MB
+  Classes:           Black, Pineapple, Platinum
+  Conf Threshold:    0.35
+  IoU Threshold:     0.45
+
+EVALUATION METRICS
+  Accuracy:          0.9920  (99.20%)
+  Macro Precision:   0.9707
+  Macro Recall:      0.9889
+  Macro F1 Score:    0.9795
+  mAP@0.5:          0.9720
+  mAP@0.5:0.95:     0.6215
+  Average FPS:       9.0
+  Avg Latency:       110.9 ms
+
+PER-CLASS METRICS
+  Class         Precision     Recall         F1  Support
+-------------------------------------------------------
+  Black            0.9182     0.9777     0.9470     1033
+  Pineapple        0.9996     0.9901     0.9948     9359
+  Platinum         0.9944     0.9990     0.9966     4762
+
+PER-VIDEO RESULTS
+----------------------------------------------------------------------
+  Video: black.mp4  (Expected: Black)
+    Frames evaluated:  391
+    Total detections:  1033
+    Accuracy:          0.9777
+    FPS:               8.9
+    Avg latency:       112.5 ms
+    P50 latency:       109.6 ms
+    P95 latency:       136.1 ms
+    Std latency:       13.7 ms
+    Class breakdown:   {0: 1010, 2: 23}
+
+  Video: pineapple.mp4  (Expected: Pineapple)
+    Frames evaluated:  909
+    Total detections:  9359
+    Accuracy:          0.9901
+    FPS:               9.1
+    Avg latency:       110.2 ms
+    P50 latency:       110.1 ms
+    P95 latency:       118.3 ms
+    Std latency:       6.0 ms
+    Class breakdown:   {1: 9266, 0: 89, 2: 4}
+
+  Video: platinum.mp4  (Expected: Platinum)
+    Frames evaluated:  1556
+    Total detections:  4762
+    Accuracy:          0.9990
+    FPS:               9.1
+    Avg latency:       110.1 ms
+    P50 latency:       109.9 ms
+    P95 latency:       117.8 ms
+    Std latency:       5.7 ms
+    Class breakdown:   {2: 4757, 0: 1, 1: 4}
+
+PER-CLASS AP (mAP@0.5 components)
+----------------------------------------
+  Black         AP = 0.9289
+  Pineapple     AP = 0.9901
+  Platinum      AP = 0.9969
+
+======================================================================
+  End of Evaluation Log
+======================================================================

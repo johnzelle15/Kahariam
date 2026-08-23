@@ -11,6 +11,7 @@ import {
   Lightbulb, Zap, Target, ShieldAlert
 } from 'lucide-react'
 import SalesTrend from './SalesTrend'
+import { getNoteDisplay } from '../utils/notes'
 
 /* ─── Helpers ─── */
 function useDebounce(fn, delay) {
@@ -564,8 +565,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
 const INSIGHT_RANGES = [
   { key: '7d',    label: '7D',      days: 7 },
   { key: '30d',   label: '30D',     days: 30 },
-  { key: 'month', label: 'Monthly', days: 90 },
-  { key: 'year',  label: 'Yearly',  days: 365 },
+  { key: 'month', label: '3 Months', days: 90 },
 ]
 
 /* ─── Category config ─── */
@@ -1052,14 +1052,19 @@ export default function Dashboard() {
           <p className="text-sm text-text-muted">No recent entries</p>
         ) : (
           <div className="space-y-2">
-            {stats.recent_additions.map(r => (
-              <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 rounded-xl transition-colors hover:bg-white/[0.02]">
-                <div className="w-2 h-2 rounded-full bg-accent-purple flex-shrink-0" />
-                <span className="text-xs text-text-muted font-medium min-w-[90px] sm:min-w-[100px]">{r.date}</span>
-                <span className="text-sm font-semibold text-text-primary">{r.count} {r.variant}</span>
-                {r.notes && <span className="text-xs text-text-muted truncate basis-full sm:basis-auto sm:flex-1">— {r.notes}</span>}
-              </div>
-            ))}
+            {stats.recent_additions.map(r => {
+              const note = getNoteDisplay(r.notes, r.action)
+              return (
+                <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 rounded-xl transition-colors hover:bg-white/[0.02]">
+                  <div className="w-2 h-2 rounded-full bg-accent-purple flex-shrink-0" />
+                  <span className="text-xs text-text-muted font-medium min-w-[90px] sm:min-w-[100px]">{r.date}</span>
+                  <span className="text-sm font-semibold text-text-primary">{r.count} {r.variant}</span>
+                  <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${note.isFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
+                    — {note.text}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         )}
       </motion.div>

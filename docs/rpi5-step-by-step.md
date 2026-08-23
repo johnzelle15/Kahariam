@@ -119,7 +119,7 @@ Kung gusto mo na pag-login/open ng RPi desktop ay automatic bubukas ang Firefox 
 
 ```bash
 chmod +x scripts/setup_rpi_firefox_inventory.sh
-APP_URL="http://$(hostname).local:5000/?tab=inventory" ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh
+APP_URL="http://$(hostname).local:5000/?tab=dashboard" ZOOM_PERCENT=67 ./scripts/setup_rpi_firefox_inventory.sh
 ```
 
 Pagkatapos, reboot o log out/log in.
@@ -127,5 +127,5 @@ Pagkatapos, reboot o log out/log in.
 Notes:
 - Kailangan na running ang app service mo (`fish-counter.service`) para may lalabas agad sa browser.
 - Kung ibang URL ang gusto mo, palitan lang `APP_URL`.
-- Default ng script kapag walang `APP_URL`: `http://$(hostname).local:5000/?tab=inventory`.
+- Default ng script kapag walang `APP_URL`: `http://$(hostname).local:5000/?tab=dashboard`.
 - Supported zoom steps ng Firefox: `30, 50, 67, 80, 90, 100, 110, 120, 133, 150, 170, 200, 240, 300`.

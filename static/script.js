@@ -675,13 +675,13 @@ function loadAdjustments(resetPage) {
                         })()}
                     </div>
                     <div class="item-actions">
-                        <button class="delete-btn" data-action="deleteInventory" data-id="${item.id}" aria-label="Delete record" title="Delete">
+                        <button class="delete-btn" data-action="deleteInventory" data-id="${item.id}" aria-label="Archive record" title="Archive">
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M4 7H20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                <path d="M9 7V5C9 4.44772 9.44772 4 10 4H14C14.5523 4 15 4.44772 15 5V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                <path d="M7 7L8 19C8.0451 19.5523 8.50736 20 9.06155 20H14.9384C15.4926 20 15.9549 19.5523 16 19L17 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M10 11V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                <path d="M14 11V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                <path d="M3 7H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                <path d="M6 7V19C6 20.1046 6.89543 21 8 21H16C17.1046 21 18 20.1046 18 19V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M9 4H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                <path d="M12 10V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                <path d="M10 13L12 15L14 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         </button>
                     </div>
@@ -2555,6 +2555,15 @@ function loadAdjustmentCardStocks() {
 
                 syncAdjustCardState(card);
             });
+
+            // Populate tank stock count summary
+            const tankTotal = Object.values(netMap).reduce((s, v) => s + v, 0);
+            const tankTotalEl = document.getElementById('tankStockTotal');
+            if (tankTotalEl) tankTotalEl.textContent = tankTotal;
+            ['Black', 'Platinum', 'Pineapple'].forEach(v => {
+                const el = document.getElementById('tankStock' + v);
+                if (el) el.textContent = netMap[v] || 0;
+            });
         })
         .catch(() => {});
 }
@@ -2648,13 +2657,13 @@ function filterInventory(resetPage) {
                         <p>Date: ${item.date}</p>
                         ${item.notes ? `<p>Notes: ${item.notes}</p>` : ''}
                     </div>
-                    <button class="delete-btn" data-action="deleteInventory" data-id="${item.id}" aria-label="Delete record" title="Delete">
+                    <button class="delete-btn" data-action="deleteInventory" data-id="${item.id}" aria-label="Archive record" title="Archive">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4 7H20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                            <path d="M9 7V5C9 4.44772 9.44772 4 10 4H14C14.5523 4 15 4.44772 15 5V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                            <path d="M7 7L8 19C8.0451 19.5523 8.50736 20 9.06155 20H14.9384C15.4926 20 15.9549 19.5523 16 19L17 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M10 11V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                            <path d="M14 11V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M3 7H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M6 7V19C6 20.1046 6.89543 21 8 21H16C17.1046 21 18 20.1046 18 19V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M9 4H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M12 10V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M10 13L12 15L14 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </button>
                 </div>
@@ -2726,9 +2735,9 @@ function clearInventoryFilters() {
 
 function deleteInventory(id) {
     showConfirmDialog({
-        title: 'Deleted Record',
-        message: 'Delete this record?',
-        confirmText: 'Delete',
+        title: 'Archive Record',
+        message: 'Archive this record?',
+        confirmText: 'Archive',
         cancelText: 'Cancel',
         confirmVariant: 'danger',
         onConfirm: function() {
@@ -2743,7 +2752,7 @@ function deleteInventory(id) {
                 if (typeof loadAdjustments === 'function') loadAdjustments();
                 if (typeof loadArchive === 'function') loadArchive();
             })
-            .catch(err => alert("Error deleting record"));
+            .catch(err => alert("Error archiving record"));
         }
     });
 }

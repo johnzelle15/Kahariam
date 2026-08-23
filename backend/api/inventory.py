@@ -12,6 +12,60 @@ WHOLESALE_LINK_MARKER_PATTERN = re.compile(r"\[AUTO_LINK:WHOLESALE_PARENT_ID=(\d
 RETAIL_PRICE_PER_FISH = float(os.environ.get('RETAIL_PRICE_PER_FISH', '5'))
 WHOLESALE_PRICE_PER_FISH = float(os.environ.get('WHOLESALE_PRICE_PER_FISH', '1.75'))
 
+# --- Structured transaction types ---
+VALID_TRANSACTION_TYPES = frozenset({'SOLD', 'DIED', 'TANK_IN', 'WHOLESALE_IN', 'WHOLESALE_SOLD'})
+OUTFLOW_TYPES = frozenset({'SOLD', 'DIED', 'WHOLESALE_SOLD'})
+INFLOW_TYPES = frozenset({'TANK_IN', 'WHOLESALE_IN'})
+
+_TX_TO_ACTION = {
+    'SOLD': 'OUT',
+    'DIED': 'OUT',
+    'TANK_IN': 'IN',
+    'WHOLESALE_IN': 'WHOLESALE',
+    'WHOLESALE_SOLD': 'WHOLESALE',
+}
+
+
+def _derive_transaction_type(action, notes, count=0):
+    """Derive transaction_type from legacy action/notes columns."""
+    action = (action or '').upper()
+    notes_lower = (notes or '').lower()
+    if action == 'OUT':
+        return 'DIED' if notes_lower.startswith('died') else 'SOLD'
+    if action == 'IN':
+        return 'TANK_IN'
+    if action in ('WHOLESALE', 'INVENTORY'):
+        if isinstance(count, (int, float)) and count < 0:
+            return 'DIED' if notes_lower.startswith('died') else 'WHOLESALE_SOLD'
+        return 'WHOLESALE_IN'
+    return 'TANK_IN'
+
+
+def _serialize_inventory_row(row):
+    """Serialize an inventory row dict for API response."""
+    action_value = row.get('action', 'IN') if isinstance(row, dict) else 'IN'
+    count_val = int(row.get('count', 0) or 0) if isinstance(row, dict) else 0
+    notes_val = (row.get('notes', '') or '') if isinstance(row, dict) else ''
+
+    tx_type = row.get('transaction_type') if isinstance(row, dict) else None
+    if not tx_type:
+        tx_type = _derive_transaction_type(action_value, notes_val, count_val)
+
+    price_raw = row.get('price') if isinstance(row, dict) else None
+    total_raw = row.get('total_price') if isinstance(row, dict) else None
+
+    return {
+        'id': row['id'],
+        'count': abs(count_val),
+        'variant': row['variant'],
+        'date': row['date'],
+        'notes': notes_val,
+        'action': action_value,
+        'transaction_type': tx_type,
+        'price': float(price_raw) if price_raw is not None else None,
+        'total_price': float(total_raw) if total_raw is not None else None,
+    }
+
 
 def _date_expr(fmt: str) -> str:
     """Return an engine-specific SQL expression for formatting `date`.
@@ -134,12 +188,21 @@ def save_inventory():
     except Exception:
         return jsonify({"status": "error", "message": "Invalid count"}), 400
     
+    # Derive transaction_type from legacy action
+    tx_type = _TX_TO_ACTION and _derive_transaction_type(action, notes, int(count))
+    if action == 'IN':
+        tx_type = 'TANK_IN'
+    elif action == 'WHOLESALE':
+        tx_type = 'WHOLESALE_IN'
+    elif action == 'OUT':
+        tx_type = 'SOLD'
+
     conn = get_db()
     c = conn.cursor()
     c.execute('''
-        INSERT INTO inventory (count, variant, date, notes, action)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes, action))
+        INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes, action, tx_type))
     conn.commit()
     conn.close()
     
@@ -157,7 +220,7 @@ def get_inventory():
     year_to = request.args.get("year_to", "").strip()
     search = request.args.get("search", "").strip()
     
-    where_clause = "WHERE deleted = 0"
+    where_clause = "WHERE deleted = 0 AND is_archived = 0"
     params = []
     
     conditions = []
@@ -254,16 +317,7 @@ def get_inventory():
         records = c.fetchall()
         conn.close()
 
-        items = []
-        for record in records:
-            items.append({
-                "id": record["id"],
-                "count": record["count"],
-                "variant": record["variant"],
-                "date": record["date"],
-                "notes": record["notes"],
-                "action": record["action"] if "action" in record.keys() else "IN"
-            })
+        items = [_serialize_inventory_row(record) for record in records]
         return jsonify({"items": items, "total": total, "page": page, "per_page": per_page, "pages": total_pages})
 
     # Default: return flat list (backward-compatible)
@@ -272,16 +326,7 @@ def get_inventory():
     records = c.fetchall()
     conn.close()
     
-    inventory_list = []
-    for record in records:
-        inventory_list.append({
-            "id": record["id"],
-            "count": record["count"],
-            "variant": record["variant"],
-            "date": record["date"],
-            "notes": record["notes"],
-            "action": record["action"] if "action" in record.keys() else "IN"
-        })
+    inventory_list = [_serialize_inventory_row(record) for record in records]
     
     return jsonify(inventory_list)
 
@@ -291,67 +336,21 @@ def delete_inventory(id):
     conn = get_db()
     c = conn.cursor()
 
-    c.execute('SELECT id, count, variant, action, deleted FROM inventory WHERE id = ?', (id,))
+    c.execute('SELECT id, is_archived FROM inventory WHERE id = ?', (id,))
     record = c.fetchone()
     if not record:
         conn.close()
         return jsonify({"status": "error", "message": "Record not found"}), 404
 
-    if int(_row_value(record, 'deleted', 4, 0) or 0) == 1:
+    if int(_row_value(record, 'is_archived', 1, 0) or 0) == 1:
         conn.close()
         return jsonify({"status": "success", "message": "Record already archived"})
 
-    target_action = (_row_value(record, 'action', 3, '') or '').upper()
-    target_count = int(_row_value(record, 'count', 1, 0) or 0)
-    target_variant = _row_value(record, 'variant', 2, '')
-
-    c.execute('UPDATE inventory SET deleted = 1 WHERE id = ?', (id,))
-
-    cascaded_ids = []
-    if target_action == 'WHOLESALE' and target_count > 0 and target_variant:
-        c.execute('''
-            SELECT COALESCE(SUM(count), 0) AS wholesale_balance
-            FROM inventory
-            WHERE deleted = 0 AND variant = ? AND action = 'WHOLESALE'
-        ''', (target_variant,))
-        wholesale_balance = int(_row_scalar(c.fetchone(), 'wholesale_balance') or 0)
-
-        if wholesale_balance < 0:
-            deficit = abs(wholesale_balance)
-            c.execute('''
-                SELECT id, count
-                FROM inventory
-                WHERE deleted = 0 AND variant = ? AND action = 'WHOLESALE' AND count < 0
-                ORDER BY date DESC, id DESC
-            ''', (target_variant,))
-            sold_rows = c.fetchall()
-
-            for sold_row in sold_rows:
-                sold_id = int(_row_value(sold_row, 'id', 0, 0) or 0)
-                sold_count = abs(int(_row_value(sold_row, 'count', 1, 0) or 0))
-                if sold_id <= 0 or sold_count <= 0:
-                    continue
-                c.execute('SELECT notes FROM inventory WHERE id = ?', (sold_id,))
-                sold_detail = c.fetchone()
-                linked_notes = _append_wholesale_link_marker(
-                    _row_value(sold_detail, 'notes', 0, ''),
-                    id
-                )
-                c.execute('UPDATE inventory SET deleted = 1, notes = ? WHERE id = ?', (linked_notes, sold_id))
-                cascaded_ids.append(sold_id)
-                deficit -= sold_count
-                if deficit <= 0:
-                    break
-
+    # Archive only affects UI visibility — does NOT touch `deleted`, so the
+    # record continues to count in every stock/revenue calculation.
+    c.execute('UPDATE inventory SET is_archived = 1 WHERE id = ?', (id,))
     conn.commit()
     conn.close()
-
-    if cascaded_ids:
-        return jsonify({
-            "status": "success",
-            "message": f"Record moved to archive. Also archived {len(cascaded_ids)} connected wholesale sold record(s) to prevent negative stock.",
-            "cascaded_ids": cascaded_ids
-        })
 
     return jsonify({"status": "success", "message": "Record moved to archive"})
 
@@ -360,7 +359,7 @@ def delete_inventory(id):
 def clear_inventory():
     conn = get_db()
     c = conn.cursor()
-    c.execute('UPDATE inventory SET deleted = 1 WHERE deleted = 0')
+    c.execute('UPDATE inventory SET is_archived = 1 WHERE deleted = 0 AND is_archived = 0')
     archived_count = c.rowcount
     conn.commit()
     conn.close()
@@ -1007,8 +1006,8 @@ def add_to_tank():
         return jsonify({"status": "error", "message": "Invalid count"}), 400
 
     c.execute('''
-        INSERT INTO inventory (count, variant, date, notes, action)
-        VALUES (?, ?, ?, ?, 'IN')
+        INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+        VALUES (?, ?, ?, ?, 'IN', 'TANK_IN')
     ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes))
     conn.commit()
     conn.close()
@@ -1072,13 +1071,14 @@ def adjust_stock():
                     conn.close()
                     return jsonify({"status": "error", "message": f"Insufficient wholesale stock for {variant}. Available: {current_stock}, Requested: {count}"}), 400
 
-            note_text = f"{reason}. " + (notes or "")
+            note_text = notes or ""
             now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             insert_count = count if direction == 'increase' else -count
+            direction_tx_type = 'WHOLESALE_IN' if direction == 'increase' else 'WHOLESALE_SOLD'
             c.execute('''
-                INSERT INTO inventory (count, variant, date, notes, action)
-                VALUES (?, ?, ?, ?, 'WHOLESALE')
-            ''', (insert_count, variant, now_text, note_text))
+                INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+                VALUES (?, ?, ?, ?, 'WHOLESALE', ?)
+            ''', (insert_count, variant, now_text, note_text, direction_tx_type))
             conn.commit()
         except Exception:
             conn.rollback()
@@ -1134,19 +1134,21 @@ def adjust_stock():
                 conn.close()
                 return jsonify({"status": "error", "message": f"Insufficient stock for {variant}. Available: {current_stock}"}), 400
 
-        note_text = f"{reason}. " + (notes or "")
+        note_text = notes or ""
         now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        is_died = str(reason).strip().lower() == 'died'
+        legacy_tx_type = 'DIED' if is_died else ('WHOLESALE_SOLD' if is_wholesale else 'SOLD')
         if is_wholesale:
             insert_count = -count
             c.execute('''
-                INSERT INTO inventory (count, variant, date, notes, action)
-                VALUES (?, ?, ?, ?, 'WHOLESALE')
-            ''', (insert_count, variant, now_text, note_text))
+                INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+                VALUES (?, ?, ?, ?, 'WHOLESALE', ?)
+            ''', (insert_count, variant, now_text, note_text, legacy_tx_type))
         else:
             c.execute('''
-                INSERT INTO inventory (count, variant, date, notes, action)
-                VALUES (?, ?, ?, ?, 'OUT')
-            ''', (count, variant, now_text, note_text))
+                INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+                VALUES (?, ?, ?, ?, 'OUT', ?)
+            ''', (count, variant, now_text, note_text, legacy_tx_type))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1167,8 +1169,133 @@ def adjust_stock():
 def adjust_stock_batch():
     data = request.get_json(silent=True) or {}
     items = data.get("items", [])
-    reason = data.get("reason", "Sold")
     notes = data.get("notes", "")
+    transaction_type = str(data.get("transaction_type", "")).strip().upper()
+
+    # ── New structured transaction path ──
+    if transaction_type:
+        if transaction_type not in VALID_TRANSACTION_TYPES:
+            return jsonify({"status": "error", "message": f"Invalid transaction_type: {transaction_type}. Must be one of: {', '.join(sorted(VALID_TRANSACTION_TYPES))}"}), 400
+
+        price = data.get("price")
+
+        # Price validation per type
+        if transaction_type in ('SOLD', 'WHOLESALE_SOLD'):
+            if price is None or price == '' or price == 0:
+                return jsonify({"status": "error", "message": "Price is required for SOLD transactions"}), 400
+            try:
+                price = float(price)
+            except (TypeError, ValueError):
+                return jsonify({"status": "error", "message": "Invalid price value"}), 400
+            if price <= 0:
+                return jsonify({"status": "error", "message": "Price must be greater than zero"}), 400
+        else:
+            # DIED, TANK_IN, WHOLESALE_IN — price must be NULL
+            if price is not None and price != '' and price != 0:
+                return jsonify({"status": "error", "message": f"Price must not be set for {transaction_type} transactions"}), 400
+            price = None
+
+        # Validate items
+        if not isinstance(items, list) or len(items) == 0:
+            return jsonify({"status": "error", "message": "Select at least one variant"}), 400
+
+        normalized = []
+        for raw in items:
+            if not isinstance(raw, dict):
+                return jsonify({"status": "error", "message": "Invalid adjustment item"}), 400
+            variant = str(raw.get("variant", "")).strip()
+            if not variant:
+                return jsonify({"status": "error", "message": "Variant is required"}), 400
+            try:
+                count = int(raw.get("count", 0))
+            except (TypeError, ValueError):
+                return jsonify({"status": "error", "message": f"Invalid count for {variant}"}), 400
+            if count <= 0:
+                return jsonify({"status": "error", "message": f"Count must be greater than zero for {variant}"}), 400
+            normalized.append((variant, count))
+
+        # Wholesale minimum order check (only for WHOLESALE_SOLD, not DIED)
+        if transaction_type == 'WHOLESALE_SOLD':
+            total_requested = sum(c for _, c in normalized)
+            if total_requested < 300:
+                return jsonify({"status": "error", "message": f"Minimum wholesale order is 300 fish to submit an adjustment note. Current total: {total_requested}"}), 400
+
+        # Map to legacy action
+        action = _TX_TO_ACTION[transaction_type]
+
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            for variant, count in normalized:
+                # Stock validation for outflow types
+                if transaction_type == 'WHOLESALE_SOLD':
+                    # Validate against wholesale storage
+                    c.execute('''
+                        SELECT COALESCE(SUM(count), 0) AS current_stock
+                        FROM inventory
+                        WHERE deleted = 0 AND variant = ? AND (action='WHOLESALE' OR action='INVENTORY')
+                        FOR UPDATE
+                    ''', (variant,))
+                    current_stock = int(_row_scalar(c.fetchone(), 'current_stock') or 0)
+
+                    if current_stock <= 0:
+                        conn.rollback()
+                        conn.close()
+                        return jsonify({"status": "error", "message": f"No wholesale stock left for {variant}"}), 400
+                    if count > current_stock:
+                        conn.rollback()
+                        conn.close()
+                        return jsonify({"status": "error", "message": f"Insufficient wholesale stock for {variant}. Available: {current_stock}"}), 400
+                elif transaction_type in OUTFLOW_TYPES:
+                    # SOLD or DIED — validate against tank stock
+                    c.execute('''
+                        SELECT COALESCE(SUM(CASE WHEN action='IN' THEN count WHEN action='OUT' THEN -count ELSE 0 END), 0) AS current_stock
+                        FROM inventory
+                        WHERE deleted = 0 AND variant = ? AND (action='IN' OR action='OUT')
+                        FOR UPDATE
+                    ''', (variant,))
+                    current_stock = int(_row_scalar(c.fetchone(), 'current_stock') or 0)
+
+                    if current_stock <= 0:
+                        conn.rollback()
+                        conn.close()
+                        return jsonify({"status": "error", "message": f"No stock left for {variant}"}), 400
+                    if count > current_stock:
+                        conn.rollback()
+                        conn.close()
+                        return jsonify({"status": "error", "message": f"Insufficient stock for {variant}. Available: {current_stock}"}), 400
+
+                # Compute total_price for SOLD
+                total_price = round(price * count, 2) if price else None
+
+                note_text = notes or ""
+
+                now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                c.execute('''
+                    INSERT INTO inventory (count, variant, date, notes, action, transaction_type, price, total_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (count, variant, now_text, note_text, action, transaction_type, price, total_price))
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            conn.close()
+            return jsonify({"status": "error", "message": "Failed to record adjustments"}), 500
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        total_count = sum(c for _, c in normalized)
+        return jsonify({
+            "status": "success",
+            "message": f"Recorded {transaction_type} for {len(normalized)} variant(s), total {total_count} fish"
+        })
+
+    # ── Legacy format (backward compat) ──
+    reason = data.get("reason", "Sold")
     source = str(data.get("source", "")).strip().lower()
     wholesale_action = str(data.get("wholesale_action", "OUT")).strip().upper()
 
@@ -1201,7 +1328,7 @@ def adjust_stock_batch():
         return jsonify({"status": "error", "message": "Wholesale adjustments support Sold/OUT only."}), 400
     total_requested = sum(count for _, count in normalized)
     if is_wholesale and wholesale_action == 'OUT' and not is_died and total_requested < 300:
-        return jsonify({"status": "error", "message": f"Wholesale OUT requires at least 300 fish total per submit. Requested: {total_requested}"}), 400
+        return jsonify({"status": "error", "message": f"Minimum wholesale order is 300 fish to submit an adjustment note. Current total: {total_requested}"}), 400
 
     conn = get_db()
     c = conn.cursor()
@@ -1248,18 +1375,19 @@ def adjust_stock_batch():
 
             # perform insert for this variant
             now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            note_text = f"{reason}. " + (notes or "")
+            note_text = notes or ""
+            batch_tx_type = 'DIED' if is_died else ('WHOLESALE_SOLD' if is_wholesale else 'SOLD')
             if is_wholesale:
                 insert_count = -count
                 c.execute('''
-                    INSERT INTO inventory (count, variant, date, notes, action)
-                    VALUES (?, ?, ?, ?, 'WHOLESALE')
-                ''', (insert_count, variant, now_text, note_text))
+                    INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+                    VALUES (?, ?, ?, ?, 'WHOLESALE', ?)
+                ''', (insert_count, variant, now_text, note_text, batch_tx_type))
             else:
                 c.execute('''
-                    INSERT INTO inventory (count, variant, date, notes, action)
-                    VALUES (?, ?, ?, ?, 'OUT')
-                ''', (count, variant, now_text, note_text))
+                    INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
+                    VALUES (?, ?, ?, ?, 'OUT', ?)
+                ''', (count, variant, now_text, note_text, batch_tx_type))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1393,19 +1521,7 @@ def get_adjustments():
         records = c.fetchall()
         conn.close()
 
-        items = []
-        for row in records:
-            action_value = row["action"] if "action" in row.keys() else "OUT"
-            source_value = "Storage Box" if action_value == 'WHOLESALE' else "Fish Tank"
-            items.append({
-                "id": row["id"],
-                "count": row["count"],
-                "variant": row["variant"],
-                "date": row["date"],
-                "notes": row["notes"],
-                "action": action_value,
-                "source": source_value
-            })
+        items = [_serialize_inventory_row(row) for row in records]
         return jsonify({"items": items, "total": total, "page": page, "per_page": per_page, "pages": total_pages})
 
     # Default: flat list (backward-compatible)
@@ -1414,19 +1530,7 @@ def get_adjustments():
     records = c.fetchall()
     conn.close()
 
-    adjustments = []
-    for row in records:
-        action_value = row["action"] if "action" in row.keys() else "OUT"
-        source_value = "Storage Box" if action_value == 'WHOLESALE' else "Fish Tank"
-        adjustments.append({
-            "id": row["id"],
-            "count": row["count"],
-            "variant": row["variant"],
-            "date": row["date"],
-            "notes": row["notes"],
-            "action": action_value,
-            "source": source_value
-        })
+    adjustments = [_serialize_inventory_row(row) for row in records]
 
     return jsonify(adjustments)
 
@@ -1481,7 +1585,7 @@ def get_deleted_records():
     month = request.args.get("month", "")
     year = request.args.get("year", "")
     
-    query = "SELECT id, count, variant, date, notes, action FROM inventory WHERE deleted = 1"
+    query = "SELECT id, count, variant, date, notes, action, transaction_type, price, total_price FROM inventory WHERE is_archived = 1"
     params = []
     
     if variant:
@@ -1512,7 +1616,7 @@ def get_deleted_records():
     
     query += " ORDER BY id DESC"
     c.execute(query, params)
-    records = [dict(row) for row in c.fetchall()]
+    records = [_serialize_inventory_row(row) for row in c.fetchall()]
     conn.close()
     
     return jsonify(records)
@@ -1523,76 +1627,22 @@ def restore_record(record_id):
     conn = get_db()
     c = conn.cursor()
 
-    c.execute('SELECT id, count, variant, action, notes, deleted FROM inventory WHERE id = ?', (record_id,))
+    c.execute('SELECT id, is_archived FROM inventory WHERE id = ?', (record_id,))
     target = c.fetchone()
     if not target:
         conn.close()
         return jsonify({"success": False, "message": "Record not found"}), 404
 
-    was_deleted = int(_row_value(target, 'deleted', 5, 0) or 0) == 1
-    if not was_deleted:
+    was_archived = int(_row_value(target, 'is_archived', 1, 0) or 0) == 1
+    if not was_archived:
         conn.close()
         return jsonify({"success": True, "message": "Record already active"})
 
-    target_action = (_row_value(target, 'action', 3, '') or '').upper()
-    target_count = int(_row_value(target, 'count', 1, 0) or 0)
-    target_variant = _row_value(target, 'variant', 2, '')
-    target_notes_clean = _strip_wholesale_link_marker(_row_value(target, 'notes', 4, ''))
-
-    if target_action == 'WHOLESALE' and target_count < 0 and target_variant:
-        c.execute('''
-            SELECT COALESCE(SUM(count), 0) AS wholesale_balance
-            FROM inventory
-            WHERE deleted = 0 AND variant = ? AND action = 'WHOLESALE'
-        ''', (target_variant,))
-        wholesale_balance = int(_row_scalar(c.fetchone(), 'wholesale_balance') or 0)
-        projected_balance = wholesale_balance + target_count
-        if projected_balance < 0:
-            conn.close()
-            return jsonify({
-                "success": False,
-                "message": f"Cannot restore this wholesale sold record yet. Restore/add wholesale stock-in for {target_variant} first.",
-                "required": abs(target_count),
-                "available": wholesale_balance
-            }), 400
-
-    c.execute("UPDATE inventory SET deleted = 0, notes = ? WHERE id = ?", (target_notes_clean, record_id))
-
-    restored_linked_ids = []
-    if target_action == 'WHOLESALE' and target_count > 0 and target_variant:
-        marker = _make_wholesale_link_marker(record_id)
-        c.execute('''
-            SELECT id, notes
-            FROM inventory
-            WHERE deleted = 1
-              AND variant = ?
-              AND action = 'WHOLESALE'
-              AND count < 0
-              AND notes LIKE ?
-            ORDER BY date ASC, id ASC
-        ''', (target_variant, f'%{marker}%'))
-        linked_rows = c.fetchall()
-
-        for linked_row in linked_rows:
-            linked_id = int(_row_value(linked_row, 'id', 0, 0) or 0)
-            if linked_id <= 0:
-                continue
-            linked_parent = _extract_wholesale_parent_link(_row_value(linked_row, 'notes', 1, ''))
-            if linked_parent != record_id:
-                continue
-            cleaned_notes = _strip_wholesale_link_marker(_row_value(linked_row, 'notes', 1, ''))
-            c.execute('UPDATE inventory SET deleted = 0, notes = ? WHERE id = ?', (cleaned_notes, linked_id))
-            restored_linked_ids.append(linked_id)
-
+    # Restoring an archived record is always safe — archiving never touched stock,
+    # so there is no stock to re-validate here.
+    c.execute("UPDATE inventory SET is_archived = 0 WHERE id = ?", (record_id,))
     conn.commit()
     conn.close()
-
-    if restored_linked_ids:
-        return jsonify({
-            "success": True,
-            "message": f"Record restored successfully. Also restored {len(restored_linked_ids)} connected wholesale sold record(s).",
-            "restored_linked_ids": restored_linked_ids
-        })
 
     return jsonify({"success": True, "message": "Record restored successfully"})
 

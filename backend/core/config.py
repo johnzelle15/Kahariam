@@ -13,6 +13,11 @@ CSP_CDN_HOSTS = os.environ.get('CSP_CDN_HOSTS', 'https://cdn.socket.io https://c
 APP_HOST = os.environ.get('APP_HOST', '0.0.0.0')
 APP_PORT = int(os.environ.get('APP_PORT', '5000'))
 
+# Public-facing URL used in emails (reset links, OTP links, etc.)
+# Uses the mDNS hostname so it works regardless of IP/WiFi changes.
+_default_app_url = f'http://aquaculture-fish-counter.local:{APP_PORT}'
+APP_URL = os.environ.get('APP_URL', _default_app_url)
+
 INGEST_URL = os.environ.get('INGEST_URL', 'http://127.0.0.1:5000/api/v1/ingest')
 LEGACY_UPDATE_COUNT_URL = os.environ.get('LEGACY_UPDATE_COUNT_URL', 'http://127.0.0.1:5000/update_count')
 

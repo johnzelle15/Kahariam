@@ -57,12 +57,16 @@ def register_blueprints(app: Flask) -> None:
     from backend.api.ingest import ingest_bp
     from backend.api.counting import counting_bp
     from backend.api.inventory import inventory_bp
+    from backend.api.auth_otp import auth_bp
+    from backend.api.settings import settings_bp
 
     app.register_blueprint(locks_bp)
     app.register_blueprint(devices_bp)
     app.register_blueprint(ingest_bp)
     app.register_blueprint(counting_bp)
     app.register_blueprint(inventory_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(settings_bp)
 
 
 def register_frontend_routes(app: Flask) -> None:

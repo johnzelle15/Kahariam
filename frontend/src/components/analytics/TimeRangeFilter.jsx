@@ -4,8 +4,7 @@ import { Calendar } from 'lucide-react'
 const PRESETS = [
   { key: '7d', label: '7 Days' },
   { key: '30d', label: '30 Days' },
-  { key: 'month', label: 'Monthly' },
-  { key: 'year', label: 'Yearly' },
+  { key: 'month', label: '3 Months' },
 ]
 
 export default function TimeRangeFilter({ value, onChange }) {

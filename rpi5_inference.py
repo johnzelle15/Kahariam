@@ -35,6 +35,14 @@ CLASS_COLORS = [
     (200, 200, 200),  # Platinum — silver
 ]
 
+# ---- Optional Kalman SORT tracker import
+_tracker_available = False
+try:
+    from vision.kalman_tracker import KalmanSortTracker
+    _tracker_available = True
+except ImportError:
+    pass
+
 
 def load_onnx_session(model_path: str):
     """Load ONNX Runtime inference session."""
@@ -204,10 +212,16 @@ def run_ultralytics(model_path, source, conf, iou, show):
         print(f"[Detection] Total={total}  {parts}")
 
 
-def run_onnx(model_path, source, imgsz, conf, iou, show):
+def run_onnx(model_path, source, imgsz, conf, iou, show, use_tracker=False):
     """Run inference using ONNX Runtime (lightweight, no PyTorch needed)."""
     session, input_name, input_shape = load_onnx_session(model_path)
     infer_imgsz = input_shape[2] if input_shape[2] is not None else imgsz
+
+    # Initialise Kalman tracker if requested
+    tracker = None
+    if use_tracker and _tracker_available:
+        tracker = KalmanSortTracker(max_age=20, min_hits=3, iou_threshold=0.20)
+        print("[INFO] Kalman SORT tracker enabled")
 
     # Determine source type
     source_path = Path(source) if not source.isdigit() else None
@@ -250,7 +264,25 @@ def run_onnx(model_path, source, imgsz, conf, iou, show):
             fps = 1.0 / max(dt, 1e-6)
             fps_avg.append(fps)
 
-            frame, counts = draw_results(frame, dets)
+            # Update Kalman tracker if enabled
+            if tracker is not None:
+                tracker_dets = [((d[0], d[1], d[2], d[3]), d[4], d[5]) for d in dets]
+                active = tracker.update(tracker_dets)
+                # Draw tracked boxes with IDs
+                for tid, obj in active.items():
+                    x1, y1, x2, y2 = obj.bbox
+                    cls_id = min(obj.class_id, len(CLASS_COLORS) - 1)
+                    color = CLASS_COLORS[cls_id]
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    label = f"ID{tid} {CLASS_NAMES[cls_id]} {obj.confidence:.2f}"
+                    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                    cv2.rectangle(frame, (x1, y1 - th - 6), (x1 + tw, y1), color, -1)
+                    cv2.putText(frame, label, (x1, y1 - 4),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cv2.putText(frame, f"Tracks: {len(active)}", (10, frame.shape[0] - 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            else:
+                frame, counts = draw_results(frame, dets)
             cv2.putText(frame, f"FPS: {fps:.1f}", (10, frame.shape[0] - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
@@ -281,7 +313,7 @@ def main():
                         help="camera index, video file, or image path")
     parser.add_argument("--imgsz", type=int, default=640,
                         help="inference image size")
-    parser.add_argument("--conf", type=float, default=0.4,
+    parser.add_argument("--conf", type=float, default=0.5,
                         help="confidence threshold")
     parser.add_argument("--iou", type=float, default=0.45,
                         help="NMS IoU threshold")
@@ -289,6 +321,8 @@ def main():
                         help="show live display (default: True)")
     parser.add_argument("--no-show", dest="show", action="store_false",
                         help="headless mode (no display)")
+    parser.add_argument("--track", action="store_true", default=False,
+                        help="enable Kalman SORT tracking (show track IDs)")
     args = parser.parse_args()
 
     model_path = args.model
@@ -299,7 +333,7 @@ def main():
     print(f"[INFO] Conf: {args.conf}, IoU: {args.iou}")
 
     if ext == ".onnx":
-        run_onnx(model_path, args.source, args.imgsz, args.conf, args.iou, args.show)
+        run_onnx(model_path, args.source, args.imgsz, args.conf, args.iou, args.show, args.track)
     elif ext in (".tflite", ".pt"):
         # Use Ultralytics for .pt and .tflite (handles TFLite runtime)
         run_ultralytics(model_path, args.source, args.conf, args.iou, args.show)

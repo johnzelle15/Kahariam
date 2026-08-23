@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capstone 1 Proposal — IoT-Enabled Ornamental Fish Counter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue-900: #0c2d6b;
+    --blue-800: #0e3d8f;
+    --blue-700: #1150b0;
+    --blue-600: #1565c0;
+    --blue-500: #1976d2;
+    --blue-400: #42a5f5;
+    --blue-300: #90caf9;
+    --blue-200: #bbdefb;
+    --blue-100: #e3f2fd;
+    --blue-50:  #f0f7ff;
+    --white:    #ffffff;
+    --gray-50:  #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --shadow:   0 4px 24px rgba(12,45,107,.12);
+    --shadow-lg: 0 8px 40px rgba(12,45,107,.18);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--gray-200);
+    color: var(--gray-800);
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ─── Slide Container ─── */
+  .slide {
+    width: 960px;
+    height: 540px;
+    margin: 40px auto;
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    position: relative;
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Slide Header Bar ─── */
+  .slide-header {
+    background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .slide-header .slide-number {
+    background: rgba(255,255,255,.2);
+    color: var(--white);
+    font-weight: 700;
+    font-size: .75rem;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .slide-header h2 {
+    color: var(--white);
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+  }
+  .slide-header .time-badge {
+    margin-left: auto;
+    background: rgba(255,255,255,.18);
+    color: rgba(255,255,255,.9);
+    font-size: .65rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  /* ─── Slide Body ─── */
+  .slide-body {
+    flex: 1;
+    padding: 28px 40px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  /* ─── Bullet Lists ─── */
+  .bullets {
+    list-style: none;
+    padding: 0;
+  }
+  .bullets li {
+    position: relative;
+    padding-left: 24px;
+    margin-bottom: 10px;
+    font-size: .82rem;
+    color: var(--gray-700);
+    line-height: 1.55;
+  }
+  .bullets li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 7px;
+    width: 8px; height: 8px;
+    background: var(--blue-500);
+    border-radius: 50%;
+  }
+  .bullets.compact li { margin-bottom: 7px; font-size: .78rem; }
+
+  /* ─── Speaker Notes ─── */
+  .speaker-notes {
+    margin-top: auto;
+    background: var(--blue-50);
+    border-left: 3px solid var(--blue-400);
+    padding: 10px 16px;
+    font-size: .7rem;
+    color: var(--gray-600);
+    border-radius: 0 6px 6px 0;
+    line-height: 1.5;
+    flex-shrink: 0;
+  }
+  .speaker-notes strong {
+    color: var(--blue-700);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: .6rem;
+    letter-spacing: .08em;
+  }
+
+  /* ─── Slide Footer ─── */
+  .slide-footer {
+    padding: 8px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--gray-200);
+    font-size: .6rem;
+    color: var(--gray-500);
+    flex-shrink: 0;
+  }
+
+  /* ─── Title Slide ─── */
+  .slide.title-slide {
+    background: linear-gradient(160deg, var(--blue-900) 0%, var(--blue-700) 50%, var(--blue-600) 100%);
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 40px;
+  }
+  .title-slide .institution {
+    color: rgba(255,255,255,.7);
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin-bottom: 12px;
+  }
+  .title-slide h1 {
+    color: var(--white);
+    font-size: 1.55rem;
+    font-weight: 800;
+    line-height: 1.35;
+    max-width: 680px;
+    margin-bottom: 20px;
+  }
+  .title-slide .subtitle-line {
+    color: var(--blue-200);
+    font-size: .8rem;
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+  .title-slide .divider {
+    width: 80px;
+    height: 3px;
+    background: var(--blue-300);
+    border-radius: 2px;
+    margin: 18px auto;
+  }
+  .title-slide .meta {
+    color: rgba(255,255,255,.65);
+    font-size: .7rem;
+    line-height: 1.7;
+  }
+  .title-slide .meta span { display: block; }
+  .title-slide .footer-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--blue-300), var(--blue-400), var(--blue-300));
+  }
+
+  /* ─── Two-Column Layout ─── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    flex: 1;
+  }
+  .col-box {
+    background: var(--gray-50);
+    border-radius: 8px;
+    padding: 16px 20px;
+    border: 1px solid var(--gray-200);
+  }
+  .col-box h3 {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--blue-700);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .col-box h3 .icon { font-size: 1rem; }
+  .col-box ul {
+    list-style: none;
+    padding: 0;
+  }
+  .col-box ul li {
+    font-size: .72rem;
+    color: var(--gray-700);
+    padding: 4px 0 4px 18px;
+    position: relative;
+    line-height: 1.45;
+  }
+  .scope-box ul li::before {
+    content: '✓';
+    position: absolute;
+    left: 0; top: 4px;
+    color: #16a34a;
+    font-weight: 700;
+    font-size: .7rem;
+  }
+  .limit-box ul li::before {
+    content: '✗';
+    position: absolute;
+    left: 0; top: 4px;
+    color: #dc2626;
+    font-weight: 700;
+    font-size: .7rem;
+  }
+
+  /* ─── Methodology Grid ─── */
+  .method-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    flex: 1;
+    align-items: start;
+  }
+  .method-card {
+    background: var(--blue-50);
+    border: 1px solid var(--blue-200);
+    border-radius: 10px;
+    padding: 16px 12px;
+    text-align: center;
+    position: relative;
+  }
+  .method-card .step-num {
+    position: absolute;
+    top: -10px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--blue-600);
+    color: var(--white);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: .65rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .method-card .m-icon {
+    font-size: 2rem;
+    color: var(--blue-600);
+    margin: 8px 0 6px;
+  }
+  .method-card h4 {
+    font-size: .7rem;
+    font-weight: 700;
+    color: var(--blue-800);
+    margin-bottom: 4px;
+  }
+  .method-card p {
+    font-size: .62rem;
+    color: var(--gray-600);
+    line-height: 1.4;
+  }
+  .flow-arrows {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .flow-arrows .arrow-seg {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .flow-arrows .dot {
+    width: 8px; height: 8px;
+    background: var(--blue-400);
+    border-radius: 50%;
+  }
+  .flow-arrows .line {
+    width: 60px; height: 2px;
+    background: var(--blue-300);
+  }
+
+  /* ─── DFD Diagram ─── */
+  .dfd-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+  }
+  .dfd-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  .dfd-node {
+    background: var(--blue-50);
+    border: 2px solid var(--blue-400);
+    border-radius: 10px;
+    padding: 10px 16px;
+    text-align: center;
+    min-width: 130px;
+  }
+  .dfd-node.primary {
+    background: var(--blue-600);
+    border-color: var(--blue-700);
+    color: var(--white);
+  }
+  .dfd-node.primary span { color: var(--blue-200); }
+  .dfd-node .node-title {
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--blue-800);
+  }
+  .dfd-node.primary .node-title { color: var(--white); }
+  .dfd-node .node-sub {
+    font-size: .58rem;
+    color: var(--gray-500);
+    margin-top: 2px;
+  }
+  .dfd-node.primary .node-sub { color: var(--blue-200); }
+  .dfd-arrow {
+    color: var(--blue-400);
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+  .dfd-arrow-down {
+    color: var(--blue-400);
+    font-size: 1rem;
+    text-align: center;
+  }
+
+  /* ─── System Architecture ─── */
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 1;
+    padding: 0 8px;
+  }
+  .arch-node {
+    background: linear-gradient(180deg, var(--white), var(--blue-50));
+    border: 2px solid var(--blue-300);
+    border-radius: 12px;
+    padding: 12px 10px;
+    text-align: center;
+    min-width: 110px;
+    max-width: 130px;
+    box-shadow: 0 2px 12px rgba(21,101,192,.1);
+    position: relative;
+    transition: transform .2s;
+  }
+  .arch-node:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+  .arch-node.highlight {
+    background: linear-gradient(180deg, var(--blue-600), var(--blue-800));
+    border-color: var(--blue-700);
+    box-shadow: 0 4px 20px rgba(21,101,192,.3);
+  }
+  .arch-node .a-icon {
+    font-size: 1.6rem;
+    color: var(--blue-600);
+    margin-bottom: 4px;
+    display: block;
+  }
+  .arch-node.highlight .a-icon { color: var(--white); }
+  .arch-node .a-title {
+    font-size: .68rem;
+    font-weight: 700;
+    color: var(--blue-800);
+    margin-bottom: 3px;
+    line-height: 1.3;
+  }
+  .arch-node.highlight .a-title { color: var(--white); }
+  .arch-node .a-desc {
+    font-size: .55rem;
+    color: var(--gray-500);
+    line-height: 1.35;
+  }
+  .arch-node.highlight .a-desc { color: var(--blue-200); }
+  .arch-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .arch-arrow .arr-line {
+    width: 28px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--blue-400), var(--blue-300));
+    border-radius: 1px;
+  }
+  .arch-arrow .arr-label {
+    font-size: .5rem;
+    color: var(--gray-500);
+    white-space: nowrap;
+  }
+  .arch-arrow svg {
+    width: 18px;
+    height: 14px;
+    fill: var(--blue-400);
+  }
+
+  /* ─── Demo Flow ─── */
+  .demo-steps {
+    display: flex;
+    gap: 14px;
+    flex: 1;
+    align-items: flex-start;
+    padding-top: 8px;
+  }
+  .demo-step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+  }
+  .demo-step .d-num {
+    width: 32px; height: 32px;
+    background: var(--blue-600);
+    color: var(--white);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: .8rem;
+    margin: 0 auto 8px;
+  }
+  .demo-step .d-icon {
+    font-size: 1.8rem;
+    color: var(--blue-500);
+    margin-bottom: 6px;
+  }
+  .demo-step .d-title {
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--blue-800);
+    margin-bottom: 3px;
+  }
+  .demo-step .d-desc {
+    font-size: .6rem;
+    color: var(--gray-500);
+  }
+  .demo-step::after {
+    content: '→';
+    position: absolute;
+    right: -14px;
+    top: 34px;
+    color: var(--blue-300);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  .demo-step:last-child::after { display: none; }
+  .closing-line {
+    text-align: center;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--blue-700);
+    font-style: italic;
+    padding: 10px 0;
+    border-top: 1px solid var(--gray-200);
+    margin-top: auto;
+  }
+
+  /* ─── Visual Label ─── */
+  .visual-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--blue-50);
+    border: 1px dashed var(--blue-300);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: .6rem;
+    color: var(--blue-600);
+    margin-bottom: 6px;
+  }
+
+  /* ─── Print ─── */
+  @media print {
+    body { background: white; }
+    .slide {
+      box-shadow: none;
+      border: 1px solid var(--gray-200);
+      margin: 0;
+      border-radius: 0;
+      page-break-after: always;
+      page-break-inside: avoid;
+    }
+    .speaker-notes { background: #f0f7ff !important; }
+  }
+
+  @page {
+    size: 960px 540px;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     TITLE SLIDE
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide title-slide">
+  <div class="institution">Capstone Project 1 — Proposal Presentation</div>
+  <h1>IoT-Enabled Ornamental Fish Counter and Inventory Management System for Aquaculture</h1>
+  <div class="divider"></div>
+  <div class="meta">
+    <span>Presented to: <strong>Dr. Jacqueline A. Dela Torre</strong></span>
+    <span style="margin-top:6px;">Proponents: [Member 1], [Member 2], [Member 3]</span>
+    <span>April 2026</span>
+  </div>
+  <div class="footer-bar"></div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 1 — Client Background
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">1</div>
+    <h2>Client Background</h2>
+    <div class="time-badge">⏱ 30 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="visual-note">🏢 Suggested visual: Client photo / map pin / business icon</div>
+    <div class="two-col" style="margin-top:8px;">
+      <div class="col-box">
+        <h3><span class="icon">👤</span> Client Profile</h3>
+        <ul class="bullets compact">
+          <li><strong>Client Name:</strong> [Insert Client Name]</li>
+          <li><strong>Location:</strong> [Insert Location]</li>
+          <li><strong>Nature of Business:</strong> Ornamental fish breeding and aquaculture inventory management</li>
+        </ul>
+      </div>
+      <div class="col-box">
+        <h3><span class="icon">🐟</span> Business Overview</h3>
+        <ul class="bullets compact">
+          <li>Breeds and sells ornamental fish varieties</li>
+          <li>Maintains manual fish counting and inventory logs</li>
+          <li>Serves local and regional aquaculture markets</li>
+        </ul>
+      </div>
+    </div>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      Our client operates an ornamental fish breeding business at [location]. They manage inventory manually, which presents several operational challenges we aim to address.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 1 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 2 — Problem / Opportunity
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">2</div>
+    <h2>Problem / Opportunity</h2>
+    <div class="time-badge">⏱ 40 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="visual-note">⚠️ Suggested: Warning icons / pain-point infographic</div>
+    <ul class="bullets" style="margin-top:6px;">
+      <li>Manual fish counting is <strong>time-consuming</strong> and labor-intensive</li>
+      <li>High incidence of <strong>human error</strong> in counting and recording inventory</li>
+      <li>Difficulty <strong>tracking fish variants</strong> and timely stock updates</li>
+      <li>Lack of <strong>real-time monitoring</strong> for inventory status</li>
+      <li><strong>Opportunity:</strong> Improve operational efficiency through IoT automation and a web-based management system</li>
+    </ul>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      The client currently relies on manual counting, which is slow and error-prone. There is no system for real-time monitoring. This presents an opportunity to introduce IoT-based automation to improve accuracy and efficiency.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 2 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 3 — Objectives
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">3</div>
+    <h2>Objectives</h2>
+    <div class="time-badge">⏱ 40 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="visual-note">🎯 Suggested: Target / checklist icons per objective</div>
+    <ul class="bullets" style="margin-top:6px;">
+      <li>To design and develop an <strong>IoT-enabled ornamental fish counter</strong> and inventory management system</li>
+      <li>To automate <strong>fish counting</strong> and <strong>variant tracking</strong></li>
+      <li>To provide <strong>real-time inventory monitoring</strong> through a web-based system</li>
+      <li>To <strong>reduce human error</strong> and improve counting accuracy</li>
+      <li>To evaluate the system in terms of <strong>functionality, efficiency, usability, and accuracy</strong></li>
+    </ul>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      Our objectives center on automating the fish counting process, enabling real-time inventory updates via a web dashboard, and validating the system through structured evaluation criteria.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 3 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 4 — Scope and Limitations
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">4</div>
+    <h2>Scope and Limitations</h2>
+    <div class="time-badge">⏱ 40 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="two-col">
+      <div class="col-box scope-box">
+        <h3><span class="icon">✅</span> Scope</h3>
+        <ul>
+          <li>Counts ornamental fish automatically</li>
+          <li>Tracks fish variants and inventory records</li>
+          <li>Provides web-based monitoring and reports</li>
+          <li>Uses IoT sensors/camera and database integration</li>
+          <li>Accessible only to authorized users</li>
+        </ul>
+      </div>
+      <div class="col-box limit-box">
+        <h3><span class="icon">🚫</span> Limitations</h3>
+        <ul>
+          <li>Limited to ornamental fish only</li>
+          <li>May not detect overlapping or very small fish</li>
+          <li>Requires stable internet and power supply</li>
+          <li>Tested only in the selected client environment</li>
+          <li>Does not include sales forecasting or financial analysis</li>
+        </ul>
+      </div>
+    </div>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      The system covers automated counting, variant tracking, and web monitoring. Key limitations include dependency on stable connectivity and testing restricted to the client's environment.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 4 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 5 — Research Gap
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">5</div>
+    <h2>Research Gap</h2>
+    <div class="time-badge">⏱ 30 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="visual-note">🔍 Suggested: Venn diagram or gap illustration</div>
+    <div class="two-col" style="margin-top:6px;">
+      <div class="col-box" style="border-left: 3px solid #ef4444;">
+        <h3 style="color:#ef4444;">Existing Literature</h3>
+        <ul class="bullets compact">
+          <li>Studies focus on fish counting <strong>or</strong> inventory — not both</li>
+          <li>Limited focus on <strong>ornamental fish variant</strong> tracking</li>
+          <li>Solutions are often costly or industry-scale</li>
+        </ul>
+      </div>
+      <div class="col-box" style="border-left: 3px solid #16a34a;">
+        <h3 style="color:#16a34a;">Our Contribution</h3>
+        <ul class="bullets compact">
+          <li>Combines IoT counting <strong>and</strong> inventory in one platform</li>
+          <li>Targets <strong>small aquaculture businesses</strong></li>
+          <li>Affordable, practical, and web-accessible</li>
+        </ul>
+      </div>
+    </div>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      Existing research addresses counting and inventory as separate concerns. Our study bridges this gap by integrating both into
+      a single affordable system designed for small-scale ornamental fish operations.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 5 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 6 — Methodology
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">6</div>
+    <h2>Methodology</h2>
+    <div class="time-badge">⏱ 30 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="method-grid">
+      <div class="method-card">
+        <div class="step-num">1</div>
+        <div class="m-icon">🔬</div>
+        <h4>Research Design</h4>
+        <p>Experimental Research Design</p>
+      </div>
+      <div class="method-card">
+        <div class="step-num">2</div>
+        <div class="m-icon">📋</div>
+        <h4>Data Gathering</h4>
+        <p>Interview, Observation, Questionnaire</p>
+      </div>
+      <div class="method-card">
+        <div class="step-num">3</div>
+        <div class="m-icon">👥</div>
+        <h4>Population</h4>
+        <p>Client staff &amp; fish inventory operations</p>
+      </div>
+      <div class="method-card">
+        <div class="step-num">4</div>
+        <div class="m-icon">⚙️</div>
+        <h4>Software Dev</h4>
+        <p>Agile Development Methodology</p>
+      </div>
+    </div>
+    <div class="flow-arrows">
+      <div class="arrow-seg"><div class="dot"></div><div class="line"></div></div>
+      <div class="arrow-seg"><div class="dot"></div><div class="line"></div></div>
+      <div class="arrow-seg"><div class="dot"></div><div class="line"></div></div>
+      <div class="dot"></div>
+    </div>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      We follow an experimental research design using interviews, observation, and questionnaires for data gathering. Development follows the Agile methodology for iterative improvement.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 6 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 7 — DFD Level 1
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">7</div>
+    <h2>Data Flow Diagram — Level 1</h2>
+    <div class="time-badge">⏱ 30 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="dfd-container">
+      <!-- Top row: External entities -->
+      <div class="dfd-row">
+        <div class="dfd-node primary">
+          <div class="node-title">🔐 User Authentication</div>
+          <div class="node-sub">Login &amp; access control</div>
+        </div>
+      </div>
+      <div class="dfd-arrow-down">▼</div>
+      <!-- Middle row: Core processes -->
+      <div class="dfd-row">
+        <div class="dfd-node">
+          <div class="node-title">🐟 Fish Detection &amp; Counting</div>
+          <div class="node-sub">Camera input → Count processing</div>
+        </div>
+        <div class="dfd-arrow">→</div>
+        <div class="dfd-node">
+          <div class="node-title">📦 Inventory Management</div>
+          <div class="node-sub">Stock tracking &amp; updates</div>
+        </div>
+        <div class="dfd-arrow">→</div>
+        <div class="dfd-node">
+          <div class="node-title">📊 Report Generation</div>
+          <div class="node-sub">Summary &amp; export</div>
+        </div>
+      </div>
+      <div class="dfd-arrow-down">▼</div>
+      <!-- Bottom: Data Store -->
+      <div class="dfd-row">
+        <div class="dfd-node primary">
+          <div class="node-title">🗄️ Database Storage</div>
+          <div class="node-sub">Fish counts, inventory records, user data</div>
+        </div>
+      </div>
+    </div>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      The Level 1 DFD shows five core processes: authentication, fish detection, inventory management, report generation, and centralized database storage connecting them all.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 7 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 8 — System Architecture  (HERO SLIDE)
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide" style="overflow:visible;">
+  <div class="slide-header" style="background: linear-gradient(135deg, #0c2d6b, #1150b0, #1976d2);">
+    <div class="slide-number">8</div>
+    <h2>System Architecture</h2>
+    <div class="time-badge">⏱ 40 sec</div>
+  </div>
+  <div class="slide-body" style="padding: 20px 24px 12px;">
+    <!-- Architecture Diagram -->
+    <div class="arch-flow">
+      <!-- Node 1: Camera -->
+      <div class="arch-node">
+        <span class="a-icon">📷</span>
+        <div class="a-title">Camera / Sensor</div>
+        <div class="a-desc">Detects and counts ornamental fish via live video feed</div>
+      </div>
+      <!-- Arrow -->
+      <div class="arch-arrow">
+        <svg viewBox="0 0 18 14"><polygon points="0,5 12,5 12,0 18,7 12,14 12,9 0,9"/></svg>
+        <span class="arr-label">Video</span>
+      </div>
+      <!-- Node 2: Microcontroller -->
+      <div class="arch-node highlight">
+        <span class="a-icon">🖥️</span>
+        <div class="a-title">Micro­controller</div>
+        <div class="a-desc">Processes sensor input &amp; runs fish detection model</div>
+      </div>
+      <!-- Arrow -->
+      <div class="arch-arrow">
+        <svg viewBox="0 0 18 14"><polygon points="0,5 12,5 12,0 18,7 12,14 12,9 0,9"/></svg>
+        <span class="arr-label">Wi-Fi</span>
+      </div>
+      <!-- Node 3: Internet / Cloud -->
+      <div class="arch-node">
+        <span class="a-icon">☁️</span>
+        <div class="a-title">Wi-Fi / Internet</div>
+        <div class="a-desc">Transmits processed data to cloud server</div>
+      </div>
+      <!-- Arrow -->
+      <div class="arch-arrow">
+        <svg viewBox="0 0 18 14"><polygon points="0,5 12,5 12,0 18,7 12,14 12,9 0,9"/></svg>
+        <span class="arr-label">API</span>
+      </div>
+      <!-- Node 4: Database Server -->
+      <div class="arch-node highlight">
+        <span class="a-icon">🗄️</span>
+        <div class="a-title">Database Server</div>
+        <div class="a-desc">Stores fish count &amp; inventory records</div>
+      </div>
+      <!-- Arrow -->
+      <div class="arch-arrow">
+        <svg viewBox="0 0 18 14"><polygon points="0,5 12,5 12,0 18,7 12,14 12,9 0,9"/></svg>
+        <span class="arr-label">Query</span>
+      </div>
+      <!-- Node 5: Web System -->
+      <div class="arch-node">
+        <span class="a-icon">🌐</span>
+        <div class="a-title">Web-Based System</div>
+        <div class="a-desc">Displays dashboard, inventory &amp; reports</div>
+      </div>
+      <!-- Arrow -->
+      <div class="arch-arrow">
+        <svg viewBox="0 0 18 14"><polygon points="0,5 12,5 12,0 18,7 12,14 12,9 0,9"/></svg>
+        <span class="arr-label">View</span>
+      </div>
+      <!-- Node 6: User -->
+      <div class="arch-node highlight">
+        <span class="a-icon">👤</span>
+        <div class="a-title">Admin / User</div>
+        <div class="a-desc">Monitors &amp; manages the system</div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display:flex; justify-content:center; gap:24px; margin-top:6px; font-size:.58rem; color:var(--gray-500);">
+      <span style="display:flex; align-items:center; gap:4px;">
+        <span style="width:12px;height:12px;border-radius:3px;background:linear-gradient(180deg,var(--blue-600),var(--blue-800));display:inline-block;"></span>
+        Processing / Storage Nodes
+      </span>
+      <span style="display:flex; align-items:center; gap:4px;">
+        <span style="width:12px;height:12px;border-radius:3px;background:linear-gradient(180deg,var(--white),var(--blue-50));border:1.5px solid var(--blue-300);display:inline-block;"></span>
+        Input / Interface Nodes
+      </span>
+      <span style="display:flex; align-items:center; gap:4px;">
+        <svg width="14" height="10" viewBox="0 0 18 14" style="fill:var(--blue-400)"><polygon points="0,5 12,5 12,0 18,7 12,14 12,9 0,9"/></svg>
+        Data Flow Direction
+      </span>
+    </div>
+
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      The architecture flows from hardware to software: the camera captures video, the microcontroller processes it through our detection model, data is transmitted via Wi-Fi to the database, and the web system presents everything to the admin.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 8 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SLIDE 9 — System Demo
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-number">9</div>
+    <h2>System Demo</h2>
+    <div class="time-badge">⏱ 40 sec</div>
+  </div>
+  <div class="slide-body">
+    <div class="visual-note">💻 Suggested: Live demo or recorded video walkthrough</div>
+    <div class="demo-steps">
+      <div class="demo-step">
+        <div class="d-num">1</div>
+        <div class="d-icon">🔐</div>
+        <div class="d-title">Login Page</div>
+        <div class="d-desc">Secure user authentication</div>
+      </div>
+      <div class="demo-step">
+        <div class="d-num">2</div>
+        <div class="d-icon">📊</div>
+        <div class="d-title">Dashboard</div>
+        <div class="d-desc">Overview of inventory status</div>
+      </div>
+      <div class="demo-step">
+        <div class="d-num">3</div>
+        <div class="d-icon">🐟</div>
+        <div class="d-title">Fish Counting</div>
+        <div class="d-desc">Live detection &amp; counting process</div>
+      </div>
+      <div class="demo-step">
+        <div class="d-num">4</div>
+        <div class="d-icon">📦</div>
+        <div class="d-title">Inventory</div>
+        <div class="d-desc">Updated stock records</div>
+      </div>
+      <div class="demo-step">
+        <div class="d-num">5</div>
+        <div class="d-icon">📄</div>
+        <div class="d-title">Reports</div>
+        <div class="d-desc">Generated summary report</div>
+      </div>
+    </div>
+    <div class="closing-line">
+      "Thank you. We are now ready for your questions and suggestions."
+    </div>
+    <div class="speaker-notes">
+      <strong>Speaker Notes:</strong>
+      We will walk through the system starting from login, to the dashboard, fish counting process, updated inventory, and finally the generated report. Thank you for your time — we welcome your feedback.
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>IoT-Enabled Ornamental Fish Counter &amp; Inventory Management System</span>
+    <span>Slide 9 of 9</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     TIME ALLOCATION SUMMARY
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="slide" style="height:auto; min-height:280px;">
+  <div class="slide-header" style="background: linear-gradient(135deg, #334155, #475569);">
+    <div class="slide-number">⏱</div>
+    <h2>Time Allocation Summary</h2>
+  </div>
+  <div class="slide-body">
+    <table style="width:100%; border-collapse:collapse; font-size:.78rem;">
+      <thead>
+        <tr style="background:var(--blue-50); text-align:left;">
+          <th style="padding:8px 12px; border-bottom:2px solid var(--blue-200); font-weight:700; color:var(--blue-800);">Slide</th>
+          <th style="padding:8px 12px; border-bottom:2px solid var(--blue-200); font-weight:700; color:var(--blue-800);">Topic</th>
+          <th style="padding:8px 12px; border-bottom:2px solid var(--blue-200); font-weight:700; color:var(--blue-800); text-align:center;">Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">1</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">Client Background</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:30</td></tr>
+        <tr style="background:var(--gray-50);"><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">2</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">Problem / Opportunity</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:40</td></tr>
+        <tr><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">3</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">Objectives</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:40</td></tr>
+        <tr style="background:var(--gray-50);"><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">4</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">Scope &amp; Limitations</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:40</td></tr>
+        <tr><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">5</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">Research Gap</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:30</td></tr>
+        <tr style="background:var(--gray-50);"><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">6</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">Methodology</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:30</td></tr>
+        <tr><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">7</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">DFD Level 1</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:30</td></tr>
+        <tr style="background:var(--gray-50);"><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">8</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">System Architecture</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:40</td></tr>
+        <tr><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">9</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200);">System Demo &amp; Closing</td><td style="padding:6px 12px; border-bottom:1px solid var(--gray-200); text-align:center; font-weight:600;">0:40</td></tr>
+        <tr style="background:var(--blue-100);">
+          <td colspan="2" style="padding:8px 12px; font-weight:700; color:var(--blue-800);">Total</td>
+          <td style="padding:8px 12px; text-align:center; font-weight:800; color:var(--blue-800); font-size:.9rem;">5:00</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:.65rem; color:var(--gray-500); margin-top:10px; text-align:center; font-style:italic;">
+      This summary page is for planning purposes only — not part of the actual presentation slides.
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

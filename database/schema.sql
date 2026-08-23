@@ -40,11 +40,15 @@ CREATE TABLE IF NOT EXISTS inventory (
   date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   notes TEXT,
   action ENUM('IN','OUT','INVENTORY','WHOLESALE') NOT NULL DEFAULT 'IN',
+  transaction_type VARCHAR(20) NOT NULL DEFAULT 'TANK_IN',
+  price DECIMAL(10,2) NULL,
+  total_price DECIMAL(10,2) NULL,
   source VARCHAR(64),
   device_id VARCHAR(255) NULL,
   deleted TINYINT(1) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_variant_date (variant, date),
+  INDEX idx_transaction_type (transaction_type),
   CONSTRAINT fk_inventory_device FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

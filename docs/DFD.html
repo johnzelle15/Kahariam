@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fish Counter System — Data Flow Diagrams</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.3rem;
+      color: #0f3460;
+    }
+    .subtitle {
+      color: #555;
+      margin-bottom: 2.5rem;
+      font-size: 0.95rem;
+    }
+    h2 {
+      font-size: 1.25rem;
+      color: #0f3460;
+      margin: 2.5rem 0 0.8rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid #e0e7f3;
+    }
+    h3 {
+      font-size: 1rem;
+      color: #16213e;
+      margin: 1.2rem 0 0.5rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .diagram-wrap {
+      overflow-x: auto;
+      text-align: center;
+      padding: 1rem 0;
+    }
+    /* ── Suggested Components ── */
+    .components-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+    .comp-box {
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .comp-box.entities  { background: #e8f5e9; border-left: 4px solid #43a047; }
+    .comp-box.processes { background: #e3f2fd; border-left: 4px solid #1e88e5; }
+    .comp-box.stores    { background: #fce4ec; border-left: 4px solid #e53935; }
+    .comp-box h3        { margin-top: 0; margin-bottom: 0.5rem; }
+    .comp-box ul        { padding-left: 1.2rem; font-size: 0.9rem; }
+    .comp-box li        { margin-bottom: 0.25rem; }
+    /* ── Data Dictionary ── */
+    .dd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 0.5rem;
+    }
+    .dd-table th {
+      background: #0f3460;
+      color: #fff;
+      padding: 0.5rem 0.7rem;
+      text-align: left;
+    }
+    .dd-table td {
+      padding: 0.45rem 0.7rem;
+      border-bottom: 1px solid #e0e7f3;
+      vertical-align: top;
+    }
+    .dd-table tr:nth-child(even) td { background: #f0f4fb; }
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .pk  { background: #fff3cd; color: #856404; }
+    .fk  { background: #d1ecf1; color: #0c5460; }
+    .uni { background: #d4edda; color: #155724; }
+    code { background: #eef; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.83rem; }
+    .legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.8rem; font-size: 0.83rem; }
+    .legend span { display: flex; align-items: center; gap: 0.3rem; }
+    .dot { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+<h1>Fish Counter Management System — DFD</h1>
+<p class="subtitle">Context (Level 0) · Decomposed (Level 1) · Suggested Components · Data Dictionary</p>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 1. SUGGESTED DFD COMPONENTS                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>1 · Suggested DFD Components</h2>
+<div class="card">
+  <div class="components-grid">
+
+    <div class="comp-box entities">
+      <h3>External Entities</h3>
+      <ul>
+        <li>Admin / Staff User</li>
+        <li>Raspberry Pi Fish Counter</li>
+        <li>SMTP Email Service</li>
+      </ul>
+    </div>
+
+    <div class="comp-box processes">
+      <h3>Processes</h3>
+      <ul>
+        <li>1.0 Authenticate User</li>
+        <li>2.0 Ingest Fish Count</li>
+        <li>3.0 Manage Inventory</li>
+        <li>4.0 Manage Devices</li>
+        <li>5.0 Reports &amp; Dashboard</li>
+      </ul>
+    </div>
+
+    <div class="comp-box stores">
+      <h3>Data Stores</h3>
+      <ul>
+        <li>D1 — users</li>
+        <li>D2 — otp_codes</li>
+        <li>D3 — devices</li>
+        <li>D4 — readings</li>
+        <li>D5 — inventory</li>
+        <li>D6 — counting_state</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 2. LEVEL 0 — CONTEXT DIAGRAM                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>2 · Level 0 — Context Diagram</h2>
+<div class="card">
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart LR
+    U["👤 Admin / Staff\n(User)"]
+    RPi["🖥️ Raspberry Pi\nFish Counter"]
+    SMTP["📧 SMTP\nEmail Service"]
+
+    SYS(("🐟\nFish Counter\nManagement\nSystem"))
+
+    U -- "Credentials · OTP code\nInventory actions\nDevice commands" --> SYS
+    SYS -- "JWT token · Dashboard\nInventory report\nDevice status" --> U
+
+    RPi -- "Fish count payload\nDevice metadata · Firmware" --> SYS
+    SYS -- "ACK · Config" --> RPi
+
+    SYS -- "OTP email request" --> SMTP
+    SMTP -- "Delivery status" --> SYS
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 3. LEVEL 1 — DECOMPOSED DIAGRAM                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>3 · Level 1 — Decomposed Processes</h2>
+<div class="card">
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart TD
+    %% ── External Entities ──────────────────────────────────
+    U["👤 Admin / Staff"]
+    RPi["🖥️ Raspberry Pi\nFish Counter"]
+    SMTP["📧 SMTP Email"]
+
+    %% ── Processes ───────────────────────────────────────────
+    P1(("1.0\nAuthenticate\nUser"))
+    P2(("2.0\nIngest Fish\nCount"))
+    P3(("3.0\nManage\nInventory"))
+    P4(("4.0\nManage\nDevices"))
+    P5(("5.0\nReports &\nDashboard"))
+
+    %% ── Data Stores ─────────────────────────────────────────
+    D1[/"D1: users"/]
+    D2[/"D2: otp_codes"/]
+    D3[/"D3: devices"/]
+    D4[/"D4: readings"/]
+    D5[/"D5: inventory"/]
+    D6[/"D6: counting_state"/]
+
+    %% ── 1.0 Authentication ───────────────────────────────────
+    U          -- "username + password" --> P1
+    P1         -- "lookup user"         --> D1
+    D1         -- "user record"         --> P1
+    P1         -- "store OTP"           --> D2
+    D2         -- "OTP record"          --> P1
+    P1         -- "send OTP email"      --> SMTP
+    P1         -- "JWT token"           --> U
+
+    %% ── 2.0 Fish Count Ingestion ─────────────────────────────
+    RPi        -- "count + metadata"    --> P2
+    P2         -- "verify device_id"    --> D3
+    D3         -- "device record"       --> P2
+    P2         -- "write reading"       --> D4
+    P2         -- "update active flag"  --> D6
+    P2         -- "ACK response"        --> RPi
+
+    %% ── 3.0 Inventory Management ─────────────────────────────
+    U          -- "IN / OUT action\nvariant + count" --> P3
+    P3         -- "write record"        --> D5
+    D5         -- "current stock"       --> P3
+    P3         -- "updated inventory"   --> U
+
+    %% ── 4.0 Device Management ────────────────────────────────
+    U          -- "register / lock\nupdate device"  --> P4
+    P4         -- "write device"        --> D3
+    D3         -- "device list"         --> P4
+    P4         -- "device status"       --> U
+
+    %% ── 5.0 Reports & Dashboard ──────────────────────────────
+    U          -- "report request"      --> P5
+    P5         -- "query readings"      --> D4
+    P5         -- "query inventory"     --> D5
+    P5         -- "charts + tables"     --> U
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- 4. DATA DICTIONARY                                         -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>4 · Data Dictionary</h2>
+
+<div class="legend">
+  <span><span class="dot" style="background:#856404;opacity:.6;"></span> PK = Primary Key</span>
+  <span><span class="dot" style="background:#0c5460;opacity:.6;"></span> FK = Foreign Key</span>
+  <span><span class="dot" style="background:#155724;opacity:.6;"></span> UQ = Unique</span>
+</div>
+
+<!-- ── users ── -->
+<div class="card">
+  <h3>D1 — users</h3>
+  <table class="dd-table">
+    <thead><tr><th>#</th><th>Column</th><th>Type</th><th>Nullable</th><th>Default</th><th>Key</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>id</code></td><td>bigint unsigned</td><td>NO</td><td>—</td><td><span class="badge pk">PK</span></td><td>Auto-increment user identifier</td></tr>
+      <tr><td>2</td><td><code>username</code></td><td>varchar(150)</td><td>NO</td><td>—</td><td><span class="badge uni">UQ</span></td><td>Unique login name</td></tr>
+      <tr><td>3</td><td><code>password_hash</code></td><td>varchar(255)</td><td>NO</td><td>—</td><td></td><td>Bcrypt hashed password</td></tr>
+      <tr><td>4</td><td><code>email</code></td><td>varchar(255)</td><td>YES</td><td>NULL</td><td></td><td>Email address for OTP delivery</td></tr>
+      <tr><td>5</td><td><code>role</code></td><td>enum('admin','staff')</td><td>NO</td><td>'staff'</td><td></td><td>Access role</td></tr>
+      <tr><td>6</td><td><code>active</code></td><td>tinyint(1)</td><td>YES</td><td>1</td><td></td><td>Account enabled flag</td></tr>
+      <tr><td>7</td><td><code>created_at</code></td><td>timestamp</td><td>YES</td><td>CURRENT_TIMESTAMP</td><td></td><td>Account creation time</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── otp_codes ── -->
+<div class="card">
+  <h3>D2 — otp_codes</h3>
+  <table class="dd-table">
+    <thead><tr><th>#</th><th>Column</th><th>Type</th><th>Nullable</th><th>Default</th><th>Key</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>id</code></td><td>bigint unsigned</td><td>NO</td><td>auto_increment</td><td><span class="badge pk">PK</span></td><td>OTP record identifier</td></tr>
+      <tr><td>2</td><td><code>user_id</code></td><td>bigint unsigned</td><td>NO</td><td>—</td><td></td><td>References users.id (logical FK)</td></tr>
+      <tr><td>3</td><td><code>otp_code</code></td><td>varchar(255)</td><td>NO</td><td>—</td><td></td><td>Hashed one-time password</td></tr>
+      <tr><td>4</td><td><code>expires_at</code></td><td>datetime</td><td>NO</td><td>—</td><td></td><td>Expiry timestamp of OTP</td></tr>
+      <tr><td>5</td><td><code>attempts</code></td><td>int unsigned</td><td>NO</td><td>0</td><td></td><td>Failed verification attempts</td></tr>
+      <tr><td>6</td><td><code>used</code></td><td>tinyint(1)</td><td>NO</td><td>0</td><td></td><td>1 = already consumed</td></tr>
+      <tr><td>7</td><td><code>created_at</code></td><td>timestamp</td><td>YES</td><td>CURRENT_TIMESTAMP</td><td></td><td>OTP generation time</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── devices ── -->
+<div class="card">
+  <h3>D3 — devices</h3>
+  <table class="dd-table">
+    <thead><tr><th>#</th><th>Column</th><th>Type</th><th>Nullable</th><th>Default</th><th>Key</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>id</code></td><td>varchar(255)</td><td>NO</td><td>—</td><td><span class="badge pk">PK</span></td><td>UUID device identifier</td></tr>
+      <tr><td>2</td><td><code>name</code></td><td>varchar(120)</td><td>YES</td><td>NULL</td><td></td><td>Human-readable device name</td></tr>
+      <tr><td>3</td><td><code>location</code></td><td>varchar(120)</td><td>YES</td><td>NULL</td><td></td><td>Physical deployment location</td></tr>
+      <tr><td>4</td><td><code>model</code></td><td>varchar(100)</td><td>YES</td><td>NULL</td><td></td><td>Hardware model string</td></tr>
+      <tr><td>5</td><td><code>firmware</code></td><td>varchar(64)</td><td>YES</td><td>NULL</td><td></td><td>Firmware version</td></tr>
+      <tr><td>6</td><td><code>secret_hash</code></td><td>varchar(255)</td><td>NO</td><td>—</td><td></td><td>Hashed device authentication token</td></tr>
+      <tr><td>7</td><td><code>created_at</code></td><td>timestamp</td><td>YES</td><td>CURRENT_TIMESTAMP</td><td></td><td>Registration timestamp</td></tr>
+      <tr><td>8</td><td><code>last_seen</code></td><td>timestamp</td><td>YES</td><td>NULL</td><td></td><td>Last successful ingest timestamp</td></tr>
+      <tr><td>9</td><td><code>active</code></td><td>tinyint(1)</td><td>YES</td><td>1</td><td></td><td>Device enabled flag</td></tr>
+      <tr><td>10</td><td><code>locked_by</code></td><td>char(36)</td><td>YES</td><td>NULL</td><td></td><td>UUID of user holding device lock</td></tr>
+      <tr><td>11</td><td><code>lock_time</code></td><td>timestamp</td><td>YES</td><td>NULL</td><td></td><td>Time when lock was acquired</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── readings ── -->
+<div class="card">
+  <h3>D4 — readings</h3>
+  <table class="dd-table">
+    <thead><tr><th>#</th><th>Column</th><th>Type</th><th>Nullable</th><th>Default</th><th>Key</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>id</code></td><td>bigint unsigned</td><td>NO</td><td>auto_increment</td><td><span class="badge pk">PK</span></td><td>Reading record identifier</td></tr>
+      <tr><td>2</td><td><code>device_id</code></td><td>varchar(255)</td><td>NO</td><td>—</td><td><span class="badge fk">FK</span> → devices.id</td><td>Source device UUID</td></tr>
+      <tr><td>3</td><td><code>count</code></td><td>int(11)</td><td>NO</td><td>—</td><td></td><td>Fish count value from detection</td></tr>
+      <tr><td>4</td><td><code>timestamp</code></td><td>timestamp</td><td>NO</td><td>CURRENT_TIMESTAMP</td><td></td><td>Time of fish count event</td></tr>
+      <tr><td>5</td><td><code>firmware</code></td><td>varchar(64)</td><td>YES</td><td>NULL</td><td></td><td>Device firmware at time of reading</td></tr>
+      <tr><td>6</td><td><code>raw_payload</code></td><td>text</td><td>YES</td><td>NULL</td><td></td><td>Full JSON payload from device</td></tr>
+      <tr><td>7</td><td><code>rssi</code></td><td>int(11)</td><td>YES</td><td>NULL</td><td></td><td>Wi-Fi signal strength (dBm)</td></tr>
+      <tr><td>8</td><td><code>created_at</code></td><td>timestamp</td><td>YES</td><td>CURRENT_TIMESTAMP</td><td></td><td>DB insert timestamp</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── inventory ── -->
+<div class="card">
+  <h3>D5 — inventory</h3>
+  <table class="dd-table">
+    <thead><tr><th>#</th><th>Column</th><th>Type</th><th>Nullable</th><th>Default</th><th>Key</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>id</code></td><td>int(11)</td><td>NO</td><td>auto_increment</td><td><span class="badge pk">PK</span></td><td>Transaction identifier</td></tr>
+      <tr><td>2</td><td><code>count</code></td><td>int(11)</td><td>NO</td><td>—</td><td></td><td>Number of fish in transaction</td></tr>
+      <tr><td>3</td><td><code>variant</code></td><td>varchar(255)</td><td>NO</td><td>—</td><td></td><td>Fish species / size variant</td></tr>
+      <tr><td>4</td><td><code>date</code></td><td>datetime</td><td>NO</td><td>—</td><td></td><td>Transaction date and time</td></tr>
+      <tr><td>5</td><td><code>notes</code></td><td>text</td><td>YES</td><td>NULL</td><td></td><td>Optional remarks</td></tr>
+      <tr><td>6</td><td><code>action</code></td><td>varchar(32)</td><td>YES</td><td>'IN'</td><td></td><td>Stock direction: IN or OUT</td></tr>
+      <tr><td>7</td><td><code>transaction_type</code></td><td>varchar(20)</td><td>NO</td><td>'TANK_IN'</td><td></td><td>Transaction category (TANK_IN, SELL, etc.)</td></tr>
+      <tr><td>8</td><td><code>price</code></td><td>decimal(10,2)</td><td>YES</td><td>NULL</td><td></td><td>Unit price per fish</td></tr>
+      <tr><td>9</td><td><code>total_price</code></td><td>decimal(10,2)</td><td>YES</td><td>NULL</td><td></td><td>Computed total (count × price)</td></tr>
+      <tr><td>10</td><td><code>deleted</code></td><td>tinyint(4)</td><td>YES</td><td>0</td><td></td><td>Soft-delete flag</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── counting_state ── -->
+<div class="card">
+  <h3>D6 — counting_state</h3>
+  <table class="dd-table">
+    <thead><tr><th>#</th><th>Column</th><th>Type</th><th>Nullable</th><th>Default</th><th>Key</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>id</code></td><td>int(11)</td><td>NO</td><td>—</td><td><span class="badge pk">PK</span></td><td>State record identifier</td></tr>
+      <tr><td>2</td><td><code>active</code></td><td>tinyint(4)</td><td>YES</td><td>0</td><td></td><td>1 = counting session active</td></tr>
+      <tr><td>3</td><td><code>updated_at</code></td><td>datetime</td><td>YES</td><td>NULL</td><td></td><td>Last state change timestamp</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis' } });
+</script>
+</body>
+</html>

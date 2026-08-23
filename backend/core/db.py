@@ -206,4 +206,35 @@ def init_db():
                   ('test-device', 'dev-test', 'dev', token_hash))
         conn.commit()
 
+    # ── OTP Auth tables ───────────────────────────────────────────────────
+    # Ensure users table has the 'role' column
+    if table_exists('users'):
+        raw = conn._conn.cursor()
+        raw.execute(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA=%s AND TABLE_NAME='users'",
+            (os.environ.get('DB_NAME', 'inventory'),)
+        )
+        user_cols = [r['COLUMN_NAME'] if isinstance(r, dict) else r[0] for r in raw.fetchall()]
+        raw.close()
+        if 'role' not in user_cols:
+            c.execute("ALTER TABLE users ADD COLUMN role ENUM('admin','staff') NOT NULL DEFAULT 'staff'")
+            conn.commit()
+
+    # OTP codes table
+    if not table_exists('otp_codes'):
+        c.execute('''
+            CREATE TABLE otp_codes (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT UNSIGNED NOT NULL,
+                otp_code VARCHAR(255) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                attempts INT UNSIGNED NOT NULL DEFAULT 0,
+                used TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_otp_user_expires (user_id, expires_at)
+            )
+        ''')
+        conn.commit()
+
     conn.close()
