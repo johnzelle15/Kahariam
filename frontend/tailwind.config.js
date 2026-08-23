@@ -24,6 +24,7 @@ export default {
           blue: 'var(--accent-blue)',
           cyan: 'var(--accent-cyan)',
           green: 'var(--accent-green)',
+          teal: 'var(--accent-teal)',
           red: 'var(--accent-red)',
           amber: 'var(--accent-amber)',
         },

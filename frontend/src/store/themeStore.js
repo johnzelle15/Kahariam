@@ -18,7 +18,7 @@ function getInitialTheme() {
     const stored = localStorage.getItem('fc_theme')
     if (stored && THEMES[stored]) return stored
   } catch {}
-  return 'dark'
+  return 'light'
 }
 
 const useThemeStore = create((set, get) => ({

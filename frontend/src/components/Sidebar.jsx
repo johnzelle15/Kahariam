@@ -108,15 +108,15 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       <div className={`flex items-center gap-3 px-5 py-6 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
         <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden">
-          <img src={logoImg} alt="Aquaculture Logo" className="w-full h-full object-cover" />
+          <img src={logoImg} alt="Kahariam Farms Logo" className="w-full h-full object-cover" />
         </div>
         {(isMobile || !collapsed) && (
           <div className="overflow-hidden flex-1">
             <h1 className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
-              Aquaculture
+              Kahariam Farms
             </h1>
             <p className="text-[10px] font-medium tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
-              Management
+              Fish Management
             </p>
           </div>
         )}
@@ -171,7 +171,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
                 <motion.div
                   layoutId="nav-indicator"
                   className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
-                  style={{ background: 'var(--accent-purple)' }}
+                  style={{ background: 'var(--accent-green)' }}
                   transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                 />
               )}

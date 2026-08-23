@@ -6,12 +6,14 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, Minus, Fish, Warehouse, DollarSign,
+  TrendingUp, Fish, Warehouse, DollarSign,
   Activity, AlertTriangle, Filter, Calendar, X, Package,
   Lightbulb, Zap, Target, ShieldAlert
 } from 'lucide-react'
 import SalesTrend from './SalesTrend'
 import { getNoteDisplay } from '../utils/notes'
+import { Button, EmptyState, Modal, PageHeader, StatCard, StatusIndicator, Skeleton } from './ui'
+import useAuthStore from '../store/authStore'
 
 /* ─── Helpers ─── */
 function useDebounce(fn, delay) {
@@ -24,10 +26,6 @@ function useDebounce(fn, delay) {
   }, [delay])
 }
 
-function Skeleton({ className = '', width = '100%', height = 20 }) {
-  return <div className={`skeleton-dark ${className}`} style={{ width, height }} />
-}
-
 function KpiSkeleton() {
   return (
     <div className="glass-card stat-glow p-5">
@@ -38,35 +36,21 @@ function KpiSkeleton() {
   )
 }
 
-const CHART_COLORS = ['#a78bfa', '#60a5fa', '#22d3ee']
-const VARIANT_COLORS = { Black: '#a78bfa', Platinum: '#60a5fa', Pineapple: '#22d3ee' }
+const CHART_COLORS = ['#4C7A3D', '#5E9B94', '#D98E3B']
+const VARIANT_COLORS = { Black: '#4C7A3D', Platinum: '#5E9B94', Pineapple: '#D98E3B' }
 
 const formatCurrency = v => {
   try { return '₱' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
   catch { return '₱0.00' }
 }
 
-/* ─── Trend Badge ─── */
-function TrendBadge({ current, yesterday, isCurrency }) {
+/* ─── Trend percentage (used by StatCard) ─── */
+function trendPercent(current, yesterday) {
   const cur = Number(current || 0)
   const yday = Number(yesterday || 0)
   const diff = cur - yday
-  const pct = yday !== 0 ? ((diff / Math.abs(yday)) * 100) : (diff !== 0 ? 100 : 0)
-
-  let Icon, colorClass
-  if (diff > 0) { Icon = TrendingUp; colorClass = 'text-accent-green' }
-  else if (diff < 0) { Icon = TrendingDown; colorClass = 'text-accent-red' }
-  else { Icon = Minus; colorClass = 'text-text-muted' }
-
-  const sign = diff > 0 ? '+' : ''
-  const tooltip = `vs yesterday: ${isCurrency ? '₱' : ''}${yday.toLocaleString()}`
-
-  return (
-    <div className={`flex items-center gap-1.5 mt-2 ${colorClass}`} title={tooltip}>
-      <Icon className="w-3.5 h-3.5" />
-      <span className="text-xs font-semibold">{sign}{Math.abs(pct).toFixed(1)}%</span>
-    </div>
-  )
+  if (yday !== 0) return (diff / Math.abs(yday)) * 100
+  return diff !== 0 ? 100 : 0
 }
 
 /* ─── Low Stock Alerts ─── */
@@ -705,7 +689,7 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(167, 139, 250, 0.15))' }}>
+                style={{ background: 'linear-gradient(135deg, rgba(217, 142, 59, 0.15), rgba(76, 122, 61, 0.15))' }}>
                 <Lightbulb className="w-4 h-4 text-accent-amber" />
               </div>
               <div>
@@ -782,9 +766,7 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading }) {
 
       {/* Empty state */}
       {!trendLoading && !hasAny && (
-        <div className="glass-card py-8 px-4 text-center">
-          <p className="text-sm text-text-muted">No insights available for the selected range</p>
-        </div>
+        <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
       )}
     </motion.div>
   )
@@ -804,6 +786,7 @@ export default function Dashboard() {
   const [endDate, setEndDate] = useState('')
   const [socketConnected, setSocketConnected] = useState(false)
   const [kpiModal, setKpiModal] = useState(null) // { label, value, color, icon, details }
+  const user = useAuthStore(s => s.user)
 
   useEffect(() => {
     loadStats(); loadLowStock(); loadFishInTank()
@@ -874,11 +857,11 @@ export default function Dashboard() {
   }))
 
   const kpiCards = stats ? [
-    { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, color: '#a78bfa', current: global.additions_total, yesterday: yday.additions_total },
-    { key: 'fish_in_tank', label: 'Fish in Tank', value: Number(stats.tank_total || 0).toLocaleString(), icon: Package, color: '#60a5fa', current: global.tank_total, yesterday: yday.tank_total },
-    { key: 'wholesale', label: 'Wholesale Storage', value: Number(stats.wholesale_total || 0).toLocaleString(), icon: Warehouse, color: '#22d3ee', current: global.wholesale_total, yesterday: yday.wholesale_total },
-    { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, color: '#34d399', current: global.today_revenue, yesterday: yday.today_revenue, isCurrency: true, rawValue: Number(stats.today_revenue || 0) },
-    { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, color: '#fbbf24', current: global.total_revenue, yesterday: yday.total_revenue, isCurrency: true, rawValue: Number(stats.total_revenue || 0) },
+    { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, current: global.additions_total, yesterday: yday.additions_total },
+    { key: 'fish_in_tank', label: 'Fish in Tank', value: Number(stats.tank_total || 0).toLocaleString(), icon: Package, current: global.tank_total, yesterday: yday.tank_total },
+    { key: 'wholesale', label: 'Wholesale Storage', value: Number(stats.wholesale_total || 0).toLocaleString(), icon: Warehouse, current: global.wholesale_total, yesterday: yday.wholesale_total },
+    { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0) },
+    { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, current: global.total_revenue, yesterday: yday.total_revenue, rawValue: Number(stats.total_revenue || 0) },
   ] : []
 
   function openKpiModal(card) {
@@ -922,8 +905,8 @@ export default function Dashboard() {
         title: isToday ? "Today's Revenue Breakdown" : 'Total Revenue Breakdown',
         subtitle: `Exact: ${formatCurrency(card.rawValue)}`,
         rows: [
-          { label: 'Retail Price', color: '#34d399', value: `₱${retailPrice.toFixed(2)} per fish` },
-          { label: 'Wholesale Price', color: '#22d3ee', value: `₱${wholesalePrice.toFixed(2)} per fish` },
+          { label: 'Retail Price', color: '#4C7A3D', value: `₱${retailPrice.toFixed(2)} per fish` },
+          { label: 'Wholesale Price', color: '#5E9B94', value: `₱${wholesalePrice.toFixed(2)} per fish` },
         ],
         extra: isToday
           ? `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`
@@ -935,32 +918,32 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <PageHeader
+        title={`Welcome back${user?.username ? `, ${user.username}` : ''}`}
+        subtitle="Here's what's happening on the farm today."
+      />
+
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
         {statsLoading ? (
           Array.from({ length: 5 }).map((_, i) => <KpiSkeleton key={i} />)
-        ) : kpiCards.map((card, i) => {
-          const Icon = card.icon
-          return (
-            <motion.div key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-              whileHover={{ scale: 1.015, y: -1 }}
+        ) : kpiCards.map((card, i) => (
+          <motion.div key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+            whileHover={{ scale: 1.015, y: -1 }}
+          >
+            <StatCard
+              label={card.label}
+              value={card.value}
+              icon={card.icon}
+              trend={Math.round(trendPercent(card.current, card.yesterday) * 10) / 10}
+              trendLabel="vs yesterday"
               onClick={() => openKpiModal(card)}
-              className="glass-card stat-glow p-3 sm:p-5 cursor-pointer overflow-hidden select-none transition-shadow duration-300 hover:shadow-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: `${card.color}20` }}>
-                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: card.color }} />
-                </div>
-                <p className="text-[9px] sm:text-[10px] font-bold text-text-muted uppercase tracking-wider leading-tight">{card.label}</p>
-              </div>
-              <p className="text-lg sm:text-2xl font-extrabold text-text-primary truncate">{card.value}</p>
-              <TrendBadge current={card.current} yesterday={card.yesterday} isCurrency={card.isCurrency} />
-            </motion.div>
-          )
-        })}
+            />
+          </motion.div>
+        ))}
       </div>
 
       {/* ── Sales & Inventory Trend ── */}
@@ -980,11 +963,7 @@ export default function Dashboard() {
         <div className="glass-card p-4 sm:p-6 lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">Fish in Tank</h3>
-            {socketConnected && (
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-accent-green">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" /> LIVE
-              </span>
-            )}
+            {socketConnected && <StatusIndicator status="active" label="Live" />}
           </div>
           {fishInTankLoading ? <Skeleton width="100%" height={200} /> : (
             <ResponsiveContainer width="100%" height={220}>
@@ -1010,7 +989,7 @@ export default function Dashboard() {
           </h3>
           {statsLoading ? <Skeleton width="100%" height={200} /> : (
             variantCounts.every(v => v === 0) ? (
-              <p className="text-sm text-text-muted py-16 text-center">No inventory data yet</p>
+              <EmptyState icon={Package} title="No inventory data yet" message="Counted fish will appear here once you save your first session." />
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -1049,14 +1028,14 @@ export default function Dashboard() {
             <Skeleton width="95%" height={18} />
           </div>
         ) : (!stats?.recent_additions || stats.recent_additions.length === 0) ? (
-          <p className="text-sm text-text-muted">No recent entries</p>
+          <EmptyState icon={Fish} title="No recent entries" message="Saved counting sessions will show up here." />
         ) : (
           <div className="space-y-2">
             {stats.recent_additions.map(r => {
               const note = getNoteDisplay(r.notes, r.action)
               return (
                 <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 rounded-xl transition-colors hover:bg-white/[0.02]">
-                  <div className="w-2 h-2 rounded-full bg-accent-purple flex-shrink-0" />
+                  <div className="w-2 h-2 rounded-full bg-accent-green flex-shrink-0" />
                   <span className="text-xs text-text-muted font-medium min-w-[90px] sm:min-w-[100px]">{r.date}</span>
                   <span className="text-sm font-semibold text-text-primary">{r.count} {r.variant}</span>
                   <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${note.isFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
@@ -1070,65 +1049,38 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── KPI Detail Modal ── */}
-      {kpiModal && kpiModal.details && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setKpiModal(null)}>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute inset-0 backdrop-blur-sm"
-            style={{ background: 'var(--modal-overlay)' }}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="relative glass-card p-6 max-w-md w-full mx-4 shadow-2xl"
-            onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: `${kpiModal.color}20` }}>
-                <kpiModal.icon className="w-5 h-5" style={{ color: kpiModal.color }} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-text-primary">{kpiModal.details.title}</h4>
-                <p className="text-xs text-text-muted mt-0.5">{kpiModal.details.subtitle}</p>
-              </div>
-            </div>
-
-            {/* Variant / Info Rows */}
+      <Modal
+        open={!!(kpiModal && kpiModal.details)}
+        onClose={() => setKpiModal(null)}
+        title={kpiModal?.details?.title}
+        footer={
+          <Button variant="secondary" size="sm" onClick={() => setKpiModal(null)}>
+            Close
+          </Button>
+        }
+      >
+        {kpiModal?.details && (
+          <>
+            <p className="text-xs text-text-muted -mt-2 mb-4">{kpiModal.details.subtitle}</p>
             <div className="space-y-2 mb-4">
               {kpiModal.details.rows.map((row, i) => (
-                <motion.div key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                <div
+                  key={i}
                   className="flex items-center justify-between p-3 rounded-xl border"
-                  style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
+                  style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
+                >
                   <span className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: row.color }} />
                     <span className="text-sm text-text-secondary font-medium">{row.label}</span>
                   </span>
                   <span className="text-sm font-bold text-text-primary">{row.value}</span>
-                </motion.div>
+                </div>
               ))}
             </div>
-
-            {/* Extra info */}
-            {kpiModal.details.extra && (
-              <p className="text-xs text-text-muted mb-4 px-1">{kpiModal.details.extra}</p>
-            )}
-
-            {/* Close */}
-            <div className="flex justify-end">
-              <button onClick={() => setKpiModal(null)}
-                className="glow-btn glow-btn-secondary text-xs py-2 px-4">
-                Close
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            {kpiModal.details.extra && <p className="text-xs text-text-muted px-1">{kpiModal.details.extra}</p>}
+          </>
+        )}
+      </Modal>
     </div>
   )
 }
