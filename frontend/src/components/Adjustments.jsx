@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
 
-const REASONS_RETAIL = ['Sold', 'Died']
-const REASONS_WHOLESALE = ['Sold']
+const REASONS_WHOLESALE = ['Sold', 'Died']
 const VARIANTS = ['SPIN_20']
 const PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
@@ -281,7 +280,9 @@ export default function Adjustments() {
 
   function getSource(entry) {
     if (entry?.source) return entry.source
-    return getDirection(entry) === 'OUT' ? 'Fish Tank' : 'Storage Box'
+    const action = (entry?.action || '').toUpperCase()
+    if (action === 'IN' || action === 'OUT') return 'Fish Tank'
+    return 'Storage Box'
   }
 
   function getReason(entry) {
@@ -326,22 +327,6 @@ export default function Adjustments() {
         <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-6 flex items-center gap-2">
           <Package className="w-4 h-4 text-accent-blue" /> Adjust Stock (Sold / Died)
         </h3>
-
-        {/* Source Toggle */}
-        <div className="flex gap-2 mb-5">
-          <button onClick={() => { setSource('wholesale'); setReason('Sold'); setFormError('') }}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-              source === 'wholesale'
-                ? 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-lg shadow-accent-purple/20'
-                : 'bg-white/5 text-text-muted hover:bg-white/10'
-            }`}>Wholesale Storage</button>
-          <button onClick={() => { setSource('tank'); setFormError('') }}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-              source === 'tank'
-                ? 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-lg shadow-accent-purple/20'
-                : 'bg-white/5 text-text-muted hover:bg-white/10'
-            }`}>Fish Tank (Retail)</button>
-        </div>
 
         {/* Batch Items */}
         <div className="space-y-3 mb-4">
@@ -422,7 +407,7 @@ export default function Adjustments() {
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Reason</label>
             <select value={reason} onChange={e => setReason(e.target.value)} className="neu-input">
-              {(source === 'wholesale' ? REASONS_WHOLESALE : REASONS_RETAIL).map(r => <option key={r} value={r}>{r}</option>)}
+              {REASONS_WHOLESALE.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-2 sm:col-span-1">
@@ -564,7 +549,6 @@ export default function Adjustments() {
               const dir = getDirection(r)
               const displayCount = Math.abs(Number(r.count) || 0)
               const isOut = dir === 'OUT'
-              const isWholesaleSold = (r?.transaction_type || '').toUpperCase() === 'WHOLESALE_SOLD'
               const reasonTag = getReason(r)
               const isDied = reasonTag === 'Died'
               return (
@@ -605,7 +589,7 @@ export default function Adjustments() {
                         )}
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
                           ${isOut ? 'bg-accent-red/20 text-accent-red' : 'bg-accent-green/20 text-accent-green'}`}>
-                          {isWholesaleSold ? 'WHOLESALE SOLD' : isOut ? 'OUT' : 'IN'}
+                          {isOut ? 'OUT' : 'IN'}
                         </span>
                       </div>
                       <p className="text-xs text-text-muted mt-1">{searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}</p>

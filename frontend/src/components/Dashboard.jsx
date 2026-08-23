@@ -896,14 +896,12 @@ export default function Dashboard() {
       }
     } else if (card.key === 'today_revenue' || card.key === 'total_revenue') {
       const isToday = card.key === 'today_revenue'
-      const retailPrice = 5
-      const wholesalePrice = 1.75
+      const pricePerFish = 0.40
       details = {
         title: isToday ? "Today's Revenue Breakdown" : 'Total Revenue Breakdown',
         subtitle: `Exact: ${formatCurrency(card.rawValue)}`,
         rows: [
-          { label: 'Retail Price', color: '#4C7A3D', value: `₱${retailPrice.toFixed(2)} per fish` },
-          { label: 'Wholesale Price', color: '#5E9B94', value: `₱${wholesalePrice.toFixed(2)} per fish` },
+          { label: 'Price per fish', color: '#4C7A3D', value: `₱${pricePerFish.toFixed(2)} (wholesale)` },
         ],
         extra: isToday
           ? `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`

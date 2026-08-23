@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
-import { Play, Square, Save, Wifi, WifiOff, Lock, Warehouse, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
+import { Play, Square, Save, Wifi, WifiOff, Lock, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 
 /* ──────────────────────────────────────────────────────────────
    Confirmation Modal
@@ -122,7 +122,7 @@ export default function Counter() {
   // Save flow state
   const [isSaving, setIsSaving] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
-  const [confirmDialog, setConfirmDialog] = useState(null) // { target: 'tank' | 'wholesale' }
+  const [confirmDialog, setConfirmDialog] = useState(false)
   const [toast, setToast] = useState(null)
 
   const showToast = useCallback((message, type = 'success') => {
@@ -223,32 +223,26 @@ export default function Counter() {
 
   // ── Save handlers with confirmation ────────────────────────
 
-  function requestSave(target) {
+  function requestSave() {
     if (isSaving || isSaved) return
-    setConfirmDialog({ target })
+    setConfirmDialog(true)
   }
 
   async function handleConfirmSave() {
     if (isSaving || isSaved || !confirmDialog) return
-    const { target } = confirmDialog
     setIsSaving(true)
     try {
-      if (target === 'tank') {
-        await axios.post('/save_inventory', { count, variant, notes: '', action: 'IN' })
-        showToast('Saved to inventory (Tank)')
-      } else {
-        await axios.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
-        showToast('Saved to Wholesale Storage')
-      }
+      await axios.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
+      showToast('Saved to inventory')
       // Reset count on backend and locally so re-saving is impossible even after tab switch
       try { await axios.post('/update_count', { count: 0 }) } catch { /* ignore */ }
       setCount(0)
       setIsSaved(true)
     } catch {
-      showToast(target === 'tank' ? 'Save to Tank failed' : 'Save to Wholesale failed', 'error')
+      showToast('Save failed', 'error')
     } finally {
       setIsSaving(false)
-      setConfirmDialog(null)
+      setConfirmDialog(false)
     }
   }
 
@@ -259,11 +253,11 @@ export default function Counter() {
       {/* Confirmation Modal */}
       <ConfirmDialog
         open={!!confirmDialog}
-        title={confirmDialog?.target === 'tank' ? 'Save to Tank?' : 'Save to Wholesale Storage?'}
-        description={`Are you sure you want to save ${count} ${variant} fish to ${confirmDialog?.target === 'tank' ? 'Tank' : 'Wholesale Storage'}? This cannot be undone.`}
+        title="Save to Inventory?"
+        description={`Are you sure you want to save ${count} ${variant} fish to inventory? This cannot be undone.`}
         loading={isSaving}
         onConfirm={handleConfirmSave}
-        onCancel={() => !isSaving && setConfirmDialog(null)}
+        onCancel={() => !isSaving && setConfirmDialog(false)}
       />
 
       {/* Toast */}
@@ -333,34 +327,20 @@ export default function Counter() {
           )}
         </div>
 
-        <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="mt-5 sm:mt-6 flex items-center justify-center">
           <button
-            onClick={() => requestSave('tank')}
+            onClick={requestSave}
             disabled={saveDisabled}
             className={`glow-btn flex items-center gap-2 transition-all duration-200
               ${isSaved ? 'opacity-40 cursor-not-allowed saturate-0' : ''}
               ${isSaving ? 'opacity-60 cursor-wait' : ''}`}
           >
-            {isSaving && confirmDialog?.target === 'tank'
+            {isSaving
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : isSaved
                 ? <CheckCircle2 className="w-4 h-4" />
                 : <Save className="w-4 h-4" />}
-            {isSaved ? 'Saved' : 'Save to Tank'}
-          </button>
-          <button
-            onClick={() => requestSave('wholesale')}
-            disabled={saveDisabled}
-            className={`glow-btn glow-btn-secondary flex items-center gap-2 transition-all duration-200
-              ${isSaved ? 'opacity-40 cursor-not-allowed saturate-0' : ''}
-              ${isSaving ? 'opacity-60 cursor-wait' : ''}`}
-          >
-            {isSaving && confirmDialog?.target === 'wholesale'
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : isSaved
-                ? <CheckCircle2 className="w-4 h-4" />
-                : <Warehouse className="w-4 h-4" />}
-            {isSaved ? 'Saved' : 'Save to Wholesale Storage'}
+            {isSaved ? 'Saved' : 'Save to Inventory'}
           </button>
         </div>
       </motion.div>

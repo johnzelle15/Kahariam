@@ -154,7 +154,7 @@ export default function SalesTrend() {
   const chartRef = useRef(null)
 
   const [data, setData] = useState([])
-  const [prices, setPrices] = useState({ retail: 5, wholesale: 1.75 })
+  const [prices, setPrices] = useState({ retail: 0.40, wholesale: 0.40 })
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
 

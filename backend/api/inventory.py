@@ -9,25 +9,28 @@ inventory_bp = Blueprint('inventory', __name__)
 
 WHOLESALE_LINK_MARKER_PATTERN = re.compile(r"\[AUTO_LINK:WHOLESALE_PARENT_ID=(\d+)\]")
 
-RETAIL_PRICE_PER_FISH = float(os.environ.get('RETAIL_PRICE_PER_FISH', '5'))
-WHOLESALE_PRICE_PER_FISH = float(os.environ.get('WHOLESALE_PRICE_PER_FISH', '1.75'))
+# Company sells wholesale only — one flat price per fish, no retail tier.
+PRICE_PER_FISH = float(os.environ.get('PRICE_PER_FISH', '0.40'))
 
 # --- Structured transaction types ---
-VALID_TRANSACTION_TYPES = frozenset({'SOLD', 'DIED', 'TANK_IN', 'WHOLESALE_IN', 'WHOLESALE_SOLD'})
-OUTFLOW_TYPES = frozenset({'SOLD', 'DIED', 'WHOLESALE_SOLD'})
-INFLOW_TYPES = frozenset({'TANK_IN', 'WHOLESALE_IN'})
+VALID_TRANSACTION_TYPES = frozenset({'SOLD', 'DIED', 'WHOLESALE_IN'})
+OUTFLOW_TYPES = frozenset({'SOLD', 'DIED'})
+INFLOW_TYPES = frozenset({'WHOLESALE_IN'})
 
 _TX_TO_ACTION = {
-    'SOLD': 'OUT',
-    'DIED': 'OUT',
-    'TANK_IN': 'IN',
+    'SOLD': 'WHOLESALE',
+    'DIED': 'WHOLESALE',
     'WHOLESALE_IN': 'WHOLESALE',
-    'WHOLESALE_SOLD': 'WHOLESALE',
 }
 
 
 def _derive_transaction_type(action, notes, count=0):
-    """Derive transaction_type from legacy action/notes columns."""
+    """Derive transaction_type from legacy action/notes columns.
+
+    TANK_IN/legacy-OUT branches only apply to historical rows recorded
+    before the retail (Fish Tank) path was removed — new writes never
+    produce them (see VALID_TRANSACTION_TYPES).
+    """
     action = (action or '').upper()
     notes_lower = (notes or '').lower()
     if action == 'OUT':
@@ -36,7 +39,7 @@ def _derive_transaction_type(action, notes, count=0):
         return 'TANK_IN'
     if action in ('WHOLESALE', 'INVENTORY'):
         if isinstance(count, (int, float)) and count < 0:
-            return 'DIED' if notes_lower.startswith('died') else 'WHOLESALE_SOLD'
+            return 'DIED' if notes_lower.startswith('died') else 'SOLD'
         return 'WHOLESALE_IN'
     return 'TANK_IN'
 
@@ -508,15 +511,13 @@ def get_statistics():
 
     today_revenue_query = (
         "SELECT "
-        "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as retail_sold, "
-        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as wholesale_sold "
+        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
         "FROM inventory WHERE deleted = 0 AND DATE(date) = CURRENT_DATE"
     )
     c.execute(today_revenue_query)
     today_sales = c.fetchone()
-    retail_sold_today = float(_row_scalar(today_sales, 'retail_sold') or 0)
-    wholesale_sold_today = float(_row_scalar(today_sales, 'wholesale_sold') or 0)
-    today_revenue = round((retail_sold_today * RETAIL_PRICE_PER_FISH) + (wholesale_sold_today * WHOLESALE_PRICE_PER_FISH), 2)
+    sold_today = float(_row_scalar(today_sales, 'sold') or 0)
+    today_revenue = round(sold_today * PRICE_PER_FISH, 2)
 
     # Fish counted/saved today (today's counting session total)
     today_session_query = (
@@ -531,15 +532,13 @@ def get_statistics():
     try:
         total_sales_query = (
             "SELECT "
-            "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as retail_sold_total, "
-            "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as wholesale_sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
             f"FROM inventory {where_clause}"
         )
         c.execute(total_sales_query, params)
         total_sales = c.fetchone()
-        retail_sold_total = float(_row_scalar(total_sales, 'retail_sold_total') or 0)
-        wholesale_sold_total = float(_row_scalar(total_sales, 'wholesale_sold_total') or 0)
-        total_revenue = round((retail_sold_total * RETAIL_PRICE_PER_FISH) + (wholesale_sold_total * WHOLESALE_PRICE_PER_FISH), 2)
+        sold_total = float(_row_scalar(total_sales, 'sold_total') or 0)
+        total_revenue = round(sold_total * PRICE_PER_FISH, 2)
     except Exception:
         total_revenue = 0.0
 
@@ -565,28 +564,24 @@ def get_statistics():
         # Yesterday's daily revenue
         yday_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as retail_sold, "
-            "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as wholesale_sold "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
             "FROM inventory WHERE deleted = 0 AND DATE(date) = ?"
         )
         c.execute(yday_rev_query, [yesterday_str])
         yday_sales = c.fetchone()
-        yday_retail = float(_row_scalar(yday_sales, 'retail_sold') or 0)
-        yday_wholesale = float(_row_scalar(yday_sales, 'wholesale_sold') or 0)
-        yesterday_revenue = round((yday_retail * RETAIL_PRICE_PER_FISH) + (yday_wholesale * WHOLESALE_PRICE_PER_FISH), 2)
+        yday_sold = float(_row_scalar(yday_sales, 'sold') or 0)
+        yesterday_revenue = round(yday_sold * PRICE_PER_FISH, 2)
 
         # Yesterday's cumulative total revenue (all time up to end of yesterday)
         yday_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as retail_sold_total, "
-            "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as wholesale_sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
             "FROM inventory WHERE deleted = 0 AND DATE(date) <= ?"
         )
         c.execute(yday_total_rev_query, [yesterday_str])
         yday_total_sales = c.fetchone()
-        yday_retail_total = float(_row_scalar(yday_total_sales, 'retail_sold_total') or 0)
-        yday_wholesale_total_rev = float(_row_scalar(yday_total_sales, 'wholesale_sold_total') or 0)
-        yesterday_total_revenue = round((yday_retail_total * RETAIL_PRICE_PER_FISH) + (yday_wholesale_total_rev * WHOLESALE_PRICE_PER_FISH), 2)
+        yday_sold_total = float(_row_scalar(yday_total_sales, 'sold_total') or 0)
+        yesterday_total_revenue = round(yday_sold_total * PRICE_PER_FISH, 2)
 
         # Yesterday's session total (fish counted/saved that day)
         yday_session_query = (
@@ -617,15 +612,13 @@ def get_statistics():
 
         global_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as retail_sold_total, "
-            "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as wholesale_sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
             "FROM inventory WHERE deleted = 0"
         )
         c.execute(global_total_rev_query)
         global_rev_row = c.fetchone()
-        global_retail_total = float(_row_scalar(global_rev_row, 'retail_sold_total') or 0)
-        global_wholesale_total_rev = float(_row_scalar(global_rev_row, 'wholesale_sold_total') or 0)
-        global_total_revenue = round((global_retail_total * RETAIL_PRICE_PER_FISH) + (global_wholesale_total_rev * WHOLESALE_PRICE_PER_FISH), 2)
+        global_sold_total = float(_row_scalar(global_rev_row, 'sold_total') or 0)
+        global_total_revenue = round(global_sold_total * PRICE_PER_FISH, 2)
     except Exception:
         global_additions_total = additions_total
         global_tank_total = tank_total
@@ -816,7 +809,7 @@ def get_time_series_by_variant():
         Response: {
             periods: [...],
             variants: ["SPIN_20"],
-            prices: { retail: 5, wholesale: 1.75 },
+            prices: { retail: 0.40, wholesale: 0.40 },
             data: {
                 "SPIN_20": {
                     "tank": [...],
@@ -878,8 +871,8 @@ def get_time_series_by_variant():
     for v in variants:
         tank_series = [ values.get(v, {}).get('tank', {}).get(p, 0) for p in periods ]
         wholesale_series = [ values.get(v, {}).get('wholesale', {}).get(p, 0) for p in periods ]
-        tank_amount_series = [ round((n or 0) * RETAIL_PRICE_PER_FISH, 2) for n in tank_series ]
-        wholesale_amount_series = [ round((n or 0) * WHOLESALE_PRICE_PER_FISH, 2) for n in wholesale_series ]
+        tank_amount_series = [ round((n or 0) * PRICE_PER_FISH, 2) for n in tank_series ]
+        wholesale_amount_series = [ round((n or 0) * PRICE_PER_FISH, 2) for n in wholesale_series ]
         data[v] = {
             'tank': tank_series,
             'wholesale': wholesale_series,
@@ -891,8 +884,8 @@ def get_time_series_by_variant():
         'periods': periods,
         'variants': variants,
         'prices': {
-            'retail': RETAIL_PRICE_PER_FISH,
-            'wholesale': WHOLESALE_PRICE_PER_FISH
+            'retail': PRICE_PER_FISH,
+            'wholesale': PRICE_PER_FISH
         },
         'data': data
     })
@@ -992,7 +985,7 @@ def daily_trend():
         d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0})
         running_tank += d['added_tank'] - d['sold_tank']
         running_wholesale += d['added_wholesale'] - d['sold_wholesale']
-        revenue = round(d['sold_tank'] * RETAIL_PRICE_PER_FISH + d['sold_wholesale'] * WHOLESALE_PRICE_PER_FISH, 2)
+        revenue = round((d['sold_tank'] + d['sold_wholesale']) * PRICE_PER_FISH, 2)
         result.append({
             'date': ds,
             'sold_tank': d['sold_tank'],
@@ -1007,7 +1000,7 @@ def daily_trend():
     return jsonify({
         'start_date': d_start.isoformat(),
         'end_date': d_end.isoformat(),
-        'prices': {'retail': RETAIL_PRICE_PER_FISH, 'wholesale': WHOLESALE_PRICE_PER_FISH},
+        'prices': {'retail': PRICE_PER_FISH, 'wholesale': PRICE_PER_FISH},
         'data': result,
     })
 
@@ -1096,7 +1089,7 @@ def adjust_stock():
             note_text = notes or ""
             now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             insert_count = count if direction == 'increase' else -count
-            direction_tx_type = 'WHOLESALE_IN' if direction == 'increase' else 'WHOLESALE_SOLD'
+            direction_tx_type = 'WHOLESALE_IN' if direction == 'increase' else 'SOLD'
             c.execute('''
                 INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
                 VALUES (?, ?, ?, ?, 'WHOLESALE', ?)
@@ -1159,7 +1152,7 @@ def adjust_stock():
         note_text = notes or ""
         now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         is_died = str(reason).strip().lower() == 'died'
-        legacy_tx_type = 'DIED' if is_died else ('WHOLESALE_SOLD' if is_wholesale else 'SOLD')
+        legacy_tx_type = 'DIED' if is_died else 'SOLD'
         if is_wholesale:
             insert_count = -count
             c.execute('''
@@ -1202,7 +1195,7 @@ def adjust_stock_batch():
         price = data.get("price")
 
         # Price validation per type
-        if transaction_type in ('SOLD', 'WHOLESALE_SOLD'):
+        if transaction_type == 'SOLD':
             if price is None or price == '' or price == 0:
                 return jsonify({"status": "error", "message": "Price is required for SOLD transactions"}), 400
             try:
@@ -1212,7 +1205,7 @@ def adjust_stock_batch():
             if price <= 0:
                 return jsonify({"status": "error", "message": "Price must be greater than zero"}), 400
         else:
-            # DIED, TANK_IN, WHOLESALE_IN — price must be NULL
+            # DIED, WHOLESALE_IN — price must be NULL
             if price is not None and price != '' and price != 0:
                 return jsonify({"status": "error", "message": f"Price must not be set for {transaction_type} transactions"}), 400
             price = None
@@ -1236,8 +1229,8 @@ def adjust_stock_batch():
                 return jsonify({"status": "error", "message": f"Count must be greater than zero for {variant}"}), 400
             normalized.append((variant, count))
 
-        # Wholesale minimum order check (only for WHOLESALE_SOLD, not DIED)
-        if transaction_type == 'WHOLESALE_SOLD':
+        # Wholesale minimum order check (only for SOLD, not DIED)
+        if transaction_type == 'SOLD':
             total_requested = sum(c for _, c in normalized)
             if total_requested < 300:
                 return jsonify({"status": "error", "message": f"Minimum wholesale order is 300 fish to submit an adjustment note. Current total: {total_requested}"}), 400
@@ -1249,9 +1242,9 @@ def adjust_stock_batch():
         c = conn.cursor()
         try:
             for variant, count in normalized:
-                # Stock validation for outflow types
-                if transaction_type == 'WHOLESALE_SOLD':
-                    # Validate against wholesale storage
+                # Stock validation for outflow types — SOLD and DIED both draw
+                # down the same wholesale storage pool now that Tank is gone.
+                if transaction_type in OUTFLOW_TYPES:
                     c.execute('''
                         SELECT COALESCE(SUM(count), 0) AS current_stock
                         FROM inventory
@@ -1268,24 +1261,6 @@ def adjust_stock_batch():
                         conn.rollback()
                         conn.close()
                         return jsonify({"status": "error", "message": f"Insufficient wholesale stock for {variant}. Available: {current_stock}"}), 400
-                elif transaction_type in OUTFLOW_TYPES:
-                    # SOLD or DIED — validate against tank stock
-                    c.execute('''
-                        SELECT COALESCE(SUM(CASE WHEN action='IN' THEN count WHEN action='OUT' THEN -count ELSE 0 END), 0) AS current_stock
-                        FROM inventory
-                        WHERE deleted = 0 AND variant = ? AND (action='IN' OR action='OUT')
-                        FOR UPDATE
-                    ''', (variant,))
-                    current_stock = int(_row_scalar(c.fetchone(), 'current_stock') or 0)
-
-                    if current_stock <= 0:
-                        conn.rollback()
-                        conn.close()
-                        return jsonify({"status": "error", "message": f"No stock left for {variant}"}), 400
-                    if count > current_stock:
-                        conn.rollback()
-                        conn.close()
-                        return jsonify({"status": "error", "message": f"Insufficient stock for {variant}. Available: {current_stock}"}), 400
 
                 # Compute total_price for SOLD
                 total_price = round(price * count, 2) if price else None
@@ -1398,7 +1373,7 @@ def adjust_stock_batch():
             # perform insert for this variant
             now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             note_text = notes or ""
-            batch_tx_type = 'DIED' if is_died else ('WHOLESALE_SOLD' if is_wholesale else 'SOLD')
+            batch_tx_type = 'DIED' if is_died else 'SOLD'
             if is_wholesale:
                 insert_count = -count
                 c.execute('''

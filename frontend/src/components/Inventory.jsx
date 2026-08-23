@@ -11,38 +11,33 @@ function formatCurrency(val) {
   return `₱${Number(val).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-const RETAIL_PRICE = 5
-const WHOLESALE_PRICE = 1.75
+const PRICE_PER_FISH = 0.40
 
 function computeTotal(record) {
   const type = getTypeLabel(record)
   const count = Math.abs(Number(record?.count) || 0)
   if (type === 'SOLD') {
-    return count * RETAIL_PRICE
-  }
-  if (type === 'WHOLESALE_SOLD') {
-    return count * WHOLESALE_PRICE
+    return count * PRICE_PER_FISH
   }
   return null
 }
 
 function getTypeLabel(record) {
   const tt = (record?.transaction_type || '').toUpperCase()
-  if (tt) return tt
+  if (tt) return tt === 'WHOLESALE_SOLD' ? 'SOLD' : tt
   const action = (record?.action || '').toUpperCase()
   const notes = (record?.notes || '').toLowerCase()
   if (action === 'OUT' && notes.startsWith('died')) return 'DIED'
   if (action === 'OUT') return 'SOLD'
   if (action === 'IN') return 'TANK_IN'
   if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) >= 0) return 'WHOLESALE_IN'
-  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) < 0) return 'WHOLESALE_SOLD'
+  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) < 0) return 'SOLD'
   return action || 'UNKNOWN'
 }
 
 function getTypeBadgeClass(type) {
   switch (type) {
     case 'SOLD': return 'bg-accent-blue/20 text-accent-blue'
-    case 'WHOLESALE_SOLD': return 'bg-accent-cyan/20 text-accent-cyan'
     case 'DIED': return 'bg-accent-amber/20 text-accent-amber'
     case 'TANK_IN': return 'bg-accent-green/20 text-accent-green'
     case 'WHOLESALE_IN': return 'bg-accent-purple/20 text-accent-purple'
