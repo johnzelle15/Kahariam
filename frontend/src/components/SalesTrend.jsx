@@ -50,7 +50,7 @@ function SalesTooltip({ active, payload }) {
         background: 'var(--tooltip-bg)',
         border: '1px solid var(--tooltip-border)',
         backdropFilter: 'blur(14px)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 0 24px rgba(167,139,250,0.04)',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 0 24px rgba(76,122,61,0.04)',
       }}>
       <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid var(--glass-border)' }}>
         <p className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{fmtDateFull(row.date)}</p>
@@ -143,8 +143,8 @@ function ChartSkeleton() {
 
 /* ─── Series Definitions (Sales Only) ─── */
 const SERIES = {
-  sold_total: { label: 'Units Sold', color: '#a78bfa' },
-  revenue:    { label: 'Revenue',    color: '#34d399' },
+  sold_total: { label: 'Units Sold', color: '#4C7A3D' },
+  revenue:    { label: 'Revenue',    color: '#5E9B94' },
 }
 
 /* ════════════════════════════════════════════════════
@@ -284,8 +284,8 @@ export default function SalesTrend() {
         <div>
           <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(167,139,250,0.1)' }}>
-              <Activity className="w-3.5 h-3.5 text-accent-purple" />
+              style={{ background: 'rgba(76,122,61,0.1)' }}>
+              <Activity className="w-3.5 h-3.5 text-accent-green" />
             </div>
             Sales Trend
           </h3>
@@ -327,7 +327,7 @@ export default function SalesTrend() {
                   : 'text-text-muted hover:text-text-primary hover:bg-glass-hover'
               }`}
               style={!showCustomRange && days === p.days ? {
-                background: 'linear-gradient(135deg, #a78bfa, #60a5fa)',
+                background: 'linear-gradient(135deg, #4C7A3D, #5E9B94)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
               } : {}}>
               {p.label}
@@ -339,7 +339,7 @@ export default function SalesTrend() {
         <button onClick={() => setShowCustomRange(!showCustomRange)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
             showCustomRange
-              ? 'bg-accent-purple/15 text-accent-purple border border-accent-purple/25'
+              ? 'bg-accent-green/15 text-accent-green border border-accent-green/25'
               : 'text-text-muted hover:text-text-primary border border-glass-border'
           }`}
           style={!showCustomRange ? { background: 'var(--btn-secondary-bg)' } : {}}>
@@ -375,12 +375,12 @@ export default function SalesTrend() {
       {!loading && data.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-5">
           <StatCard label="Total Sold" value={totalSold.toLocaleString()} subValue={`avg ${avgDaily}/day`}
-            trend={soldTrend} icon={Package} color="#a78bfa" />
+            trend={soldTrend} icon={Package} color="#4C7A3D" />
           <StatCard label="Revenue" value={fmtCurrency(totalRevenue)} subValue={`avg ${fmtCurrency(avgRevenue)}/day`}
-            trend={revTrend} icon={DollarSign} color="#34d399" />
+            trend={revTrend} icon={DollarSign} color="#5E9B94" />
           {peakDay && peakDay.sold_total > 0 && (
             <StatCard label="Peak Day" value={`${peakDay.sold_total} sold`}
-              subValue={fmtDate(peakDay.date)} trend={0} icon={TrendingUp} color="#fbbf24" />
+              subValue={fmtDate(peakDay.date)} trend={0} icon={TrendingUp} color="#D98E3B" />
           )}
         </div>
       )}
@@ -405,25 +405,25 @@ export default function SalesTrend() {
             <AreaChart data={chartData} margin={{ top: 12, right: visible.revenue ? 50 : 16, left: 0, bottom: 8 }}>
               <defs>
                 <linearGradient id="gradSoldWave" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.25} />
-                  <stop offset="50%" stopColor="#a78bfa" stopOpacity={0.06} />
-                  <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#4C7A3D" stopOpacity={0.25} />
+                  <stop offset="50%" stopColor="#4C7A3D" stopOpacity={0.06} />
+                  <stop offset="100%" stopColor="#4C7A3D" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gradRevenueWave" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
-                  <stop offset="50%" stopColor="#34d399" stopOpacity={0.05} />
-                  <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#5E9B94" stopOpacity={0.2} />
+                  <stop offset="50%" stopColor="#5E9B94" stopOpacity={0.05} />
+                  <stop offset="100%" stopColor="#5E9B94" stopOpacity={0} />
                 </linearGradient>
                 {/* Glow filters */}
-                <filter id="glowPurple" x="-20%" y="-20%" width="140%" height="140%">
+                <filter id="glowGreen" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feFlood floodColor="#a78bfa" floodOpacity="0.15" />
+                  <feFlood floodColor="#4C7A3D" floodOpacity="0.15" />
                   <feComposite in2="blur" operator="in" />
                   <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
-                <filter id="glowGreen" x="-20%" y="-20%" width="140%" height="140%">
+                <filter id="glowTeal" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feFlood floodColor="#34d399" floodOpacity="0.15" />
+                  <feFlood floodColor="#5E9B94" floodOpacity="0.15" />
                   <feComposite in2="blur" operator="in" />
                   <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
@@ -466,40 +466,40 @@ export default function SalesTrend() {
               )}
               <Tooltip content={<SalesTooltip />} cursor={{ stroke: 'var(--glass-border)', strokeWidth: 1 }} />
 
-              {/* Units Sold — purple wave */}
+              {/* Units Sold — green wave */}
               {visible.sold_total && (
                 <Area
                   yAxisId="left"
                   type="monotone"
                   dataKey="sold_total"
                   name="Units Sold"
-                  stroke="#a78bfa"
+                  stroke="#4C7A3D"
                   fill="url(#gradSoldWave)"
                   strokeWidth={2}
                   dot={false}
                   activeDot={{
-                    r: 4, fill: '#a78bfa', stroke: '#1e1b4b', strokeWidth: 2,
-                    filter: 'url(#glowPurple)',
+                    r: 4, fill: '#4C7A3D', stroke: '#064e3b', strokeWidth: 2,
+                    filter: 'url(#glowGreen)',
                   }}
                   animationDuration={1200}
                   animationEasing="ease-in-out"
                 />
               )}
 
-              {/* Revenue — green wave */}
+              {/* Revenue — teal wave */}
               {visible.revenue && (
                 <Area
                   yAxisId="right"
                   type="monotone"
                   dataKey="revenue"
                   name="Revenue"
-                  stroke="#34d399"
+                  stroke="#5E9B94"
                   fill="url(#gradRevenueWave)"
                   strokeWidth={1.5}
                   dot={false}
                   activeDot={{
-                    r: 3.5, fill: '#34d399', stroke: '#064e3b', strokeWidth: 2,
-                    filter: 'url(#glowGreen)',
+                    r: 3.5, fill: '#5E9B94', stroke: '#134e4a', strokeWidth: 2,
+                    filter: 'url(#glowTeal)',
                   }}
                   animationDuration={1200}
                   animationEasing="ease-in-out"

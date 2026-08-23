@@ -108,7 +108,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       <div className={`flex items-center gap-3 px-5 py-6 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
         <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden">
-          <img src={logoImg} alt="Aquaculture Logo" className="w-full h-full object-cover" />
+          <img src={logoImg} alt="Kahariam Farms Logo" className="w-full h-full object-cover" />
         </div>
         {(isMobile || !collapsed) && (
           <div className="overflow-hidden flex-1">

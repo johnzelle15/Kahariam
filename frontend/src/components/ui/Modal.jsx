@@ -19,6 +19,9 @@ export default function Modal({ open, onClose, title, children, footer, size = '
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         className={clsx(
           'w-full rounded-2xl border bg-[var(--bg-secondary)] border-[var(--glass-border)] p-6 shadow-xl',
           size === 'sm' && 'max-w-sm',
@@ -28,7 +31,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-text-primary">{title}</h3>
+          <h3 id="modal-title" className="text-lg font-medium text-text-primary">{title}</h3>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
             <X size={18} />
           </button>

@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, Minus, Fish, Warehouse, DollarSign,
+  TrendingUp, Fish, Warehouse, DollarSign,
   Activity, AlertTriangle, Filter, Calendar, X, Package,
   Lightbulb, Zap, Target, ShieldAlert
 } from 'lucide-react'
@@ -857,11 +857,11 @@ export default function Dashboard() {
   }))
 
   const kpiCards = stats ? [
-    { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, color: '#4C7A3D', current: global.additions_total, yesterday: yday.additions_total },
-    { key: 'fish_in_tank', label: 'Fish in Tank', value: Number(stats.tank_total || 0).toLocaleString(), icon: Package, color: '#5E9B94', current: global.tank_total, yesterday: yday.tank_total },
-    { key: 'wholesale', label: 'Wholesale Storage', value: Number(stats.wholesale_total || 0).toLocaleString(), icon: Warehouse, color: '#D98E3B', current: global.wholesale_total, yesterday: yday.wholesale_total },
-    { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, color: '#4A7C8C', current: global.today_revenue, yesterday: yday.today_revenue, isCurrency: true, rawValue: Number(stats.today_revenue || 0) },
-    { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, color: '#8C6E4A', current: global.total_revenue, yesterday: yday.total_revenue, isCurrency: true, rawValue: Number(stats.total_revenue || 0) },
+    { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, current: global.additions_total, yesterday: yday.additions_total },
+    { key: 'fish_in_tank', label: 'Fish in Tank', value: Number(stats.tank_total || 0).toLocaleString(), icon: Package, current: global.tank_total, yesterday: yday.tank_total },
+    { key: 'wholesale', label: 'Wholesale Storage', value: Number(stats.wholesale_total || 0).toLocaleString(), icon: Warehouse, current: global.wholesale_total, yesterday: yday.wholesale_total },
+    { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0) },
+    { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, current: global.total_revenue, yesterday: yday.total_revenue, rawValue: Number(stats.total_revenue || 0) },
   ] : []
 
   function openKpiModal(card) {
