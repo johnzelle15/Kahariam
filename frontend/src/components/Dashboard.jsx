@@ -2,8 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import axios from 'axios'
 import {
-  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
 import {
   TrendingUp, Fish, ScanLine, DollarSign,
@@ -285,12 +284,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   const topVariant = sortedVariants[0]
   const bottomVariant = sortedVariants[sortedVariants.length - 1]
 
-  // Inventory
-  const tankTotal = Number(stats.tank_total || 0)
-  const wholesaleTotal = Number(stats.wholesale_total || 0)
-  const addTotal = Number(stats.additions_total || 0)
-  const tankPct = addTotal > 0 ? Math.round((tankTotal / addTotal) * 100) : 0
-
   // ── Adaptive split ──
   const split = splitPeriod(days)
   const splitTrend = split ? pct(split.secondSold, split.firstSold) : 0
@@ -526,16 +519,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     insights.opportunities.push({
       text: `🟢 +${splitTrend.toFixed(0)}% growth trend → scale supply to match`,
       detail: 'Demand accelerating in later half',
-      type: 'positive',
-    })
-  }
-
-  // Wholesale imbalance — only as opportunity when tank is lean
-  if (wholesaleTotal > 0 && tankTotal > 0 && tankPct < 25) {
-    const ratio = Math.round(wholesaleTotal / (wholesaleTotal + tankTotal) * 100)
-    insights.opportunities.push({
-      text: `🟢 Transfer wholesale stock → tank at only ${100 - ratio}%`,
-      detail: `Wholesale: ${wholesaleTotal.toLocaleString()} units available`,
       type: 'positive',
     })
   }
@@ -778,9 +761,6 @@ export default function Dashboard() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [lowStockAlerts, setLowStockAlerts] = useState([])
   const [lowStockLoading, setLowStockLoading] = useState(true)
-  const [fishInTank, setFishInTank] = useState(null)
-  const [fishInTankLoading, setFishInTankLoading] = useState(true)
-
   const [variant, setVariant] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -789,23 +769,16 @@ export default function Dashboard() {
   const user = useAuthStore(s => s.user)
 
   useEffect(() => {
-    loadStats(); loadLowStock(); loadFishInTank()
+    loadStats(); loadLowStock()
     if (typeof window !== 'undefined' && window.io) {
       const socket = window.io()
       socket.on('connect', () => setSocketConnected(true))
       socket.on('disconnect', () => setSocketConnected(false))
-      socket.on('reading', () => { loadStats(); loadLowStock(); loadFishInTank() })
-      socket.on('counting_state', () => { loadStats(); loadLowStock(); loadFishInTank() })
+      socket.on('reading', () => { loadStats(); loadLowStock() })
+      socket.on('counting_state', () => { loadStats(); loadLowStock() })
       return () => { socket.disconnect?.() }
     }
   }, [])
-
-  async function loadFishInTank() {
-    setFishInTankLoading(true)
-    try { setFishInTank((await axios.get('/api/current-fish')).data) }
-    catch (e) { console.error('Failed to load fish in tank', e) }
-    finally { setFishInTankLoading(false) }
-  }
 
   async function loadLowStock() {
     try { setLowStockAlerts((await axios.get('/api/low-stock')).data.alerts || []) }
@@ -841,14 +814,6 @@ export default function Dashboard() {
     const wholesale = Number(stats.by_variant_wholesale?.find(v => v.variant === name)?.count) || 0
     return tank + wholesale
   }) : [0]
-
-  const fishInTankCounts = fishInTank ? [
-    Number((fishInTank.by_variant || []).find(v => v.variant === 'SPIN_20')?.count) || 0,
-  ] : [0]
-
-  const barData = ['SPIN_20'].map((name, i) => ({
-    name, tank: fishInTankCounts[i], inventory: variantCounts[i]
-  }))
 
   const pieData = ['SPIN_20'].map((name, i) => ({
     name, value: variantCounts[i]
@@ -952,36 +917,16 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+        className="grid grid-cols-1 md:grid-cols-2 gap-5"
       >
-        {/* Fish in Tank Bar Chart */}
-        <div className="glass-card p-4 sm:p-6 lg:col-span-1">
+        {/* Variant Pie */}
+        <div className="glass-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">Fish in Tank</h3>
+            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
+              Overall Variant Inventory
+            </h3>
             {socketConnected && <StatusIndicator status="active" label="Live" />}
           </div>
-          {fishInTankLoading ? <Skeleton width="100%" height={200} /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={barData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="tank" name="In Tank" radius={[6, 6, 0, 0]}>
-                  {barData.map((entry, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i]} fillOpacity={0.8} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Variant Pie */}
-        <div className="glass-card p-4 sm:p-6 lg:col-span-1">
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">
-            Overall Variant Inventory
-          </h3>
           {statsLoading ? <Skeleton width="100%" height={200} /> : (
             variantCounts.every(v => v === 0) ? (
               <EmptyState icon={Package} title="No inventory data yet" message="Counted fish will appear here once you save your first session." />

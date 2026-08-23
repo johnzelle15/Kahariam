@@ -1667,42 +1667,6 @@ def _load_thresholds():
     return thresholds
 
 
-@inventory_bp.route('/api/current-fish')
-def get_current_fish():
-    """Return real-time fish-in-tank counts per variant.
-
-    Always unfiltered — reflects current stock independent of any dashboard
-    date range or filter selections.
-    """
-    conn = get_db()
-    c = conn.cursor()
-
-    c.execute(
-        "SELECT variant, "
-        "SUM(CASE WHEN action='IN' THEN count WHEN action='OUT' THEN -count ELSE 0 END) as total "
-        "FROM inventory WHERE deleted = 0 AND (action='IN' OR action='OUT') "
-        "GROUP BY variant ORDER BY total DESC"
-    )
-    by_variant = []
-    for row in c.fetchall():
-        by_variant.append({
-            "variant": _row_value(row, 'variant', 0),
-            "count": _row_value(row, 'total', 1, 0),
-        })
-
-    c.execute(
-        "SELECT SUM(CASE WHEN action='IN' THEN count WHEN action='OUT' THEN -count ELSE 0 END) as total "
-        "FROM inventory WHERE deleted = 0 AND (action='IN' OR action='OUT')"
-    )
-    tank_total = _row_scalar(c.fetchone(), 'total') or 0
-
-    conn.close()
-    return jsonify({
-        "tank_total": tank_total,
-        "by_variant": by_variant
-    })
-
-
 @inventory_bp.route('/api/low-stock')
 def get_low_stock():
     """Return current stock levels per variant with alert status.
