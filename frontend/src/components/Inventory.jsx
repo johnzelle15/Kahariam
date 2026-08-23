@@ -1,10 +1,54 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
-import { RefreshCw, Archive, RotateCcw, Trash2, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
+import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
 
 const VARIANTS = ['Black', 'Platinum', 'Pineapple']
-const PER_PAGE_OPTIONS = [10, 20, 50]
+const PER_PAGE_OPTIONS = [5, 10, 20, 50]
+
+function formatCurrency(val) {
+  if (val == null || val === '' || val === 0) return '—'
+  return `₱${Number(val).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+const RETAIL_PRICE = 5
+const WHOLESALE_PRICE = 1.75
+
+function computeTotal(record) {
+  const type = getTypeLabel(record)
+  const count = Math.abs(Number(record?.count) || 0)
+  if (type === 'SOLD') {
+    return count * RETAIL_PRICE
+  }
+  if (type === 'WHOLESALE_SOLD') {
+    return count * WHOLESALE_PRICE
+  }
+  return null
+}
+
+function getTypeLabel(record) {
+  const tt = (record?.transaction_type || '').toUpperCase()
+  if (tt) return tt
+  const action = (record?.action || '').toUpperCase()
+  const notes = (record?.notes || '').toLowerCase()
+  if (action === 'OUT' && notes.startsWith('died')) return 'DIED'
+  if (action === 'OUT') return 'SOLD'
+  if (action === 'IN') return 'TANK_IN'
+  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) >= 0) return 'WHOLESALE_IN'
+  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) < 0) return 'WHOLESALE_SOLD'
+  return action || 'UNKNOWN'
+}
+
+function getTypeBadgeClass(type) {
+  switch (type) {
+    case 'SOLD': return 'bg-accent-blue/20 text-accent-blue'
+    case 'WHOLESALE_SOLD': return 'bg-accent-cyan/20 text-accent-cyan'
+    case 'DIED': return 'bg-accent-amber/20 text-accent-amber'
+    case 'TANK_IN': return 'bg-accent-green/20 text-accent-green'
+    case 'WHOLESALE_IN': return 'bg-accent-purple/20 text-accent-purple'
+    default: return 'bg-white/10 text-text-muted'
+  }
+}
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -35,7 +79,7 @@ export default function Inventory() {
 
   // Pagination
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
+  const [perPage, setPerPage] = useState(5)
   const [totalPages, setTotalPages] = useState(1)
   const [totalRecords, setTotalRecords] = useState(0)
 
@@ -48,6 +92,10 @@ export default function Inventory() {
 
   // Confirmation modal state
   const [confirmAction, setConfirmAction] = useState(null) // { type: 'delete'|'restore', id, label }
+
+  // Undo snackbar state
+  const [undoSnackbar, setUndoSnackbar] = useState(null) // { id, label, timerId }
+  const [archivingIds, setArchivingIds] = useState(new Set())
 
   // Archive state
   const [showArchive, setShowArchive] = useState(false)
@@ -168,7 +216,7 @@ export default function Inventory() {
   const displayTotalRecords = isSearching ? filteredRecords.length : totalRecords
 
   function confirmDelete(record) {
-    setConfirmAction({ type: 'delete', id: record.id, label: `${record.count} ${record.variant} (${record.action})` })
+    setConfirmAction({ type: 'delete', id: record.id, label: `${record.count} ${record.variant} (${record.action})`, record })
   }
 
   function confirmRestore(record) {
@@ -180,18 +228,43 @@ export default function Inventory() {
     const { type, id } = confirmAction
     setConfirmAction(null)
     if (type === 'delete') {
-      await doDelete(id)
+      await doDelete(id, confirmAction.label)
     } else if (type === 'restore') {
       await doRestore(id)
     }
   }
 
-  async function doDelete(id) {
+  async function doDelete(id, label) {
     setDeleteMsg('')
+    // Animate out
+    setArchivingIds(prev => new Set(prev).add(id))
+    // Brief delay for animation
+    await new Promise(r => setTimeout(r, 250))
     try {
       const res = await axios.delete(`/delete_inventory/${id}`)
       if (res.data?.status === 'success') {
-        setDeleteMsg(res.data.message || 'Record archived')
+        load(page)
+        if (showArchive) loadArchive()
+        // Show undo snackbar
+        if (undoSnackbar?.timerId) clearTimeout(undoSnackbar.timerId)
+        const timerId = setTimeout(() => setUndoSnackbar(null), 5000)
+        setUndoSnackbar({ id, label: label || 'Record', timerId })
+      }
+    } catch (e) { console.error(e) }
+    finally {
+      setArchivingIds(prev => { const next = new Set(prev); next.delete(id); return next })
+    }
+  }
+
+  async function handleUndo() {
+    if (!undoSnackbar) return
+    const { id, timerId } = undoSnackbar
+    if (timerId) clearTimeout(timerId)
+    setUndoSnackbar(null)
+    try {
+      const res = await axios.post(`/restore_record/${id}`)
+      if (res.data?.success) {
+        setDeleteMsg('Record restored')
         load(page)
         if (showArchive) loadArchive()
         setTimeout(() => setDeleteMsg(''), 3000)
@@ -365,48 +438,58 @@ export default function Inventory() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="dark-table">
+            <table className="dark-table table-fixed w-full">
+              <colgroup>
+                <col className="w-[220px]" />
+                <col className="w-[130px]" />
+                <col className="w-[80px]" />
+                <col className="w-[100px]" />
+                <col />
+                <col className="w-[64px]" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Date</th>
                   <th>Variant</th>
                   <th>Count</th>
-                  <th>Action</th>
-                  <th>Notes</th>
-                  <th className="text-right">Delete</th>
+                  <th>Total</th>
+                  <th>Type</th>
+                  <th className="text-center">Archive</th>
                 </tr>
               </thead>
               <tbody>
-                {displayRecords.map(r => (
-                  <tr key={r.id}>
-                    <td className="whitespace-nowrap">{searchQuery ? highlightMatch(r.date || '', searchQuery) : r.date}</td>
-                    <td>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${
-                          r.variant === 'Black' ? 'bg-accent-purple' :
-                          r.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
-                        }`} />
-                        {r.variant}
-                      </span>
-                    </td>
-                    <td className="font-semibold">{r.count}</td>
-                    <td>
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        r.action === 'IN' ? 'bg-accent-green/20 text-accent-green' :
-                        r.action === 'OUT' ? 'bg-accent-red/20 text-accent-red' :
-                        r.action === 'WHOLESALE' && r.count >= 0 ? 'bg-accent-blue/20 text-accent-blue' :
-                        'bg-accent-amber/20 text-accent-amber'
-                      }`}>{r.action}</span>
-                    </td>
-                    <td className="text-text-muted">{r.notes ? highlightMatch(r.notes, searchQuery) : '—'}</td>
-                    <td className="text-right">
-                      <button onClick={() => confirmDelete(r)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-accent-red/10 text-accent-red border border-accent-red/20 hover:bg-accent-red/20 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {displayRecords.map(r => {
+                  const typeLabel = getTypeLabel(r)
+                  const total = computeTotal(r)
+                  return (
+                    <tr key={r.id}>
+                      <td className="whitespace-nowrap">{searchQuery ? highlightMatch(r.date || '', searchQuery) : r.date}</td>
+                      <td>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${
+                            r.variant === 'Black' ? 'bg-accent-purple' :
+                            r.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
+                          }`} />
+                          {r.variant}
+                        </span>
+                      </td>
+                      <td className="font-semibold">{Math.abs(r.count)}</td>
+                      <td className="text-text-muted font-semibold">{formatCurrency(total)}</td>
+                      <td>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(typeLabel)}`}>
+                          {typeLabel.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="!p-0 text-center">
+                        <button onClick={() => confirmDelete(r)}
+                          aria-label="Archive item"
+                          className="archive-btn tap-feedback">
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -500,39 +583,44 @@ export default function Inventory() {
                       <th>Date</th>
                       <th>Variant</th>
                       <th>Count</th>
-                      <th>Action</th>
-                      <th>Notes</th>
+                      <th>Total</th>
+                      <th>Type</th>
                       <th className="text-right">Restore</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {archiveRecords.map(r => (
-                      <tr key={r.id}>
-                        <td className="whitespace-nowrap">{r.date}</td>
-                        <td>
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${
-                              r.variant === 'Black' ? 'bg-accent-purple' :
-                              r.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
-                            }`} />
-                            {r.variant}
-                          </span>
-                        </td>
-                        <td className="font-semibold">{r.count}</td>
-                        <td>
-                          <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent-amber/20 text-accent-amber">
-                            {r.action}
-                          </span>
-                        </td>
-                        <td className="text-text-muted">{r.notes || '—'}</td>
-                        <td className="text-right">
-                          <button onClick={() => confirmRestore(r)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors">
-                            <RotateCcw className="w-3.5 h-3.5" /> Restore
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {archiveRecords.map(r => {
+                      const typeLabel = getTypeLabel(r)
+                      const total = computeTotal(r)
+                      return (
+                        <tr key={r.id}>
+                          <td className="whitespace-nowrap">{r.date}</td>
+                          <td>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${
+                                r.variant === 'Black' ? 'bg-accent-purple' :
+                                r.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
+                              }`} />
+                              {r.variant}
+                            </span>
+                          </td>
+                          <td className="font-semibold">{Math.abs(r.count)}</td>
+                          <td className="text-text-muted font-semibold">{formatCurrency(total)}</td>
+                          <td>
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(typeLabel)}`}>
+                              {typeLabel.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="text-right">
+                            <button onClick={() => confirmRestore(r)}
+                              aria-label="Restore item"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors tap-feedback">
+                              <RotateCcw className="w-3.5 h-3.5" /> Restore
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -561,11 +649,11 @@ export default function Inventory() {
               <div className="flex items-center gap-3 mb-4">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                   confirmAction.type === 'delete'
-                    ? 'bg-accent-red/20'
+                    ? 'bg-accent-blue/15'
                     : 'bg-accent-green/20'
                 }`}>
                   {confirmAction.type === 'delete'
-                    ? <Trash2 className="w-5 h-5 text-accent-red" />
+                    ? <Archive className="w-5 h-5 text-accent-blue" />
                     : <RotateCcw className="w-5 h-5 text-accent-green" />
                   }
                 </div>
@@ -587,16 +675,33 @@ export default function Inventory() {
                 </button>
                 <button onClick={executeConfirmed}
                   className={`glow-btn text-xs py-2 px-4 flex items-center gap-1.5 ${
-                    confirmAction.type === 'delete' ? 'glow-btn-red' : 'glow-btn-green'
+                    confirmAction.type === 'delete' ? '' : 'glow-btn-green'
                   }`}>
                   {confirmAction.type === 'delete'
-                    ? <><Trash2 className="w-3.5 h-3.5" /> Archive</>
+                    ? <><Archive className="w-3.5 h-3.5" /> Archive</>
                     : <><RotateCcw className="w-3.5 h-3.5" /> Restore</>
                   }
                 </button>
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Undo Snackbar */}
+      <AnimatePresence>
+        {undoSnackbar && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+            className="snackbar"
+          >
+            <Archive className="w-4 h-4 text-text-muted flex-shrink-0" />
+            <span className="text-sm">Record archived</span>
+            <button onClick={handleUndo} className="snackbar-undo">Undo</button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

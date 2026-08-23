@@ -11,11 +11,6 @@ const THEMES = {
     label: 'Light',
     class: 'theme-light',
   },
-  aqua: {
-    id: 'aqua',
-    label: 'Aqua',
-    class: 'theme-aqua',
-  },
 }
 
 function getInitialTheme() {

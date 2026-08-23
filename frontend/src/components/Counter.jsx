@@ -234,12 +234,15 @@ export default function Counter() {
     setIsSaving(true)
     try {
       if (target === 'tank') {
-        await axios.post('/save_inventory', { count, variant, notes: 'Saved from React', action: 'IN' })
+        await axios.post('/save_inventory', { count, variant, notes: '', action: 'IN' })
         showToast('Saved to inventory (Tank)')
       } else {
-        await axios.post('/save_inventory', { count, variant, notes: 'Saved from React (wholesale)', action: 'WHOLESALE' })
+        await axios.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
         showToast('Saved to Wholesale Storage')
       }
+      // Reset count on backend and locally so re-saving is impossible even after tab switch
+      try { await axios.post('/update_count', { count: 0 }) } catch { /* ignore */ }
+      setCount(0)
       setIsSaved(true)
     } catch {
       showToast(target === 'tank' ? 'Save to Tank failed' : 'Save to Wholesale failed', 'error')

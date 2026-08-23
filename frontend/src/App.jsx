@@ -4,22 +4,36 @@ import Dashboard from './components/Dashboard'
 import Counter from './components/Counter'
 import Inventory from './components/Inventory'
 import Adjustments from './components/Adjustments'
+import Settings from './components/Settings/index'
 import Sidebar from './components/Sidebar'
 import WelcomeScreen from './components/WelcomeScreen'
+import LoginScreen from './components/LoginScreen'
+import ResetPassword from './components/ResetPassword'
 import useThemeStore from './store/themeStore'
+import useAuthStore from './store/authStore'
 
-const ALLOWED_TABS = new Set(['dashboard', 'counter', 'inventory', 'adjustments'])
+const ADMIN_TABS = new Set(['dashboard', 'counter', 'inventory', 'adjustments', 'settings'])
+const STAFF_TABS = new Set(['counter', 'settings'])
 const STORAGE_KEY = 'fc_entered'
 
-function getInitialTab() {
+function getAllowedTabs(role) {
+  return role === 'admin' ? ADMIN_TABS : STAFF_TABS
+}
+
+function getDefaultTab(role) {
+  return role === 'admin' ? 'dashboard' : 'counter'
+}
+
+function getInitialTab(role) {
+  const allowed = getAllowedTabs(role)
   try {
     const hash = window.location.hash.replace('#', '').trim().toLowerCase()
-    if (ALLOWED_TABS.has(hash)) return hash
+    if (allowed.has(hash)) return hash
     const params = new URLSearchParams(window.location.search)
     const requestedTab = (params.get('tab') || '').trim().toLowerCase()
-    if (ALLOWED_TABS.has(requestedTab)) return requestedTab
+    if (allowed.has(requestedTab)) return requestedTab
   } catch { /* fallback */ }
-  return 'dashboard'
+  return getDefaultTab(role)
 }
 
 function hasEntered() {
@@ -34,33 +48,87 @@ const pageVariants = {
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(!hasEntered())
-  const [tab, setTabState] = useState(getInitialTab)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const initTheme = useThemeStore(s => s.initTheme)
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated)
+  const user = useAuthStore(s => s.user)
+  const role = user?.role || 'staff'
+  const allowedTabs = getAllowedTabs(role)
+
+  const [tab, setTabState] = useState(() => getInitialTab(role))
 
   useEffect(() => { initTheme() }, [initTheme])
+
+  // If role changes or tab is not allowed, reset to default
+  useEffect(() => {
+    if (!allowedTabs.has(tab)) setTabState(getDefaultTab(role))
+  }, [role, tab, allowedTabs])
 
   // Keep hash in sync on popstate (back/forward)
   useEffect(() => {
     function onHashChange() {
       const hash = window.location.hash.replace('#', '').trim().toLowerCase()
-      if (ALLOWED_TABS.has(hash)) setTabState(hash)
+      if (allowedTabs.has(hash)) setTabState(hash)
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
+  }, [allowedTabs])
 
   const setTab = useCallback((newTab) => {
+    if (!allowedTabs.has(newTab)) return
     setTabState(newTab)
     window.location.hash = newTab
     setMobileMenuOpen(false)
-  }, [])
+  }, [allowedTabs])
 
   const handleEnter = useCallback(() => {
     try { sessionStorage.setItem(STORAGE_KEY, '1') } catch { /* ignore */ }
     setShowWelcome(false)
   }, [])
+
+  // Check for password reset token in URL (takes priority over everything else)
+  const resetToken = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      return params.get('reset_token') || null
+    } catch { return null }
+  })()
+
+  function clearResetToken() {
+    try { window.history.replaceState({}, '', window.location.pathname + window.location.hash) } catch { /* ignore */ }
+  }
+
+  if (resetToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"
+        style={{ background: 'var(--bg-primary, #0a0f1a)' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="relative w-full max-w-md p-8 rounded-2xl"
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}
+        >
+          <h1 className="text-2xl font-extrabold tracking-tight mb-6 text-center"
+            style={{ color: '#e8ecf2' }}>
+            Reset Password
+          </h1>
+          <ResetPassword token={resetToken} onDone={() => { clearResetToken(); window.location.reload() }} />
+        </motion.div>
+      </div>
+    )
+  }
+
+  // If not authenticated, show LoginScreen
+  if (!isAuthenticated) {
+    return <LoginScreen />
+  }
 
   return (
     <>
@@ -98,10 +166,11 @@ export default function App() {
         <div className="p-4 pt-16 md:pt-8 md:p-8 max-w-[1400px] mx-auto">
           <AnimatePresence mode="wait">
             <motion.div key={tab} variants={pageVariants} initial="initial" animate="animate" exit="exit">
-              {tab === 'dashboard' && <Dashboard />}
+              {tab === 'dashboard' && allowedTabs.has('dashboard') && <Dashboard />}
               {tab === 'counter' && <Counter />}
-              {tab === 'inventory' && <Inventory />}
-              {tab === 'adjustments' && <Adjustments />}
+              {tab === 'inventory' && allowedTabs.has('inventory') && <Inventory />}
+              {tab === 'adjustments' && allowedTabs.has('adjustments') && <Adjustments />}
+              {tab === 'settings' && allowedTabs.has('settings') && <Settings />}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -36,7 +36,7 @@ const fmtDateFull = (dateStr) => {
 const PRESETS = [
   { label: '7D', days: 7 },
   { label: '30D', days: 30 },
-  { label: 'Monthly', days: 90 },
+  { label: '3 Months', days: 90 },
 ]
 
 /* ─── Custom Tooltip ─── */
@@ -159,7 +159,7 @@ export default function SalesTrend() {
   const [exporting, setExporting] = useState(false)
 
   // Filters
-  const [days, setDays] = useState(30)
+  const [days, setDays] = useState(7)
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [variant, setVariant] = useState('')
