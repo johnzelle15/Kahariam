@@ -114,7 +114,7 @@ export default function Counter() {
   }
 
   const [lockWarning, setLockWarning] = useState('')
-  const [variant, setVariant] = useState('Black')
+  const [variant, setVariant] = useState('SPIN_20')
   const [count, setCount] = useState(0)
   const [active, setActive] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
@@ -303,9 +303,7 @@ export default function Counter() {
           <div className="flex flex-col gap-2 min-w-0 flex-1 sm:flex-none sm:min-w-[160px]">
             <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variant</label>
             <select value={variant} onChange={e => setVariant(e.target.value)} className="neu-input">
-              <option>Black</option>
-              <option>Platinum</option>
-              <option>Pineapple</option>
+              <option>SPIN_20</option>
             </select>
           </div>
           <button onClick={start} disabled={active} className="glow-btn glow-btn-green flex items-center gap-2">

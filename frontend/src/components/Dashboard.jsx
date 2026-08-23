@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart
 } from 'recharts'
 import {
-  TrendingUp, Fish, Warehouse, DollarSign,
+  TrendingUp, Fish, ScanLine, DollarSign,
   Activity, AlertTriangle, Filter, Calendar, X, Package,
   Lightbulb, Zap, Target, ShieldAlert
 } from 'lucide-react'
@@ -36,8 +36,8 @@ function KpiSkeleton() {
   )
 }
 
-const CHART_COLORS = ['#4C7A3D', '#5E9B94', '#D98E3B']
-const VARIANT_COLORS = { Black: '#4C7A3D', Platinum: '#5E9B94', Pineapple: '#D98E3B' }
+const CHART_COLORS = ['#4C7A3D']
+const VARIANT_COLORS = { SPIN_20: '#4C7A3D' }
 
 const formatCurrency = v => {
   try { return '₱' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
@@ -836,37 +836,32 @@ export default function Dashboard() {
   const yday = stats?.yesterday || {}
   const global = stats?.global || {}
 
-  const variantCounts = stats ? ['Black', 'Platinum', 'Pineapple'].map(name => {
+  const variantCounts = stats ? ['SPIN_20'].map(name => {
     const tank = Number(stats.by_variant?.find(v => v.variant === name)?.count) || 0
     const wholesale = Number(stats.by_variant_wholesale?.find(v => v.variant === name)?.count) || 0
     return tank + wholesale
-  }) : [0, 0, 0]
+  }) : [0]
 
   const fishInTankCounts = fishInTank ? [
-    Number((fishInTank.by_variant || []).find(v => v.variant === 'Black')?.count) || 0,
-    Number((fishInTank.by_variant || []).find(v => v.variant === 'Platinum')?.count) || 0,
-    Number((fishInTank.by_variant || []).find(v => v.variant === 'Pineapple')?.count) || 0,
-  ] : [0, 0, 0]
+    Number((fishInTank.by_variant || []).find(v => v.variant === 'SPIN_20')?.count) || 0,
+  ] : [0]
 
-  const barData = ['Black', 'Platinum', 'Pineapple'].map((name, i) => ({
+  const barData = ['SPIN_20'].map((name, i) => ({
     name, tank: fishInTankCounts[i], inventory: variantCounts[i]
   }))
 
-  const pieData = ['Black', 'Platinum', 'Pineapple'].map((name, i) => ({
+  const pieData = ['SPIN_20'].map((name, i) => ({
     name, value: variantCounts[i]
   }))
 
   const kpiCards = stats ? [
     { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, current: global.additions_total, yesterday: yday.additions_total },
-    { key: 'fish_in_tank', label: 'Fish in Tank', value: Number(stats.tank_total || 0).toLocaleString(), icon: Package, current: global.tank_total, yesterday: yday.tank_total },
-    { key: 'wholesale', label: 'Wholesale Storage', value: Number(stats.wholesale_total || 0).toLocaleString(), icon: Warehouse, current: global.wholesale_total, yesterday: yday.wholesale_total },
+    { key: 'today_session', label: "Today's Session", value: Number(stats.today_session_total || 0).toLocaleString(), icon: ScanLine, current: global.today_session_total, yesterday: yday.today_session_total },
     { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0) },
     { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, current: global.total_revenue, yesterday: yday.total_revenue, rawValue: Number(stats.total_revenue || 0) },
   ] : []
 
   function openKpiModal(card) {
-    const byVariant = stats?.by_variant || []
-    const byVariantWholesale = stats?.by_variant_wholesale || []
     const byVariantAdditions = stats?.by_variant_additions || []
     let details = null
 
@@ -874,28 +869,19 @@ export default function Dashboard() {
       details = {
         title: 'Total Fish Inventory',
         subtitle: `Total: ${Number(stats.additions_total || 0).toLocaleString()}`,
-        rows: ['Black', 'Platinum', 'Pineapple'].map((v, i) => ({
+        rows: ['SPIN_20'].map((v, i) => ({
           label: v, color: CHART_COLORS[i],
           value: Number((byVariantAdditions.find(x => x.variant === v)?.count) || 0).toLocaleString()
         }))
       }
-    } else if (card.key === 'fish_in_tank') {
+    } else if (card.key === 'today_session') {
       details = {
-        title: 'Fish in Tank',
-        subtitle: `Net total: ${Number(stats.tank_total || 0).toLocaleString()}`,
-        rows: ['Black', 'Platinum', 'Pineapple'].map((v, i) => ({
-          label: v, color: CHART_COLORS[i],
-          value: Number((byVariant.find(x => x.variant === v)?.count) || 0).toLocaleString()
-        }))
-      }
-    } else if (card.key === 'wholesale') {
-      details = {
-        title: 'Wholesale Storage',
-        subtitle: `Total: ${Number(stats.wholesale_total || 0).toLocaleString()}`,
-        rows: ['Black', 'Platinum', 'Pineapple'].map((v, i) => ({
-          label: v, color: CHART_COLORS[i],
-          value: Number((byVariantWholesale.find(x => x.variant === v)?.count) || 0).toLocaleString()
-        }))
+        title: "Today's Session",
+        subtitle: `Counted today: ${Number(stats.today_session_total || 0).toLocaleString()}`,
+        rows: [
+          { label: 'Today', color: CHART_COLORS[0], value: Number(stats.today_session_total || 0).toLocaleString() },
+          { label: 'Yesterday', color: CHART_COLORS[0], value: Number(yday.today_session_total || 0).toLocaleString() },
+        ]
       }
     } else if (card.key === 'today_revenue' || card.key === 'total_revenue') {
       const isToday = card.key === 'today_revenue'
@@ -924,9 +910,9 @@ export default function Dashboard() {
       />
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         {statsLoading ? (
-          Array.from({ length: 5 }).map((_, i) => <KpiSkeleton key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
         ) : kpiCards.map((card, i) => (
           <motion.div key={i}
             initial={{ opacity: 0, y: 20 }}

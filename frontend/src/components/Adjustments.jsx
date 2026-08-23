@@ -5,7 +5,7 @@ import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package,
 
 const REASONS_RETAIL = ['Sold', 'Died']
 const REASONS_WHOLESALE = ['Sold']
-const VARIANTS = ['Black', 'Platinum', 'Pineapple']
+const VARIANTS = ['SPIN_20']
 const PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -689,10 +689,7 @@ export default function Adjustments() {
                     className="flex items-center justify-between p-2.5 rounded-xl border"
                     style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                     <span className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${
-                        item.variant === 'Black' ? 'bg-accent-purple' :
-                        item.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
-                      }`} />
+                      <span className="w-2.5 h-2.5 rounded-full bg-accent-green" />
                       <span className="text-sm text-text-secondary font-medium">{item.variant}</span>
                     </span>
                     <span className="text-sm font-bold text-text-primary">−{item.count}</span>

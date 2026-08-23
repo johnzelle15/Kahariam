@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
 
-const VARIANTS = ['Black', 'Platinum', 'Pineapple']
+const VARIANTS = ['SPIN_20']
 const PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
 function formatCurrency(val) {
@@ -466,10 +466,7 @@ export default function Inventory() {
                       <td className="whitespace-nowrap">{searchQuery ? highlightMatch(r.date || '', searchQuery) : r.date}</td>
                       <td>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${
-                            r.variant === 'Black' ? 'bg-accent-purple' :
-                            r.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
-                          }`} />
+                          <span className="w-2 h-2 rounded-full bg-accent-green" />
                           {r.variant}
                         </span>
                       </td>
@@ -549,9 +546,7 @@ export default function Inventory() {
                 <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Filter by Variant</label>
                 <select value={archiveVariant} onChange={e => setArchiveVariant(e.target.value)} className="neu-input">
                   <option value="">All</option>
-                  <option>Black</option>
-                  <option>Platinum</option>
-                  <option>Pineapple</option>
+                  <option>SPIN_20</option>
                 </select>
               </div>
               <button onClick={loadArchive} className="glow-btn glow-btn-secondary flex items-center gap-2">
@@ -597,10 +592,7 @@ export default function Inventory() {
                           <td className="whitespace-nowrap">{r.date}</td>
                           <td>
                             <span className="inline-flex items-center gap-1.5">
-                              <span className={`w-2 h-2 rounded-full ${
-                                r.variant === 'Black' ? 'bg-accent-purple' :
-                                r.variant === 'Platinum' ? 'bg-accent-blue' : 'bg-accent-cyan'
-                              }`} />
+                              <span className="w-2 h-2 rounded-full bg-accent-green" />
                               {r.variant}
                             </span>
                           </td>

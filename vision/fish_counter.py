@@ -71,12 +71,14 @@ from backend.core.config import INGEST_URL, LEGACY_UPDATE_COUNT_URL
 from vision.tracker import CentroidTracker, TrackedObject
 from vision.kalman_tracker import KalmanSortTracker
 
-# Class names must match the model's training order (alphabetical: 0=black, 1=pineapple, 2=platinum)
-CLASS_NAMES = ['Black', 'Pineapple', 'Platinum']
+# Class names must match the model's training order.
+# NOTE: the trained model still emits 3 class indices (0/1/2) from the old
+# Black/Pineapple/Platinum labels. Collapsing to a single SPIN_20 class here
+# is a labeling-only change — detections with class_id 1 or 2 will fall back
+# to "Unknown" until the model is retrained on the SPIN_20 label set.
+CLASS_NAMES = ['SPIN_20']
 CLASS_COLORS_BGR = [
-    (40, 40, 40),     # Black — dark
-    (0, 200, 255),    # Pineapple — yellow-orange
-    (200, 200, 200),  # Platinum — silver
+    (76, 122, 61),    # SPIN_20
 ]
 
 MODEL_PATH = os.environ.get('MODEL_PATH', '/home/aquaculture/Fish-Counter/models/fish_detector.onnx')
@@ -153,7 +155,7 @@ MIN_CROSSING_FRAMES = env_int('MIN_CROSSING_FRAMES', 12, minimum=1, maximum=120)
 # Minimum confidence to trust the class label.  Detections with confidence
 # below this threshold are kept for tracking but their class_id is set to
 # the dominant class in their recent history, reducing false positives from
-# low-confidence mis-classifications (e.g. Black fish labelled as Pineapple).
+# low-confidence mis-classifications.
 CLASS_CONF_THRESHOLD = env_float('CLASS_CONF_THRESHOLD', 0.55, minimum=0.0, maximum=1.0)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1180,10 +1182,9 @@ def run_counter(post_count) -> None:
             # Low-Confidence Class Filtering
             # ─────────────────────────────────────────────────────────────────
             # Detections below CLASS_CONF_THRESHOLD are unreliable for
-            # classification (e.g. dark Black fish misclassified as
-            # Pineapple at low confidence).  We keep the detection for
-            # tracking but flag its class_id as -1 so the tracker can
-            # fall back to the dominant class from the track's history.
+            # classification. We keep the detection for tracking but flag
+            # its class_id as -1 so the tracker can fall back to the
+            # dominant class from the track's history.
             if CLASS_CONF_THRESHOLD > 0:
                 filtered = []
                 for bbox, conf, cls_id in detections:

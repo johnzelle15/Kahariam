@@ -517,6 +517,15 @@ def get_statistics():
     retail_sold_today = float(_row_scalar(today_sales, 'retail_sold') or 0)
     wholesale_sold_today = float(_row_scalar(today_sales, 'wholesale_sold') or 0)
     today_revenue = round((retail_sold_today * RETAIL_PRICE_PER_FISH) + (wholesale_sold_today * WHOLESALE_PRICE_PER_FISH), 2)
+
+    # Fish counted/saved today (today's counting session total)
+    today_session_query = (
+        "SELECT SUM(count) as total FROM inventory "
+        "WHERE deleted = 0 AND DATE(date) = CURRENT_DATE "
+        "AND (action='IN' OR action='INVENTORY' OR (action='WHOLESALE' AND count > 0))"
+    )
+    c.execute(today_session_query)
+    today_session_total = _row_scalar(c.fetchone(), 'total') or 0
     
     # Compute total revenue for the selected filters (uses the same where_clause/params)
     try:
@@ -578,12 +587,22 @@ def get_statistics():
         yday_retail_total = float(_row_scalar(yday_total_sales, 'retail_sold_total') or 0)
         yday_wholesale_total_rev = float(_row_scalar(yday_total_sales, 'wholesale_sold_total') or 0)
         yesterday_total_revenue = round((yday_retail_total * RETAIL_PRICE_PER_FISH) + (yday_wholesale_total_rev * WHOLESALE_PRICE_PER_FISH), 2)
+
+        # Yesterday's session total (fish counted/saved that day)
+        yday_session_query = (
+            "SELECT SUM(count) as total FROM inventory "
+            "WHERE deleted = 0 AND DATE(date) = ? "
+            "AND (action='IN' OR action='INVENTORY' OR (action='WHOLESALE' AND count > 0))"
+        )
+        c.execute(yday_session_query, [yesterday_str])
+        yesterday_session_total = _row_scalar(c.fetchone(), 'total') or 0
     except Exception:
         yesterday_additions_total = 0
         yesterday_tank_total = 0
         yesterday_wholesale_total = 0
         yesterday_revenue = 0.0
         yesterday_total_revenue = 0.0
+        yesterday_session_total = 0
 
     # --- Global (unfiltered) current values for trend comparison ---
     try:
@@ -626,19 +645,22 @@ def get_statistics():
         "total_entries": total_entries,
         "today_revenue": today_revenue,
         "total_revenue": total_revenue,
+        "today_session_total": today_session_total,
         "yesterday": {
             "additions_total": yesterday_additions_total,
             "tank_total": yesterday_tank_total,
             "wholesale_total": yesterday_wholesale_total,
             "today_revenue": yesterday_revenue,
-            "total_revenue": yesterday_total_revenue
+            "total_revenue": yesterday_total_revenue,
+            "today_session_total": yesterday_session_total
         },
         "global": {
             "additions_total": global_additions_total,
             "tank_total": global_tank_total,
             "wholesale_total": global_wholesale_total,
             "today_revenue": today_revenue,
-            "total_revenue": global_total_revenue
+            "total_revenue": global_total_revenue,
+            "today_session_total": today_session_total
         }
     })
 
@@ -687,7 +709,7 @@ def get_monthly_tank_by_variant():
     """Return cumulative 'fish in tank' totals per variant at each month-end (YYYY-MM).
 
     Optional query param `year` may be provided to limit results to a single year.
-    Response format: [{"month":"YYYY-MM","Black":n,"Platinum":m,"Pineapple":p}, ...]
+    Response format: [{"month":"YYYY-MM","SPIN_20":n}, ...]
     """
     year = request.args.get('year', '').strip()
 
@@ -704,7 +726,7 @@ def get_monthly_tank_by_variant():
 
     months = [_row_value(r, 'ym', 0, '') for r in c.fetchall()]
 
-    variants = ['Black', 'Platinum', 'Pineapple']
+    variants = ['SPIN_20']
     result = []
 
     for ym in months:
@@ -793,10 +815,10 @@ def get_time_series_by_variant():
 
         Response: {
             periods: [...],
-            variants: ["Black","Platinum",...],
+            variants: ["SPIN_20"],
             prices: { retail: 5, wholesale: 1.75 },
             data: {
-                "Black": {
+                "SPIN_20": {
                     "tank": [...],
                     "wholesale": [...],
                     "tank_amount": [...],
@@ -1650,7 +1672,7 @@ def restore_record(record_id):
 # ---------- Low Stock Alert (filter-independent, real-time) ----------
 
 # Default thresholds per variant; override via env LOW_STOCK_THRESHOLDS
-# Format: "Black:20:40,Platinum:15:30,Pineapple:10:25"  (variant:critical:warning)
+# Format: "SPIN_20:15:30"  (variant:critical:warning)
 _DEFAULT_THRESHOLDS = {'_default': {'critical': 15, 'warning': 30}}
 
 def _load_thresholds():

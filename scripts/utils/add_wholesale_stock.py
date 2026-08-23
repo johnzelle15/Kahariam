@@ -25,9 +25,7 @@ from backend.core.db import get_db  # noqa: E402  (import after sys.path setup)
 
 # ── stock to add ──────────────────────────────────────────────────────────────
 STOCK: dict[str, int] = {
-    "Black":     1500,
-    "Pineapple": 1500,
-    "Platinum":  1500,
+    "SPIN_20": 1500,
 }
 
 NOTES = "Manual stock addition: +1500 wholesale"

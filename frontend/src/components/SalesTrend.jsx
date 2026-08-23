@@ -364,9 +364,7 @@ export default function SalesTrend() {
           <select value={variant} onChange={e => setVariant(e.target.value)}
             className="neu-input text-xs py-1.5 px-2 min-w-[110px]">
             <option value="">All Variants</option>
-            <option value="Black">Black</option>
-            <option value="Platinum">Platinum</option>
-            <option value="Pineapple">Pineapple</option>
+            <option value="SPIN_20">SPIN_20</option>
           </select>
         </div>
       </div>
