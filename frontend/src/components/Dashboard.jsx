@@ -862,26 +862,37 @@ export default function Dashboard() {
   ] : []
 
   function openKpiModal(card) {
-    const byVariantAdditions = stats?.by_variant_additions || []
     let details = null
 
     if (card.key === 'total_fish') {
+      const total = Number(stats.additions_total || 0)
+      const ydayTotal = Number(yday.additions_total || 0)
+      const diff = total - ydayTotal
       details = {
         title: 'Total Fish Inventory',
-        subtitle: `Total: ${Number(stats.additions_total || 0).toLocaleString()}`,
-        rows: ['SPIN_20'].map((v, i) => ({
-          label: v, color: CHART_COLORS[i],
-          value: Number((byVariantAdditions.find(x => x.variant === v)?.count) || 0).toLocaleString()
-        }))
+        subtitle: `Total: ${total.toLocaleString()} fish (SPIN_20)`,
+        rows: [
+          { label: 'Total (all time)', color: '#4C7A3D', value: `${total.toLocaleString()} fish` },
+          { label: 'As of yesterday', color: '#5E9B94', value: `${ydayTotal.toLocaleString()} fish` },
+        ],
+        extra: diff === 0
+          ? 'No change from yesterday'
+          : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish added since yesterday`
       }
     } else if (card.key === 'today_session') {
+      const todayCount = Number(stats.today_session_total || 0)
+      const ydayCount = Number(yday.today_session_total || 0)
+      const diff = todayCount - ydayCount
       details = {
         title: "Today's Session",
-        subtitle: `Counted today: ${Number(stats.today_session_total || 0).toLocaleString()}`,
+        subtitle: `Counted today: ${todayCount.toLocaleString()} fish`,
         rows: [
-          { label: 'Today', color: CHART_COLORS[0], value: Number(stats.today_session_total || 0).toLocaleString() },
-          { label: 'Yesterday', color: CHART_COLORS[0], value: Number(yday.today_session_total || 0).toLocaleString() },
-        ]
+          { label: 'Today', color: '#4C7A3D', value: `${todayCount.toLocaleString()} fish` },
+          { label: 'Yesterday', color: '#5E9B94', value: `${ydayCount.toLocaleString()} fish` },
+        ],
+        extra: diff === 0
+          ? 'No change from yesterday'
+          : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish vs. yesterday`
       }
     } else if (card.key === 'today_revenue' || card.key === 'total_revenue') {
       const isToday = card.key === 'today_revenue'
