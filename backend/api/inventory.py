@@ -27,21 +27,23 @@ _TX_TO_ACTION = {
 def _derive_transaction_type(action, notes, count=0):
     """Derive transaction_type from legacy action/notes columns.
 
-    TANK_IN/legacy-OUT branches only apply to historical rows recorded
-    before the retail (Fish Tank) path was removed — new writes never
-    produce them (see VALID_TRANSACTION_TYPES).
+    The legacy-OUT branch and the action=='IN' case only apply to
+    historical rows recorded before the retail (Fish Tank) path was
+    removed — new writes never produce them (see VALID_TRANSACTION_TYPES).
+    Both stock-inflow cases (formerly TANK_IN and WHOLESALE_IN) collapse
+    into WHOLESALE_IN since there's only one kind of "in" now.
     """
     action = (action or '').upper()
     notes_lower = (notes or '').lower()
     if action == 'OUT':
         return 'DIED' if notes_lower.startswith('died') else 'SOLD'
     if action == 'IN':
-        return 'TANK_IN'
+        return 'WHOLESALE_IN'
     if action in ('WHOLESALE', 'INVENTORY'):
         if isinstance(count, (int, float)) and count < 0:
             return 'DIED' if notes_lower.startswith('died') else 'SOLD'
         return 'WHOLESALE_IN'
-    return 'TANK_IN'
+    return 'WHOLESALE_IN'
 
 
 def _serialize_inventory_row(row):
@@ -194,7 +196,7 @@ def save_inventory():
     # Derive transaction_type from legacy action
     tx_type = _TX_TO_ACTION and _derive_transaction_type(action, notes, int(count))
     if action == 'IN':
-        tx_type = 'TANK_IN'
+        tx_type = 'WHOLESALE_IN'
     elif action == 'WHOLESALE':
         tx_type = 'WHOLESALE_IN'
     elif action == 'OUT':
@@ -1022,7 +1024,7 @@ def add_to_tank():
 
     c.execute('''
         INSERT INTO inventory (count, variant, date, notes, action, transaction_type)
-        VALUES (?, ?, ?, ?, 'IN', 'TANK_IN')
+        VALUES (?, ?, ?, ?, 'IN', 'WHOLESALE_IN')
     ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes))
     conn.commit()
     conn.close()
