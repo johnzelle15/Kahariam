@@ -607,13 +607,6 @@ export default function UsersTab({ toast }) {
                             style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }} title="Edit">
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => member.email && setResendConfirm(member)}
-                            disabled={!member.email}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}
-                            title={member.email ? 'Resend credentials' : 'No email on file'}>
-                            <Mail className="w-3.5 h-3.5" />
-                          </button>
                           <button onClick={() => setToggleConfirm(member)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
                             style={{
