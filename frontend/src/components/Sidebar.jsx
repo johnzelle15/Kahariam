@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import useThemeStore, { THEMES } from '../store/themeStore'
 import useAuthStore from '../store/authStore'
+import Modal from './ui/Modal'
+import Button from './ui/Button'
 
 const ALL_NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'View analytics & KPIs',      adminOnly: true },
@@ -66,34 +68,60 @@ function ThemeSwitcher({ collapsed }) {
 function LogoutButton({ collapsed }) {
   const logout = useAuthStore(s => s.logout)
   const user = useAuthStore(s => s.user)
+  const [confirming, setConfirming] = React.useState(false)
+
+  const confirmModal = (
+    <Modal
+      open={confirming}
+      onClose={() => setConfirming(false)}
+      title="Sign out?"
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button>
+          <Button variant="danger" icon={LogOut} onClick={logout}>Sign out</Button>
+        </>
+      }
+    >
+      <p className="text-sm text-text-secondary">
+        {user?.username ? `You'll be signed out of ${user.username}'s account.` : "You'll be signed out."}
+      </p>
+    </Modal>
+  )
 
   if (collapsed) {
     return (
-      <button
-        onClick={logout}
-        className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer"
-        style={{ color: 'var(--accent-red)', background: 'transparent' }}
-        title="Sign out"
-        aria-label="Sign out"
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-      >
-        <LogOut className="w-4 h-4" />
-      </button>
+      <>
+        <button
+          onClick={() => setConfirming(true)}
+          className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer"
+          style={{ color: 'var(--accent-red)', background: 'transparent' }}
+          title="Sign out"
+          aria-label="Sign out"
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+        {confirmModal}
+      </>
     )
   }
 
   return (
-    <button
-      onClick={logout}
-      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors duration-150 border-none cursor-pointer text-xs font-medium"
-      style={{ color: 'var(--text-muted)', background: 'transparent' }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
-    >
-      <LogOut className="w-3.5 h-3.5" />
-      <span className="truncate">{user?.username ? `Sign out (${user.username})` : 'Sign out'}</span>
-    </button>
+    <>
+      <button
+        onClick={() => setConfirming(true)}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors duration-150 border-none cursor-pointer text-xs font-medium"
+        style={{ color: 'var(--text-muted)', background: 'transparent' }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+      >
+        <LogOut className="w-3.5 h-3.5" />
+        <span className="truncate">{user?.username ? `Sign out (${user.username})` : 'Sign out'}</span>
+      </button>
+      {confirmModal}
+    </>
   )
 }
 
