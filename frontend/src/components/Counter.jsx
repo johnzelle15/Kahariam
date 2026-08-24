@@ -2,73 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { rawApi } from '../utils/api'
-import { Play, Square, Save, Wifi, WifiOff, Lock, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
-
-/* ──────────────────────────────────────────────────────────────
-   Confirmation Modal
-   ────────────────────────────────────────────────────────────── */
-function ConfirmDialog({ open, title, description, onConfirm, onCancel, loading }) {
-  if (!open) return null
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          key="backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-          onClick={onCancel}
-        >
-          <motion.div
-            key="dialog"
-            initial={{ opacity: 0, scale: 0.92, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 12 }}
-            transition={{ type: 'spring', damping: 26, stiffness: 350 }}
-            className="glass-card w-full max-w-sm p-6 space-y-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-accent-amber/10">
-                <AlertTriangle className="w-5 h-5 text-accent-amber" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-text-primary">{title}</h3>
-                <p className="text-sm text-text-muted mt-1">{description}</p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={onCancel}
-                disabled={loading}
-                className="px-4 py-2 text-sm font-semibold rounded-xl text-text-muted
-                  bg-white/5 border border-white/10 hover:bg-white/10 transition-colors
-                  disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={loading}
-                className="glow-btn flex items-center gap-2 !py-2 !px-4 !text-sm disabled:opacity-50"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  'Confirm'
-                )}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-}
+import { Play, Square, Save, Lock, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Button, Card, Modal, PageHeader, StatusIndicator } from './ui'
 
 /* ──────────────────────────────────────────────────────────────
    Toast Notification
@@ -250,101 +185,98 @@ export default function Counter() {
   const saveDisabled = count <= 0 || isSaving || isSaved || active
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
-      {/* Confirmation Modal */}
-      <ConfirmDialog
+    <div className="max-w-3xl mx-auto space-y-4">
+      {/* Save confirmation modal */}
+      <Modal
         open={!!confirmDialog}
+        onClose={() => !isSaving && setConfirmDialog(false)}
         title="Save to Inventory?"
-        description={`Are you sure you want to save ${count} ${variant} fish to inventory? This cannot be undone.`}
-        loading={isSaving}
-        onConfirm={handleConfirmSave}
-        onCancel={() => !isSaving && setConfirmDialog(false)}
-      />
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmDialog(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button variant="primary" icon={Save} loading={isSaving} onClick={handleConfirmSave}>
+              {isSaving ? 'Saving…' : 'Confirm'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Are you sure you want to save {count} {variant} fish to inventory? This cannot be undone.
+        </p>
+      </Modal>
 
       {/* Toast */}
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
-      {/* Status */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-center"
-      >
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold
-          ${socketConnected ? 'text-accent-green bg-accent-green/10' : 'text-text-muted bg-white/5'}`}>
-          {socketConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-          {socketConnected ? 'Live Connected' : 'Disconnected'}
-        </div>
-      </motion.div>
+      <PageHeader
+        title="AI Fish Counter"
+        actions={
+          <StatusIndicator
+            status={socketConnected ? 'active' : 'idle'}
+            label={socketConnected ? 'Live Connected' : 'Disconnected'}
+          />
+        }
+      />
 
       {lockWarning && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center justify-center gap-2 text-sm font-semibold text-accent-amber"
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 rounded-xl border border-accent-amber/20 bg-accent-amber/10
+            px-4 py-2 text-sm font-semibold text-accent-amber"
         >
-          <Lock className="w-4 h-4" /> {lockWarning}
+          <Lock className="w-4 h-4 shrink-0" /> {lockWarning}
         </motion.div>
       )}
 
       {/* Controls */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-card p-4 sm:p-6"
-      >
-        <div className="flex flex-wrap items-end gap-3 sm:gap-4">
-          <div className="flex flex-col gap-2 min-w-0 flex-1 sm:flex-none sm:min-w-[160px]">
+      <Card>
+        <div className="flex items-end gap-4">
+          <div className="flex flex-col gap-2 min-w-[160px]">
             <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variant</label>
             <select value={variant} onChange={e => setVariant(e.target.value)} className="neu-input">
               <option>SPIN_20</option>
             </select>
           </div>
-          <button onClick={start} disabled={active} className="glow-btn glow-btn-green flex items-center gap-2">
-            <Play className="w-4 h-4" /> Start
-          </button>
-          <button onClick={stop} disabled={!active} className="glow-btn glow-btn-red flex items-center gap-2">
-            <Square className="w-4 h-4" /> Stop
-          </button>
+          <Button variant="primary" size="lg" icon={Play} disabled={active} onClick={start}>
+            Start
+          </Button>
+          <Button variant="danger" size="lg" icon={Square} disabled={!active} onClick={stop}>
+            Stop
+          </Button>
         </div>
-      </motion.div>
+      </Card>
 
       {/* Count Display */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass-card stat-glow p-6 sm:p-8 text-center"
-      >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3 sm:mb-4">Current Count</h3>
+      <Card className="text-center">
+        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Current Count</h3>
         <div className="relative">
-          <p className="text-5xl sm:text-7xl font-black bg-gradient-to-r from-accent-purple via-accent-blue to-accent-cyan bg-clip-text text-transparent leading-none">
+          <p className="text-6xl sm:text-8xl font-black text-accent-green leading-none">
             {count}
           </p>
           {active && (
             <div className="absolute -inset-4 rounded-2xl"
-              style={{ boxShadow: '0 0 30px rgba(167, 139, 250, 0.08)' }} />
+              style={{ boxShadow: '0 0 30px rgba(124, 179, 66, 0.12)' }} />
           )}
         </div>
 
-        <div className="mt-5 sm:mt-6 flex items-center justify-center">
-          <button
-            onClick={requestSave}
+        <div className="mt-6 flex items-center justify-center">
+          <Button
+            variant="primary"
+            size="lg"
+            icon={isSaved ? CheckCircle2 : Save}
+            loading={isSaving}
             disabled={saveDisabled}
-            className={`glow-btn flex items-center gap-2 transition-all duration-200
-              ${isSaved ? 'opacity-40 cursor-not-allowed saturate-0' : ''}
-              ${isSaving ? 'opacity-60 cursor-wait' : ''}`}
+            className={isSaved ? 'opacity-40 cursor-not-allowed saturate-0' : ''}
+            onClick={requestSave}
           >
-            {isSaving
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : isSaved
-                ? <CheckCircle2 className="w-4 h-4" />
-                : <Save className="w-4 h-4" />}
-            {isSaved ? 'Saved' : 'Save to Inventory'}
-          </button>
+            {isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save to Inventory'}
+          </Button>
         </div>
-      </motion.div>
+      </Card>
     </div>
   )
 }
