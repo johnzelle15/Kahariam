@@ -621,6 +621,8 @@ export default function UsersTab({ toast }) {
   const [staff, setStaff]           = useState([])
   const [staffLoading, setStaffL]   = useState(true)
   const [staffModal, setStaffModal] = useState(null)
+  const [toggleConfirm, setToggleConfirm] = useState(null) // member pending activate/deactivate confirmation
+  const [toggling, setToggling]     = useState(false)
 
   const [logs, setLogs]             = useState([])
   const [logsLoading, setLogsL]     = useState(true)
@@ -651,12 +653,16 @@ export default function UsersTab({ toast }) {
   useEffect(() => { fetchLogs(logsPage) }, [logsPage, fetchLogs])
 
   async function toggleStaff(member) {
+    setToggling(true)
     try {
       const { data } = await api.post(`/settings/staff/${member.id}/toggle`)
       toast(data.active ? 'Account activated' : 'Account deactivated', 'success')
       fetchStaff()
     } catch (err) {
       toast(err.response?.data?.error || 'Operation failed', 'error')
+    } finally {
+      setToggling(false)
+      setToggleConfirm(null)
     }
   }
 
@@ -759,7 +765,7 @@ export default function UsersTab({ toast }) {
                             style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }} title="Edit">
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => toggleStaff(member)}
+                          <button onClick={() => setToggleConfirm(member)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
                             style={{
                               background: member.active ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)',
@@ -862,6 +868,67 @@ export default function UsersTab({ toast }) {
             onSaved={fetchStaff}
             toast={toast}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Activate/Deactivate confirmation */}
+      <AnimatePresence>
+        {toggleConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" key="toggle-confirm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0"
+              style={{ background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)' }}
+              onClick={() => !toggling && setToggleConfirm(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 16 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              className="relative z-10 w-full max-w-sm rounded-2xl p-6"
+              style={{
+                background: 'rgb(var(--bg-secondary))',
+                border: '1px solid var(--glass-border)',
+                boxShadow: '0 24px 48px rgba(0,0,0,0.45)',
+              }}
+            >
+              <div className="flex flex-col items-center text-center gap-3 mb-5">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                  style={{ background: toggleConfirm.active ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)' }}>
+                  <Power className="w-7 h-7" style={{ color: toggleConfirm.active ? 'var(--accent-red)' : 'var(--accent-green)' }} />
+                </div>
+                <div>
+                  <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {toggleConfirm.active ? 'Deactivate this account?' : 'Activate this account?'}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {toggleConfirm.active
+                      ? <>@{toggleConfirm.username} will no longer be able to sign in until reactivated.</>
+                      : <>@{toggleConfirm.username} will be able to sign in again.</>}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setToggleConfirm(null)} disabled={toggling}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer disabled:opacity-60"
+                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
+                  Cancel
+                </button>
+                <button onClick={() => toggleStaff(toggleConfirm)} disabled={toggling}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
+                    border-none cursor-pointer disabled:opacity-60"
+                  style={{
+                    background: toggleConfirm.active
+                      ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                      : 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#fff',
+                  }}>
+                  {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {toggling ? 'Saving…' : toggleConfirm.active ? 'Yes, deactivate' : 'Yes, activate'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </>
