@@ -54,7 +54,7 @@ env/
 # ===================
 runtime/*.pid
 runtime/logs/
-runtime/backups/*.sql
+runtime/backups/
 
 # ===================
 # Models (large files - use Git LFS or external storage)
