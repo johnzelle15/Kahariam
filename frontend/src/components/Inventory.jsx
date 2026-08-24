@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
+import { rawApi } from '../utils/api'
 import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
 
 const VARIANTS = ['SPIN_20']
@@ -115,7 +115,7 @@ export default function Inventory() {
       if (variantFilter) params.set('variant', variantFilter)
       if (searchStartDate) params.set('start_date', searchStartDate)
       if (searchEndDate) params.set('end_date', searchEndDate)
-      const res = await axios.get(`/get_inventory?${params}`)
+      const res = await rawApi.get(`/get_inventory?${params}`)
       if (res.data && res.data.items) {
         setRecords(res.data.items)
         setTotalPages(res.data.pages || 1)
@@ -134,7 +134,7 @@ export default function Inventory() {
     try {
       const params = new URLSearchParams()
       if (archiveVariant) params.set('variant', archiveVariant)
-      const res = await axios.get(`/get_deleted_records?${params}`)
+      const res = await rawApi.get(`/get_deleted_records?${params}`)
       setArchiveRecords(Array.isArray(res.data) ? res.data : [])
     } catch (e) { console.error(e) }
     finally { setArchiveLoading(false) }
@@ -239,7 +239,7 @@ export default function Inventory() {
     // Brief delay for animation
     await new Promise(r => setTimeout(r, 250))
     try {
-      const res = await axios.delete(`/delete_inventory/${id}`)
+      const res = await rawApi.delete(`/delete_inventory/${id}`)
       if (res.data?.status === 'success') {
         load(page)
         if (showArchive) loadArchive()
@@ -260,7 +260,7 @@ export default function Inventory() {
     if (timerId) clearTimeout(timerId)
     setUndoSnackbar(null)
     try {
-      const res = await axios.post(`/restore_record/${id}`)
+      const res = await rawApi.post(`/restore_record/${id}`)
       if (res.data?.success) {
         setDeleteMsg('Record restored')
         load(page)
@@ -274,7 +274,7 @@ export default function Inventory() {
     setRestoreMsg('')
     setRestoreError('')
     try {
-      const res = await axios.post(`/restore_record/${id}`)
+      const res = await rawApi.post(`/restore_record/${id}`)
       if (res.data?.success) {
         setRestoreMsg(res.data.message || 'Record restored')
         loadArchive()

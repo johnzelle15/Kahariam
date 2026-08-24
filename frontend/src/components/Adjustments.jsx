@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
+import { rawApi } from '../utils/api'
 import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
 
 const REASONS_WHOLESALE = ['Sold', 'Died']
@@ -64,7 +64,7 @@ export default function Adjustments() {
 
   const loadStock = useCallback(async () => {
     try {
-      const res = await axios.get('/get_wholesale_stock')
+      const res = await rawApi.get('/get_wholesale_stock')
       setWholesaleStock(res.data || {})
     } catch (e) { console.error(e) }
   }, [])
@@ -81,7 +81,7 @@ export default function Adjustments() {
       if (historyVariant) params.set('variant', historyVariant)
       if (searchStartDate) params.set('start_date', searchStartDate)
       if (searchEndDate) params.set('end_date', searchEndDate)
-      const res = await axios.get(`/get_adjustments?${params}`)
+      const res = await rawApi.get(`/get_adjustments?${params}`)
       const outOnly = items => items.filter(r => getDirection(r) === 'OUT')
       if (res.data && res.data.items) {
         setRecords(outOnly(res.data.items))
@@ -254,7 +254,7 @@ export default function Adjustments() {
         source: s,
         wholesale_action: 'OUT',
       }
-      const res = await axios.post('/adjust_stock_batch', payload)
+      const res = await rawApi.post('/adjust_stock_batch', payload)
       setFormSuccess(res.data?.message || 'Adjustments recorded')
       setBatchItems([{ variant: '', count: 1 }])
       loadStock()

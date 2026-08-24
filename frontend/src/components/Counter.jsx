@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
+import { rawApi } from '../utils/api'
 import { Play, Square, Save, Wifi, WifiOff, Lock, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 
 /* ──────────────────────────────────────────────────────────────
@@ -156,9 +157,9 @@ export default function Counter() {
 
   async function fetchState() {
     try {
-      const res = await axios.get('/get_state')
+      const res = await rawApi.get('/get_state')
       setActive(!!res.data.active)
-      const r2 = await axios.get('/get_count')
+      const r2 = await rawApi.get('/get_count')
       setCount(r2.data.count || 0)
       try {
         const uid = getUserId()
@@ -178,7 +179,7 @@ export default function Counter() {
       const lockRes = await axios.post(`/api/v1/devices/${DEVICE_ID}/lock`, { user_id: uid })
       if (lockRes?.data?.status === 'ok') {
         setLockWarning(`Locked by ${uid}`)
-        await axios.get('/start')
+        await rawApi.get('/start')
         setActive(true)
         showToast('Started counting…')
         // Reset save state for a new counting session
@@ -196,9 +197,9 @@ export default function Counter() {
 
   async function stop() {
     try {
-      await axios.get('/stop')
+      await rawApi.get('/stop')
       setActive(false)
-      const r = await axios.get('/get_count')
+      const r = await rawApi.get('/get_count')
       setCount(r.data.count || 0)
       showToast('Stopped')
       setLockWarning('')
@@ -215,7 +216,7 @@ export default function Counter() {
   async function poll() {
     if (!active) return
     try {
-      const r = await axios.get('/get_count')
+      const r = await rawApi.get('/get_count')
       setCount(r.data.count || 0)
     } catch { /* ignore */ }
     setTimeout(poll, 1000)
@@ -232,10 +233,10 @@ export default function Counter() {
     if (isSaving || isSaved || !confirmDialog) return
     setIsSaving(true)
     try {
-      await axios.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
+      await rawApi.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
       showToast('Saved to inventory')
       // Reset count on backend and locally so re-saving is impossible even after tab switch
-      try { await axios.post('/update_count', { count: 0 }) } catch { /* ignore */ }
+      try { await rawApi.post('/update_count', { count: 0 }) } catch { /* ignore */ }
       setCount(0)
       setIsSaved(true)
     } catch {

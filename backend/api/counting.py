@@ -7,6 +7,7 @@ from pathlib import Path
 from backend.core.db import get_db
 from datetime import datetime
 from backend.core.runtime import get_runtime, get_socketio
+from backend.api.auth_otp import require_auth
 
 counting_bp = Blueprint('counting', __name__)
 COUNTER_PID_FILE = Path(__file__).resolve().parent.parent.parent / 'runtime' / 'fish_counter.pid'
@@ -207,6 +208,7 @@ def startup_clear_stale_state():
 
 
 @counting_bp.route('/start')
+@require_auth
 def start():
     runtime = get_runtime()
     socketio = get_socketio()
@@ -276,6 +278,7 @@ def start():
 
 
 @counting_bp.route('/stop')
+@require_auth
 def stop():
     runtime = get_runtime()
     socketio = get_socketio()
@@ -332,12 +335,14 @@ def stop():
 
 
 @counting_bp.route('/get_count')
+@require_auth
 def get_count():
     runtime = get_runtime()
     return jsonify({"count": runtime.fish_count})
 
 
 @counting_bp.route('/get_state')
+@require_auth
 def get_state():
     """Read counting state from DATABASE (not in-memory) for multi-device sync."""
     try:
@@ -355,6 +360,7 @@ def get_state():
 
 
 @counting_bp.route('/update_count', methods=['POST'])
+@require_auth
 def update_count():
     runtime = get_runtime()
     data = request.get_json()

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import axios from 'axios'
+import { rawApi } from '../utils/api'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -184,7 +184,7 @@ export default function SalesTrend() {
         params.set('days', String(days))
       }
       if (variant) params.set('variant', variant)
-      const res = await axios.get(`/api/daily-trend?${params}`)
+      const res = await rawApi.get(`/api/daily-trend?${params}`)
       setData(res.data.data || [])
       if (res.data.prices) setPrices(res.data.prices)
     } catch (e) {

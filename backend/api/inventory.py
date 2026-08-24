@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import re
 import os
 from backend.core.runtime import get_runtime
+from backend.api.auth_otp import require_auth
 
 inventory_bp = Blueprint('inventory', __name__)
 
@@ -174,6 +175,7 @@ def _strip_wholesale_link_marker(notes) -> str:
 
 
 @inventory_bp.route('/save_inventory', methods=['POST'])
+@require_auth
 def save_inventory():
     runtime = get_runtime()
     data = request.get_json()
@@ -215,6 +217,7 @@ def save_inventory():
 
 
 @inventory_bp.route('/get_inventory')
+@require_auth
 def get_inventory():
     variant = request.args.get("variant", "").strip()
     start_date = request.args.get("start_date", "").strip()
@@ -337,6 +340,7 @@ def get_inventory():
 
 
 @inventory_bp.route('/delete_inventory/<int:id>', methods=['DELETE'])
+@require_auth
 def delete_inventory(id):
     conn = get_db()
     c = conn.cursor()
@@ -361,6 +365,7 @@ def delete_inventory(id):
 
 
 @inventory_bp.route('/clear_inventory', methods=['POST'])
+@require_auth
 def clear_inventory():
     conn = get_db()
     c = conn.cursor()
@@ -373,6 +378,7 @@ def clear_inventory():
 
 
 @inventory_bp.route('/get_statistics')
+@require_auth
 def get_statistics():
     variant = request.args.get("variant", "").strip()
     start_date = request.args.get("start_date", "").strip()
@@ -661,6 +667,7 @@ def get_statistics():
 
 
 @inventory_bp.route('/get_monthly_tank')
+@require_auth
 def get_monthly_tank():
     """Return cumulative 'fish in tank' totals at each month-end (YYYY-MM).
 
@@ -700,6 +707,7 @@ def get_monthly_tank():
 
 
 @inventory_bp.route('/get_monthly_tank_by_variant')
+@require_auth
 def get_monthly_tank_by_variant():
     """Return cumulative 'fish in tank' totals per variant at each month-end (YYYY-MM).
 
@@ -742,6 +750,7 @@ def get_monthly_tank_by_variant():
 
 
 @inventory_bp.route('/get_time_series')
+@require_auth
 def get_time_series():
     """Return aggregated sales totals per period for tank and wholesale.
 
@@ -801,6 +810,7 @@ def get_time_series():
 
 
 @inventory_bp.route('/get_time_series_by_variant')
+@require_auth
 def get_time_series_by_variant():
     """Return aggregated sold totals per period and per variant.
 
@@ -894,6 +904,7 @@ def get_time_series_by_variant():
 
 
 @inventory_bp.route('/api/daily-trend')
+@require_auth
 def daily_trend():
     """Return daily sales, revenue, and running stock totals.
 
@@ -1008,6 +1019,7 @@ def daily_trend():
 
 
 @inventory_bp.route('/add_to_tank', methods=['POST'])
+@require_auth
 def add_to_tank():
     data = request.get_json()
     count = data.get("count", 0)
@@ -1033,6 +1045,7 @@ def add_to_tank():
 
 
 @inventory_bp.route('/adjust_stock', methods=['POST'])
+@require_auth
 def adjust_stock():
     data = request.get_json()
     count = data.get("count", 0)
@@ -1183,6 +1196,7 @@ def adjust_stock():
 
 
 @inventory_bp.route('/adjust_stock_batch', methods=['POST'])
+@require_auth
 def adjust_stock_batch():
     data = request.get_json(silent=True) or {}
     items = data.get("items", [])
@@ -1410,6 +1424,7 @@ def adjust_stock_batch():
 
 
 @inventory_bp.route('/get_adjustments')
+@require_auth
 def get_adjustments():
     variant = request.args.get("variant", "").strip()
     start_date = request.args.get("start_date", "").strip()
@@ -1535,6 +1550,7 @@ def get_adjustments():
 
 
 @inventory_bp.route('/get_wholesale_stock')
+@require_auth
 def get_wholesale_stock():
     """Return current wholesale stock per variant for adjustment form."""
     conn = get_db()
@@ -1559,11 +1575,13 @@ def get_wholesale_stock():
 
 
 @inventory_bp.route('/adjustments_fragment')
+@require_auth
 def adjustments_fragment():
     return render_template('adjustments.html')
 
 
 @inventory_bp.route('/get_years')
+@require_auth
 def get_years():
     conn = get_db()
     c = conn.cursor()
@@ -1574,6 +1592,7 @@ def get_years():
 
 
 @inventory_bp.route('/get_deleted_records')
+@require_auth
 def get_deleted_records():
     conn = get_db()
     c = conn.cursor()
@@ -1622,6 +1641,7 @@ def get_deleted_records():
 
 
 @inventory_bp.route('/restore_record/<int:record_id>', methods=['POST'])
+@require_auth
 def restore_record(record_id):
     conn = get_db()
     c = conn.cursor()
@@ -1668,6 +1688,7 @@ def _load_thresholds():
 
 
 @inventory_bp.route('/api/low-stock')
+@require_auth
 def get_low_stock():
     """Return current stock levels per variant with alert status.
 

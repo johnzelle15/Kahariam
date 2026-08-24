@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import axios from 'axios'
+import { rawApi } from '../utils/api'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
@@ -646,7 +646,7 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading }) {
       url = `/api/daily-trend?days=${preset?.days || 7}`
     }
 
-    axios.get(url)
+    rawApi.get(url)
       .then(res => { if (!cancelled) setDailyData(res.data?.data || []) })
       .catch(() => {})
       .finally(() => { if (!cancelled) setTrendLoading(false) })
@@ -781,7 +781,7 @@ export default function Dashboard() {
   }, [])
 
   async function loadLowStock() {
-    try { setLowStockAlerts((await axios.get('/api/low-stock')).data.alerts || []) }
+    try { setLowStockAlerts((await rawApi.get('/api/low-stock')).data.alerts || []) }
     catch (e) { console.error('Failed to load low stock', e) }
     finally { setLowStockLoading(false) }
   }
@@ -794,7 +794,7 @@ export default function Dashboard() {
       if (startDate) params.append('start_date', startDate)
       if (endDate) params.append('end_date', endDate)
       const qs = params.toString()
-      setStats((await axios.get('/get_statistics' + (qs ? '?' + qs : ''))).data)
+      setStats((await rawApi.get('/get_statistics' + (qs ? '?' + qs : ''))).data)
     } catch (e) { console.error('Failed to load stats', e) }
     finally { setStatsLoading(false) }
   }
