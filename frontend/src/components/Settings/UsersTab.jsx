@@ -8,8 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, FileText, Plus, Edit2, Power,
   CheckCircle, XCircle, Loader2,
-  Eye, EyeOff, Shield, X, Save,
-  Check, AlertCircle, RefreshCw, Copy,
+  Shield, X, Save,
+  Check, AlertCircle,
 } from 'lucide-react'
 import api from '../../utils/api'
 
@@ -64,86 +64,6 @@ function AvailBadge({ state }) {
   return null
 }
 
-/* ── Password strength helpers ──────────────────────────────────────────────── */
-function calcStrength(pw) {
-  const rules = {
-    length:    pw.length >= 8,
-    upper:     /[A-Z]/.test(pw),
-    lower:     /[a-z]/.test(pw),
-    digit:     /[0-9]/.test(pw),
-    special:   /[^A-Za-z0-9]/.test(pw),
-  }
-  const passed = Object.values(rules).filter(Boolean).length
-  const level  = passed <= 2 ? 'weak' : passed === 3 ? 'fair' : passed === 4 ? 'good' : 'strong'
-  return { rules, passed, level }
-}
-
-const STRENGTH_META = {
-  weak:   { label: 'Weak',   color: 'var(--accent-red)',    bars: 1 },
-  fair:   { label: 'Fair',   color: 'var(--accent-amber)',  bars: 2 },
-  good:   { label: 'Good',   color: 'var(--accent-blue)',   bars: 3 },
-  strong: { label: 'Strong', color: 'var(--accent-green)',  bars: 4 },
-}
-
-function PasswordStrength({ password }) {
-  if (!password) return null
-  const { rules, level } = calcStrength(password)
-  const meta = STRENGTH_META[level]
-
-  return (
-    <div className="mt-2 flex flex-col gap-2">
-      {/* Strength bar */}
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1 flex-1">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="h-1 flex-1 rounded-full transition-all duration-300"
-              style={{ background: i <= meta.bars ? meta.color : 'var(--input-border)' }} />
-          ))}
-        </div>
-        <span className="text-[11px] font-semibold w-12 text-right" style={{ color: meta.color }}>
-          {meta.label}
-        </span>
-      </div>
-      {/* Checklist */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-        {[
-          { key: 'length',  label: 'Min. 8 characters' },
-          { key: 'upper',   label: 'Uppercase letter' },
-          { key: 'lower',   label: 'Lowercase letter' },
-          { key: 'digit',   label: 'Number' },
-          { key: 'special', label: 'Special character' },
-        ].map(({ key, label }) => (
-          <span key={key} className="flex items-center gap-1 text-[11px] transition-colors duration-200"
-            style={{ color: rules[key] ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-            {rules[key]
-              ? <CheckCircle className="w-3 h-3 flex-shrink-0" />
-              : <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ border: '1.5px solid var(--text-muted)' }} />
-            }
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ── Auto-generate password ─────────────────────────────────────────────────── */
-function generatePassword() {
-  const upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const lower   = 'abcdefghijklmnopqrstuvwxyz'
-  const digits  = '0123456789'
-  const special = '!@#$%^&*()_+-=[]{}|;:,.<>?'
-  const all     = upper + lower + digits + special
-  const arr     = [
-    upper  [Math.floor(Math.random() * upper.length)],
-    lower  [Math.floor(Math.random() * lower.length)],
-    digits [Math.floor(Math.random() * digits.length)],
-    special[Math.floor(Math.random() * special.length)],
-  ]
-  for (let i = 0; i < 8; i++) arr.push(all[Math.floor(Math.random() * all.length)])
-  return arr.sort(() => Math.random() - 0.5).join('')
-}
-
 /* ── Confirm Dialog ─────────────────────────────────────────────────────────── */
 function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
   return (
@@ -176,8 +96,9 @@ function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
             </p>
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
               A new <strong style={{ color: 'var(--text-secondary)' }}>{form.role}</strong> account will be
-              created for <strong style={{ color: 'var(--text-secondary)' }}>@{form.username}</strong>.
-              This action will be logged.
+              created for <strong style={{ color: 'var(--text-secondary)' }}>@{form.username}</strong>. A
+              random password will be generated and emailed to{' '}
+              <strong style={{ color: 'var(--text-secondary)' }}>{form.email}</strong>. This action will be logged.
             </p>
           </div>
         </div>
@@ -214,18 +135,13 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
     fullname: staff?.fullname || '',
     email:    staff?.email    || '',
     role:     staff?.role     || 'staff',
-    password: '',
-    confirmPassword: '',
   })
 
   // availability states: 'idle' | 'checking' | 'available' | 'taken' | 'invalid'
   const [unameState, setUnameState]   = useState('idle')
   const [emailState, setEmailState]   = useState('idle')
-  const [showPw, setShowPw]           = useState(false)
-  const [showCPw, setShowCPw]         = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [saving, setSaving]           = useState(false)
-  const [copied, setCopied]           = useState(false)
 
   const unameTimer = useRef(null)
   const emailTimer = useRef(null)
@@ -273,30 +189,9 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
   }, [form.email, isEdit, staff?.id])
 
   /* ── Derived validation ── */
-  const strength   = calcStrength(form.password)
-  const pwStrong   = strength.passed >= 5  // all 5 rules
-  const pwMatch    = form.password && form.password === form.confirmPassword
-
   const canSubmit = isEdit
     ? (emailState === 'available' || emailState === 'idle') && !saving
-    : unameState === 'available' &&
-      (emailState === 'available' || emailState === 'idle') &&
-      pwStrong && pwMatch && !saving
-
-  /* ── Auto-generate ── */
-  function autoGenerate() {
-    const pw = generatePassword()
-    setForm(f => ({ ...f, password: pw, confirmPassword: pw }))
-    setShowPw(true)
-  }
-
-  function handleCopy() {
-    if (!form.password) return
-    navigator.clipboard.writeText(form.password).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
+    : unameState === 'available' && emailState === 'available' && !saving
 
   /* ── Submit flow ── */
   function handleSubmitClick() {
@@ -322,9 +217,8 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
           fullname: form.fullname,
           email:    form.email,
           role:     form.role,
-          password: form.password,
         })
-        toast('Account created successfully', 'success')
+        toast('Account created — login credentials emailed to ' + form.email, 'success')
       }
       onSaved()
       onClose()
@@ -422,7 +316,9 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
             {/* ── Email ── */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Email</label>
+                <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Email {!isEdit && <span style={{ color: 'var(--accent-red)' }}>*</span>}
+                </label>
                 <AvailBadge state={emailState} />
               </div>
               <input
@@ -437,6 +333,11 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
                              emailState === 'taken'     ? '0 0 0 2px rgba(239,68,68,0.2)' : 'none',
                 }}
               />
+              {!isEdit && (
+                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  A random password will be generated and emailed to this address.
+                </p>
+              )}
             </div>
 
             {/* ── Role ── */}
@@ -466,100 +367,14 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
               </div>
             </div>
 
-            {/* ── Password (create only) ── */}
-            {!isEdit && (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                      Password <span style={{ color: 'var(--accent-red)' }}>*</span>
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      {form.password && (
-                        <button type="button" onClick={handleCopy}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium
-                            border-none cursor-pointer transition-colors"
-                          style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-muted)' }}>
-                          {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          {copied ? 'Copied' : 'Copy'}
-                        </button>
-                      )}
-                      <button type="button" onClick={autoGenerate}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium
-                          border-none cursor-pointer transition-colors"
-                        style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-muted)' }}>
-                        <RefreshCw className="w-3 h-3" /> Generate
-                      </button>
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showPw ? 'text' : 'password'}
-                      value={form.password}
-                      onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                      placeholder="Min. 8 chars with uppercase, number, symbol"
-                      className="w-full rounded-xl px-3 pr-10 py-2.5 text-sm outline-none transition-all"
-                      style={inputStyle(false)}
-                    />
-                    <button type="button" onClick={() => setShowPw(s => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 border-none bg-transparent cursor-pointer"
-                      style={{ color: 'var(--text-muted)' }}>
-                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {/* Live strength meter + checklist */}
-                  <PasswordStrength password={form.password} />
-                </div>
-
-                {/* ── Confirm password ── */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                      Confirm Password <span style={{ color: 'var(--accent-red)' }}>*</span>
-                    </label>
-                    {form.confirmPassword && (
-                      <span className="flex items-center gap-1 text-[11px]"
-                        style={{ color: pwMatch ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                        {pwMatch
-                          ? <><CheckCircle className="w-3 h-3" /> Passwords match</>
-                          : <><XCircle    className="w-3 h-3" /> Passwords don't match</>
-                        }
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showCPw ? 'text' : 'password'}
-                      value={form.confirmPassword}
-                      onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
-                      placeholder="Re-enter your password"
-                      className="w-full rounded-xl px-3 pr-10 py-2.5 text-sm outline-none transition-all"
-                      style={{
-                        ...inputStyle(form.confirmPassword && !pwMatch),
-                        boxShadow: form.confirmPassword
-                          ? pwMatch ? '0 0 0 2px rgba(16,185,129,0.2)' : '0 0 0 2px rgba(239,68,68,0.2)'
-                          : 'none',
-                      }}
-                    />
-                    <button type="button" onClick={() => setShowCPw(s => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 border-none bg-transparent cursor-pointer"
-                      style={{ color: 'var(--text-muted)' }}>
-                      {showCPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
 
           {/* ── Readiness summary (create mode) ── */}
           {!isEdit && (
             <div className="mt-4 flex flex-wrap gap-2">
               {[
-                { ok: unameState === 'available',              label: 'Username' },
+                { ok: unameState === 'available', label: 'Username' },
                 { ok: emailState === 'available', label: 'Email' },
-                { ok: pwStrong,                                label: 'Password strength' },
-                { ok: pwMatch,                                 label: 'Passwords match' },
               ].map(({ ok, label }) => (
                 <span key={label} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
                   style={{

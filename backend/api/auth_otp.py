@@ -124,6 +124,54 @@ def _send_otp_email(to_email: str, otp_code: str, username: str) -> None:
         server.sendmail(EMAIL_USER, to_email, msg.as_string())
 
 
+def send_new_account_email(to_email: str, username: str, password: str) -> None:
+    """Send a newly created staff account's login credentials via SMTP. Raises on failure."""
+    if not EMAIL_USER or not EMAIL_PASS:
+        raise RuntimeError('EMAIL_USER and EMAIL_PASS must be set in environment')
+
+    msg = MIMEMultipart('alternative')
+    msg['From'] = EMAIL_USER
+    msg['To'] = to_email
+    msg['Subject'] = 'Kahariam Farm — Your Account Was Created'
+
+    text_body = (
+        f"Hi {username},\n\n"
+        f"An account was created for you on Kahariam Farm's Fish Management system.\n\n"
+        f"Username: {username}\n"
+        f"Temporary password: {password}\n\n"
+        f"Please log in and change this password as soon as possible.\n"
+    )
+
+    html_body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;
+                padding: 32px; background: #0a0f0a; color: #edefe9; border-radius: 16px;">
+      <h2 style="color: #7cb342; margin-bottom: 8px;">Kahariam Farm</h2>
+      <p>Hi <strong>{username}</strong>,</p>
+      <p>An account was created for you on Kahariam Farm's Fish Management system.</p>
+      <div style="padding: 20px; margin: 16px 0; background: #161c16; border-radius: 12px;
+                  border: 1px solid rgba(255,255,255,0.06);">
+        <p style="margin: 0 0 8px; color: #8fa089; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Username</p>
+        <p style="margin: 0 0 16px; font-size: 18px; font-weight: bold;">{username}</p>
+        <p style="margin: 0 0 8px; color: #8fa089; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Temporary password</p>
+        <p style="margin: 0; font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #7cb342;">{password}</p>
+      </div>
+      <p style="color: #8fa089; font-size: 14px;">
+        Please log in and change this password as soon as possible.
+      </p>
+    </div>
+    """
+
+    msg.attach(MIMEText(text_body, 'plain'))
+    msg.attach(MIMEText(html_body, 'html'))
+
+    with smtplib.SMTP(EMAIL_SMTP_HOST, EMAIL_SMTP_PORT) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, to_email, msg.as_string())
+
+
 def _create_jwt(user_id: int, username: str, role: str) -> tuple:
     """Issue a signed JWT. Returns (token_string, jti)."""
     jti = str(uuid.uuid4())

@@ -22,6 +22,8 @@ import base64
 import os
 import platform
 import re
+import secrets
+import string
 import time
 from datetime import datetime
 from functools import wraps
@@ -29,7 +31,7 @@ from functools import wraps
 import bcrypt
 from flask import Blueprint, jsonify, request
 
-from backend.api.auth_otp import require_auth
+from backend.api.auth_otp import require_auth, send_new_account_email
 from backend.core.db import get_db
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/api/v1/settings')
@@ -94,6 +96,17 @@ def _password_strength(pw: str) -> str:
     if score <= 2: return 'weak'
     if score == 3: return 'fair'
     return 'strong'
+
+
+def _generate_random_password(length: int = 14) -> str:
+    """Cryptographically random password with at least one upper/lower/digit/symbol."""
+    symbols = '!@#$%^&*()-_=+'
+    required = [secrets.choice(string.ascii_uppercase), secrets.choice(string.ascii_lowercase),
+                secrets.choice(string.digits), secrets.choice(symbols)]
+    pool = string.ascii_letters + string.digits + symbols
+    chars = required + [secrets.choice(pool) for _ in range(length - len(required))]
+    secrets.SystemRandom().shuffle(chars)
+    return ''.join(chars)
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────
@@ -595,28 +608,24 @@ def list_staff():
 @require_auth
 @require_admin
 def create_staff():
-    """Create a new staff (or admin) account."""
+    """Create a new staff (or admin) account. A random password is generated
+    and emailed to the account's address — nobody types or sees it here."""
     admin_uid = request.user['sub']
     data = request.get_json(silent=True) or {}
 
     username = (data.get('username') or '').strip()
     email    = (data.get('email') or '').strip()
     fullname = (data.get('fullname') or '').strip()
-    password = data.get('password') or ''
     role     = data.get('role', 'staff')
 
     if role not in ('admin', 'staff'):
         role = 'staff'
-    if not username or not password:
-        return jsonify({'error': 'Username and password are required'}), 400
+    if not username or not email:
+        return jsonify({'error': 'Username and email are required'}), 400
     if not _SAFE_USERNAME_RE.match(username):
         return jsonify({'error': 'Invalid username format'}), 400
-    if email and not _SAFE_EMAIL_RE.match(email):
+    if not _SAFE_EMAIL_RE.match(email):
         return jsonify({'error': 'Invalid email address'}), 400
-    if len(password) < PASSWORD_MIN_LEN:
-        return jsonify({'error': f'Password must be at least {PASSWORD_MIN_LEN} characters'}), 400
-
-    pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
 
     conn = get_db()
     try:
@@ -625,15 +634,27 @@ def create_staff():
         if c.fetchone():
             return jsonify({'error': 'Username already exists'}), 409
 
-        if email:
-            c.execute('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', (email,))
-            if c.fetchone():
-                return jsonify({'error': 'Email already in use'}), 409
+        c.execute('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', (email,))
+        if c.fetchone():
+            return jsonify({'error': 'Email already in use'}), 409
+
+        password = _generate_random_password()
+
+        # Send the credentials before creating the account — if delivery
+        # fails, the admin can just retry rather than being left with an
+        # account whose password nobody knows.
+        try:
+            send_new_account_email(email, username, password)
+        except Exception as e:
+            print(f'[SETTINGS] Failed to send new-account email: {e}')
+            return jsonify({'error': 'Failed to email the new account credentials. Please try again.'}), 500
+
+        pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
 
         c.execute(
             '''INSERT INTO users (username, email, fullname, password_hash, role, active)
                VALUES (?, ?, ?, ?, ?, 1)''',
-            (username, email or None, fullname or None, pw_hash, role),
+            (username, email, fullname or None, pw_hash, role),
         )
         new_id = c.lastrowid
         conn.commit()
@@ -642,7 +663,7 @@ def create_staff():
                    f'Created {role} account: {username}')
         conn.commit()
 
-        return jsonify({'message': 'Account created', 'id': new_id}), 201
+        return jsonify({'message': 'Account created and credentials emailed', 'id': new_id}), 201
     finally:
         conn.close()
 
