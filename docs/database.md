@@ -11,17 +11,26 @@ sudo mysql_secure_installation
 2) Create database and user (example):
 
 ```sql
-CREATE DATABASE fish_counter CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'fc_user'@'localhost' IDENTIFIED BY 'strong_password_here';
-GRANT ALL PRIVILEGES ON fish_counter.* TO 'fc_user'@'localhost';
+CREATE USER 'fishuser'@'localhost' IDENTIFIED BY 'strong_password_here';
+GRANT ALL PRIVILEGES ON inventory.* TO 'fishuser'@'localhost';
 FLUSH PRIVILEGES;
 ```
+
+The database itself (`inventory`) is created by the schema file in the next
+step, with the correct charset and collation — do not create it by hand.
 
 3) Import schema:
 
 ```bash
-mariadb -u fc_user -p fish_counter < sql/schema.sql
+mariadb -u fishuser -p < database/schema.sql
 ```
+
+`database/schema.sql` is the single authoritative DDL and matches the live
+database exactly. Do **not** run the files in `database/migrations/` on a
+fresh install — they are the historical record of how the schema was reached
+and are already folded into `schema.sql`. Do **not** run
+`database/planned_schema.sql`; it is commented-out documentation of future
+work that was never deployed.
 
 4) Install Python dependencies for seeder or app (in virtualenv):
 
@@ -34,7 +43,7 @@ pip install mariadb bcrypt
 5) Create a device token (run the seeder):
 
 ```bash
-python scripts/seed_device.py --host localhost --user fc_user --password "your_pw" --database fish_counter --name pi-counter-01 --location "Tank A"
+python scripts/utils/seed_device.py --host localhost --user fishuser --password "your_pw" --database inventory --name pi-counter-01 --location "Tank A"
 ```
 
 The script prints a `Device ID` and a plaintext `Device token`. Save the token securely — it is shown only once. Store only the hash on the server.
@@ -47,7 +56,7 @@ The script prints a `Device ID` and a plaintext `Device token`. Save the token s
 7) Backups (cron example for daily backup):
 
 ```bash
-0 2 * * * /usr/bin/mysqldump -u fc_user -p"your_pw" fish_counter | gzip > /home/pi/backups/fish_counter-$(date +\%F).sql.gz
+0 2 * * * /usr/bin/mysqldump -u fishuser -p"your_pw" inventory | gzip > /home/pi/backups/inventory-$(date +\%F).sql.gz
 ```
 
 8) Notes for low-memory Raspberry Pi

@@ -38,9 +38,9 @@ Fish-Counter/
 │   └── fish_detector.pt      # PyTorch equivalent
 │
 ├── database/                 # SQL schemas, migrations, seeds
-│   ├── schema.sql            # Main DDL
-│   ├── schema_rpi_runtime.sql
-│   ├── migrations/           # Data migration scripts
+│   ├── schema.sql            # Authoritative DDL — matches the live DB
+│   ├── planned_schema.sql    # Future-work tables (documentation, do not run)
+│   ├── migrations/           # Historical migration record
 │   └── seeds/                # Seed data
 │
 ├── frontend/                 # React 18 SPA (Vite + Tailwind)

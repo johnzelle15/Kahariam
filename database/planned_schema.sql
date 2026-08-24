@@ -1,0 +1,121 @@
+-- =====================================================================
+--  Fish-Counter — PLANNED TABLES (documentation only)
+--
+--  *** DO NOT RUN THIS FILE ***
+--
+--  These tables are design-stage future work. None of them is deployed
+--  in the live `inventory` database, and a codebase-wide search on
+--  2026-08-24 found zero references to any of them in backend queries,
+--  models, API endpoints, frontend calls, scripts, or migrations.
+--
+--  They were previously mixed into database/schema.sql, which meant a
+--  fresh install created eight dead tables. They were split out here so
+--  that schema.sql can be a truthful, runnable description of the real
+--  database while the planned design is still on record.
+--
+--  thesis.html § "Planned Tables" documents these as future features:
+--  supplier management, purchase ordering, OTA firmware updates,
+--  device calibration records, and multi-channel notifications.
+--
+--  If any of these is ever built, move it into schema.sql and add a
+--  matching migration under database/migrations/.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+--  SUPERSEDED — do not build as written.
+--
+--  Role-based access control shipped instead as a single `role`
+--  ENUM('admin','staff') column on users (migrations/add_otp_auth.sql).
+--  These two tables are the older normalised design and are kept only
+--  as a record of the alternative that was considered.
+-- ---------------------------------------------------------------------
+-- CREATE TABLE roles (
+--   id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   name VARCHAR(50) UNIQUE
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+--
+-- CREATE TABLE user_roles (
+--   user_id BIGINT UNSIGNED NOT NULL,
+--   role_id INT UNSIGNED NOT NULL,
+--   PRIMARY KEY (user_id, role_id),
+--   CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+--   CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+--  Supplier management & purchase ordering
+-- ---------------------------------------------------------------------
+-- CREATE TABLE suppliers (
+--   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   name       VARCHAR(200) NOT NULL,
+--   contact    TEXT,
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+--
+-- CREATE TABLE purchase_orders (
+--   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   supplier_id   BIGINT UNSIGNED,
+--   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   expected_date DATE,
+--   status        ENUM('CREATED','RECEIVED','CANCELLED') DEFAULT 'CREATED',
+--   notes         TEXT,
+--   CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+--
+-- CREATE TABLE purchase_items (
+--   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   po_id      BIGINT UNSIGNED NOT NULL,
+--   variant    VARCHAR(120) NOT NULL,
+--   qty        INT NOT NULL,
+--   unit_price DECIMAL(10,2) DEFAULT 0,
+--   CONSTRAINT fk_pi_po FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+--  OTA firmware distribution to counter devices
+-- ---------------------------------------------------------------------
+-- CREATE TABLE ota_tasks (
+--   id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   device_id        VARCHAR(255) NOT NULL,
+--   firmware_version VARCHAR(64),
+--   url              TEXT,
+--   status           ENUM('PENDING','SENT','ACK','FAILED') DEFAULT 'PENDING',
+--   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   CONSTRAINT fk_ota_device FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+--  Counter accuracy calibration records
+-- ---------------------------------------------------------------------
+-- CREATE TABLE calibrations (
+--   id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   device_id        VARCHAR(255) NOT NULL,
+--   performed_by     VARCHAR(120),
+--   notes            TEXT,
+--   accuracy_percent DECIMAL(5,2) NULL,
+--   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   CONSTRAINT fk_cal_device FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
+--  Multi-channel notification delivery.
+--
+--  NOTE: per-user notification *preferences* already ship as the live
+--  `notification_prefs` table (see schema.sql). This planned table is
+--  the delivery/transport side, which was never built.
+-- ---------------------------------------------------------------------
+-- CREATE TABLE notifications (
+--   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--   channel     ENUM('EMAIL','SMS','TELEGRAM','WEBHOOK') NOT NULL,
+--   destination TEXT,
+--   template    TEXT,
+--   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+--  Also planned but never deployed: extra columns on `inventory`
+--    source     VARCHAR(64)   -- origin of the movement ('dashboard', 'device')
+--    device_id  VARCHAR(255)  -- FK to devices(id) ON DELETE SET NULL
+--    created_at TIMESTAMP
+--  The live inventory table has none of these and no code references them.
+-- ---------------------------------------------------------------------
