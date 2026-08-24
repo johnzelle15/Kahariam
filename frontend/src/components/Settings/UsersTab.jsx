@@ -127,7 +127,7 @@ function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
 }
 
 /* ── StaffModal ─────────────────────────────────────────────────────────────── */
-function StaffModal({ mode, staff, onClose, onSaved, toast }) {
+function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast }) {
   const isEdit = mode === 'edit'
   const DEBOUNCE_MS = 500
 
@@ -338,6 +338,17 @@ function StaffModal({ mode, staff, onClose, onSaved, toast }) {
                 <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                   A random password will be generated and emailed to this address.
                 </p>
+              )}
+              {isEdit && (
+                <button type="button"
+                  onClick={() => staff?.email && onResendCredentials?.(staff)}
+                  disabled={!staff?.email}
+                  className="self-start flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-lg text-[11px] font-medium
+                    border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  style={{ background: 'rgba(96,165,250,0.10)', color: 'var(--accent-blue)' }}
+                  title={staff?.email ? undefined : 'No email on file'}>
+                  <Mail className="w-3 h-3" /> Resend credentials
+                </button>
               )}
             </div>
 
@@ -704,6 +715,7 @@ export default function UsersTab({ toast }) {
             staff={staffModal.staff}
             onClose={() => setStaffModal(null)}
             onSaved={fetchStaff}
+            onResendCredentials={setResendConfirm}
             toast={toast}
           />
         )}
