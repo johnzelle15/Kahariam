@@ -86,7 +86,7 @@ def _send_otp_email(to_email: str, otp_code: str, username: str) -> None:
     msg = MIMEMultipart('alternative')
     msg['From'] = EMAIL_USER
     msg['To'] = to_email
-    msg['Subject'] = 'Fish Counter — Your Login OTP'
+    msg['Subject'] = 'Kahariam Farm — Your Login OTP'
 
     text_body = (
         f"Hi {username},\n\n"
@@ -97,16 +97,16 @@ def _send_otp_email(to_email: str, otp_code: str, username: str) -> None:
 
     html_body = f"""
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;
-                padding: 32px; background: #0a0c16; color: #e8ecf2; border-radius: 16px;">
-      <h2 style="color: #a78bfa; margin-bottom: 8px;">Fish Counter</h2>
+                padding: 32px; background: #0a0f0a; color: #edefe9; border-radius: 16px;">
+      <h2 style="color: #7cb342; margin-bottom: 8px;">Kahariam Farm</h2>
       <p>Hi <strong>{username}</strong>,</p>
       <p>Your one-time login code is:</p>
       <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; text-align: center;
-                  padding: 20px; margin: 16px 0; background: #0e1220; border-radius: 12px;
-                  border: 1px solid rgba(255,255,255,0.06); color: #60a5fa;">
+                  padding: 20px; margin: 16px 0; background: #161c16; border-radius: 12px;
+                  border: 1px solid rgba(255,255,255,0.06); color: #7cb342;">
         {otp_code}
       </div>
-      <p style="color: #8b95a8; font-size: 14px;">
+      <p style="color: #8fa089; font-size: 14px;">
         This code expires in <strong>{OTP_EXPIRY_MINUTES} minutes</strong>.<br>
         If you did not request this, please ignore this email.
       </p>
@@ -482,18 +482,18 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
         raise RuntimeError('EMAIL_USER and EMAIL_PASS must be set in environment')
 
     msg = MIMEMultipart('alternative')
-    msg['From'] = f'Aquaculture Management <{EMAIL_USER}>'
+    msg['From'] = f'Kahariam Farm <{EMAIL_USER}>'
     msg['To'] = to_email
-    msg['Subject'] = 'Password Reset Request — Aquaculture Management'
+    msg['Subject'] = 'Password Reset Request — Kahariam Farm'
 
     text_body = (
-        f"You requested a password reset for your Aquaculture Management account.\n\n"
+        f"You requested a password reset for your Kahariam Farm account.\n\n"
         f"Click the link below to reset your password (expires in {expiry_minutes} minutes):\n"
         f"{reset_link}\n\n"
         f"This link can only be used once.\n\n"
         f"If you did NOT request a password reset, please ignore this email. "
         f"Your password will remain unchanged.\n\n"
-        f"— Aquaculture Management System"
+        f"— Kahariam Farm"
     )
 
     html_body = f"""<!DOCTYPE html>
@@ -503,13 +503,13 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Password Reset</title>
 </head>
-<body style="margin:0;padding:0;background:#020617;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<body style="margin:0;padding:0;background:#0a0f0a;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0"
-    style="background:#020617;padding:40px 16px;">
+    style="background:#0a0f0a;padding:40px 16px;">
     <tr>
       <td align="center">
         <table width="100%" cellpadding="0" cellspacing="0" border="0"
-          style="max-width:480px;background:#0e1220;border-radius:20px;
+          style="max-width:480px;background:#161c16;border-radius:20px;
                  border:1px solid rgba(255,255,255,0.06);overflow:hidden;">
 
           <!-- Header -->
@@ -517,23 +517,23 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
             <td style="padding:32px 32px 0;text-align:center;">
               <div style="display:inline-flex;align-items:center;justify-content:center;
                           width:56px;height:56px;border-radius:16px;margin-bottom:16px;
-                          background:linear-gradient(135deg,rgba(52,211,153,0.12),rgba(96,165,250,0.10));
+                          background:linear-gradient(135deg,rgba(124,179,66,0.12),rgba(111,179,172,0.10));
                           border:1px solid rgba(255,255,255,0.08);">
                 <!-- Fish SVG -->
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-                  stroke="#34d399" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  stroke="#7cb342" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M6.5 12c3-6 11-6 14.5 0-3.5 6-11.5 6-14.5 0z"/>
                   <path d="M3 12c-1.5-2-2-4-1-5.5 2 1 3.5 2.5 4.5 5.5"/>
                   <path d="M3 12c-1.5 2-2 4-1 5.5 2-1 3.5-2.5 4.5-5.5"/>
-                  <circle cx="16" cy="12" r="1" fill="#34d399" stroke="none"/>
+                  <circle cx="16" cy="12" r="1" fill="#7cb342" stroke="none"/>
                 </svg>
               </div>
               <p style="margin:0 0 4px;font-size:11px;font-weight:600;letter-spacing:0.2em;
-                        text-transform:uppercase;color:rgba(52,211,153,0.8);">Aquaculture</p>
-              <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#e8ecf2;">
+                        text-transform:uppercase;color:rgba(124,179,66,0.8);">Kahariam Farm</p>
+              <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#edefe9;">
                 Password Reset
               </h1>
-              <p style="margin:0;font-size:14px;color:#8b95a8;">
+              <p style="margin:0;font-size:14px;color:#8fa089;">
                 You requested a password reset for your account.
               </p>
             </td>
@@ -547,10 +547,10 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
           <!-- Body -->
           <tr>
             <td style="padding:24px 32px;">
-              <p style="margin:0 0 20px;font-size:14px;color:#c4cad4;line-height:1.6;">
+              <p style="margin:0 0 20px;font-size:14px;color:#c3cabb;line-height:1.6;">
                 Click the button below to set a new password. This link expires in
-                <strong style="color:#e8ecf2;">{expiry_minutes} minutes</strong>
-                and can only be used <strong style="color:#e8ecf2;">once</strong>.
+                <strong style="color:#edefe9;">{expiry_minutes} minutes</strong>
+                and can only be used <strong style="color:#edefe9;">once</strong>.
               </p>
 
               <!-- CTA Button -->
@@ -559,10 +559,10 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
                   <td align="center" style="padding:4px 0 24px;">
                     <a href="{reset_link}"
                       style="display:inline-block;padding:14px 32px;
-                             background:linear-gradient(135deg,#059669,#34d399);
+                             background:linear-gradient(135deg,#4c7a3d,#7cb342);
                              color:#ffffff;font-size:14px;font-weight:700;
                              text-decoration:none;border-radius:12px;
-                             box-shadow:0 4px 16px rgba(52,211,153,0.25);">
+                             box-shadow:0 4px 16px rgba(124,179,66,0.25);">
                       Reset My Password
                     </a>
                   </td>
@@ -570,11 +570,11 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
               </table>
 
               <!-- Fallback link -->
-              <p style="margin:0 0 8px;font-size:12px;color:#8b95a8;">
+              <p style="margin:0 0 8px;font-size:12px;color:#8fa089;">
                 If the button doesn't work, copy and paste this link into your browser:
               </p>
               <p style="margin:0;font-size:11px;word-break:break-all;
-                        color:#60a5fa;font-family:monospace;">
+                        color:#6fb3ac;font-family:monospace;">
                 {reset_link}
               </p>
             </td>
@@ -598,8 +598,8 @@ def _send_reset_email(to_email: str, reset_link: str, expiry_minutes: int) -> No
           <tr>
             <td style="padding:16px 32px 28px;text-align:center;
                        border-top:1px solid rgba(255,255,255,0.04);">
-              <p style="margin:0;font-size:11px;color:rgba(139,149,168,0.6);">
-                This email was sent by Aquaculture Management System.
+              <p style="margin:0;font-size:11px;color:rgba(143,160,137,0.6);">
+                This email was sent by Kahariam Farm.
               </p>
             </td>
           </tr>
