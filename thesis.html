@@ -562,21 +562,22 @@
 
   <!-- Planned tables summary -->
   <div class="card">
-    <h3 style="color:var(--muted);font-size:.95rem;margin-bottom:12px;">📋 Planned Tables (in schema.sql, not yet deployed)</h3>
+    <h3 style="color:var(--muted);font-size:.95rem;margin-bottom:12px;">📋 Planned Tables (in planned_schema.sql, not yet deployed)</h3>
     <div style="display:flex;flex-wrap:wrap;gap:8px;">
       <span class="badge badge-muted">roles</span>
-      <span class="badge badge-muted">users</span>
       <span class="badge badge-muted">user_roles</span>
       <span class="badge badge-muted">suppliers</span>
       <span class="badge badge-muted">purchase_orders</span>
       <span class="badge badge-muted">purchase_items</span>
-      <span class="badge badge-muted">audit_logs</span>
       <span class="badge badge-muted">ota_tasks</span>
       <span class="badge badge-muted">calibrations</span>
       <span class="badge badge-muted">notifications</span>
     </div>
     <p style="color:var(--muted);font-size:.82rem;margin-top:10px;">
-      These tables support future features: user authentication, RBAC, supplier management, audit logging, OTA firmware updates, device calibration records, and multi-channel notifications.
+      These tables support future features: supplier management, purchase ordering, OTA firmware updates, device calibration records, and multi-channel notification delivery.
+    </p>
+    <p style="color:var(--muted);font-size:.82rem;margin-top:8px;">
+      <strong>Note:</strong> user authentication and audit logging were subsequently implemented and are now deployed. Authentication uses a <code>role</code> column on <code>users</code> rather than the normalised <code>roles</code>/<code>user_roles</code> pair listed above, which is retained only as a record of the alternative design considered.
     </p>
   </div>
 </section>
@@ -980,7 +981,6 @@
       <h3 style="color:var(--orange);margin-bottom:10px;">⚠️ Issues Found</h3>
       <ul style="list-style:none;font-size:.88rem;">
         <li style="padding:4px 0;">⚠ <strong>Missing index</strong> — <code>inventory (deleted, action)</code> not in live DB</li>
-        <li style="padding:4px 0;">⚠ <strong>Missing FK</strong> — runtime <code>readings</code> has no FK on <code>device_id</code></li>
         <li style="padding:4px 0;">⚠ <strong>VARCHAR vs ENUM</strong> — <code>action</code> is VARCHAR(32), allows invalid values</li>
         <li style="padding:4px 0;">⚠ <strong>Negative counts</strong> — wholesale deductions use <code>count = -100</code>, no CHECK constraint</li>
         <li style="padding:4px 0;">⚠ <strong>No variant lookup</strong> — variant is free-text, typos create phantom variants</li>
