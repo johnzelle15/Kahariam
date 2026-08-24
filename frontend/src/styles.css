@@ -30,6 +30,7 @@
   --accent-teal: #6fb3ac;
   --accent-red: #d97862;
   --accent-amber: #e0a24f;
+  --accent-terracotta: #c27c52;
 
   --input-bg: rgba(31, 40, 31, 0.85);
   --input-border: rgba(255, 255, 255, 0.06);
@@ -84,6 +85,7 @@
   --accent-teal: #5e9b94;
   --accent-red: #b5533f;
   --accent-amber: #d98e3b;
+  --accent-terracotta: #ad6a42;
 
   --input-bg: rgba(255, 255, 255, 0.92);
   --input-border: rgba(42, 46, 39, 0.10);
