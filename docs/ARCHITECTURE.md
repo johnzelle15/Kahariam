@@ -98,8 +98,9 @@ python run_counter.py
 # Production (RPi 5)
 bash scripts/run_server.sh
 
-# With gunicorn
-gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 'backend.app:app'
+# With gunicorn (threading async_mode: 1 worker for Socket.IO's shared
+# state, with threads enabled on it)
+gunicorn --workers 1 --threads 100 -b 0.0.0.0:5000 'backend.app:app'
 ```
 
 ## Key Design Decisions

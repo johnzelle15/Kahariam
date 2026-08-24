@@ -46,7 +46,9 @@ def add_csp_headers_factory(app: Flask) -> Callable:
 
 
 def register_extensions(app: Flask) -> None:
-    socketio = SocketIO(app, cors_allowed_origins="*")
+    # threading, not eventlet: nothing here ever called eventlet.monkey_patch(),
+    # so blocking mariadb/subprocess calls were stalling eventlet's event loop.
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
     app.extensions['socketio'] = socketio
     app.extensions['runtime_state'] = RuntimeState()
 

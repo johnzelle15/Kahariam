@@ -52,7 +52,7 @@ pip install -r requirements.txt
 Kung nag-error sa `torch` / `ultralytics` sa ARM, pwede muna backend-only:
 
 ```bash
-pip install Flask flask-socketio python-socketio python-engineio simple-websocket eventlet mariadb pymysql bcrypt python-dotenv requests pyyaml opencv-python
+pip install Flask flask-socketio python-socketio python-engineio simple-websocket mariadb pymysql bcrypt python-dotenv requests pyyaml opencv-python
 ```
 
 ## 7) Gumawa ng `.env`

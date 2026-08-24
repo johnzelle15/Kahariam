@@ -5,8 +5,9 @@ Fish Counter - Web Application Entry Point
 Usage:
     python run_app.py
     
-Or with gunicorn:
-    gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 'backend.app:app'
+Or with gunicorn (threading async_mode needs 1 worker for Socket.IO's
+shared state, with threads enabled on it):
+    gunicorn --workers 1 --threads 100 -b 0.0.0.0:5000 'backend.app:app'
 """
 
 if __name__ == "__main__":

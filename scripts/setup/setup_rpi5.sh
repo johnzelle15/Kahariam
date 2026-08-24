@@ -22,7 +22,7 @@ python -m pip install --upgrade pip setuptools wheel
 if [ "$INSTALL_AI" = "1" ]; then
   pip install -r requirements.txt
 else
-  pip install Flask flask-socketio python-socketio python-engineio simple-websocket eventlet mariadb pymysql bcrypt python-dotenv requests pyyaml opencv-python
+  pip install Flask flask-socketio python-socketio python-engineio simple-websocket mariadb pymysql bcrypt python-dotenv requests pyyaml opencv-python
 fi
 
 cat > .env <<EOF
