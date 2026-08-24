@@ -15,6 +15,7 @@ Routes:
   POST /api/v1/settings/staff                 — [Admin] Create staff account
   PUT  /api/v1/settings/staff/<int:uid>       — [Admin] Update staff account
   POST /api/v1/settings/staff/<int:uid>/toggle — [Admin] Activate/deactivate staff
+  POST /api/v1/settings/staff/<int:uid>/resend-credentials — [Admin] New password, emailed
   GET  /api/v1/settings/audit-logs            — [Admin] Audit log (paginated)
 """
 
@@ -742,6 +743,46 @@ def toggle_staff(uid):
         conn.commit()
 
         return jsonify({'message': 'Account status updated', 'active': bool(new_state)}), 200
+    finally:
+        conn.close()
+
+
+@settings_bp.route('/staff/<int:uid>/resend-credentials', methods=['POST'])
+@require_auth
+@require_admin
+def resend_staff_credentials(uid):
+    """Generate a fresh random password and email it to the account's
+    current address, invalidating the old password."""
+    admin_uid = request.user['sub']
+
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT username, email FROM users WHERE id = ?', (uid,))
+        row = c.fetchone()
+        if not row:
+            return jsonify({'error': 'User not found'}), 404
+        if not row['email']:
+            return jsonify({'error': 'This account has no email address on file'}), 400
+
+        password = _generate_random_password()
+
+        try:
+            send_new_account_email(row['email'], row['username'], password)
+        except Exception as e:
+            print(f'[SETTINGS] Failed to send resend-credentials email: {e}')
+            return jsonify({'error': 'Failed to email the new credentials. Please try again.'}), 500
+
+        pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+        c.execute('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
+                  (pw_hash, uid))
+        conn.commit()
+
+        _log_audit(conn, admin_uid, 'RESEND_CREDENTIALS', 'users', str(uid),
+                   f'Resent credentials for: {row["username"]}')
+        conn.commit()
+
+        return jsonify({'message': 'New credentials emailed', 'email': row['email']}), 200
     finally:
         conn.close()
 

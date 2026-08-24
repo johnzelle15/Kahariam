@@ -1,12 +1,13 @@
 /**
  * UsersTab — Admin-only: manage staff accounts and view audit logs.
- * Features: real-time username/email availability check, strong password
- * meter with live checklist, confirm-before-create modal, audit log table.
+ * Features: real-time username/email availability check, confirm-before-create
+ * modal, audit log table. Passwords are never typed here — the backend
+ * generates and emails them on create and on "Resend credentials".
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Users, FileText, Plus, Edit2, Power,
+  Users, FileText, Plus, Edit2, Power, Mail,
   CheckCircle, XCircle, Loader2,
   Shield, X, Save,
   Check, AlertCircle,
@@ -438,6 +439,8 @@ export default function UsersTab({ toast }) {
   const [staffModal, setStaffModal] = useState(null)
   const [toggleConfirm, setToggleConfirm] = useState(null) // member pending activate/deactivate confirmation
   const [toggling, setToggling]     = useState(false)
+  const [resendConfirm, setResendConfirm] = useState(null) // member pending resend-credentials confirmation
+  const [resending, setResending]   = useState(false)
 
   const [logs, setLogs]             = useState([])
   const [logsLoading, setLogsL]     = useState(true)
@@ -478,6 +481,19 @@ export default function UsersTab({ toast }) {
     } finally {
       setToggling(false)
       setToggleConfirm(null)
+    }
+  }
+
+  async function resendCredentials(member) {
+    setResending(true)
+    try {
+      const { data } = await api.post(`/settings/staff/${member.id}/resend-credentials`)
+      toast('New credentials emailed to ' + data.email, 'success')
+    } catch (err) {
+      toast(err.response?.data?.error || 'Operation failed', 'error')
+    } finally {
+      setResending(false)
+      setResendConfirm(null)
     }
   }
 
@@ -579,6 +595,13 @@ export default function UsersTab({ toast }) {
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
                             style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }} title="Edit">
                             <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => member.email && setResendConfirm(member)}
+                            disabled={!member.email}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}
+                            title={member.email ? 'Resend credentials' : 'No email on file'}>
+                            <Mail className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => setToggleConfirm(member)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
@@ -740,6 +763,65 @@ export default function UsersTab({ toast }) {
                   }}>
                   {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {toggling ? 'Saving…' : toggleConfirm.active ? 'Yes, deactivate' : 'Yes, activate'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Resend credentials confirmation */}
+      <AnimatePresence>
+        {resendConfirm && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" key="resend-confirm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0"
+              style={{ background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)' }}
+              onClick={() => !resending && setResendConfirm(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 16 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              className="relative z-10 w-full max-w-sm rounded-2xl p-6"
+              style={{
+                background: 'rgb(var(--bg-secondary))',
+                border: '1px solid var(--glass-border)',
+                boxShadow: '0 24px 48px rgba(0,0,0,0.45)',
+              }}
+            >
+              <div className="flex flex-col items-center text-center gap-3 mb-5">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'rgba(96,165,250,0.10)' }}>
+                  <Mail className="w-7 h-7" style={{ color: 'var(--accent-blue)' }} />
+                </div>
+                <div>
+                  <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    Resend credentials?
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    A new random password will be generated and emailed to{' '}
+                    <strong style={{ color: 'var(--text-secondary)' }}>{resendConfirm.email}</strong>.
+                    The old password will stop working immediately.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setResendConfirm(null)} disabled={resending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer disabled:opacity-60"
+                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
+                  Cancel
+                </button>
+                <button onClick={() => resendCredentials(resendConfirm)} disabled={resending}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
+                    border-none cursor-pointer disabled:opacity-60"
+                  style={{
+                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                    color: '#fff',
+                  }}>
+                  {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  {resending ? 'Sending…' : 'Yes, resend'}
                 </button>
               </div>
             </motion.div>
