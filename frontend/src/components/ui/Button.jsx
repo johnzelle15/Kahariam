@@ -10,6 +10,7 @@ const VARIANTS = {
 const SIZES = {
   sm: 'text-sm px-3 py-1.5 gap-1.5',
   md: 'text-sm px-4 py-2.5 gap-2',
+  lg: 'text-base px-5 py-3 gap-2',
 }
 
 export default function Button({
