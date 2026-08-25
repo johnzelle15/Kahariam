@@ -65,10 +65,10 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Bootstrap admin (password: admin123 — CHANGE THIS IN PRODUCTION)
-INSERT IGNORE INTO users (username, password_hash, email, role, active)
-VALUES ('admin', '$2b$12$LJ3m4ys3Lk0TSwMCkGKYKePjVxGPLznGqir0OJsOaZKzJXqJqzYLu',
-        'johnzelle.gabalones@gmail.com', 'admin', 1);
+-- No bootstrap admin is seeded here on purpose — a fixed password baked
+-- into source is a standing credential leak. Create the admin account
+-- after running this schema with:
+--   python scripts/utils/seed_admin.py --host ... --user ... --password ... --database ... --admin-password YOUR_CHOICE
 
 -- ---------------------------------------------------------------------
 --  Devices — IoT registry. Also holds the kiosk lock (locked_by /

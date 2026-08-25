@@ -6,7 +6,7 @@ DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_NAME:-inventory}"
 DB_USER="${DB_USER:-fishuser}"
-DB_PASSWORD="${DB_PASSWORD:-fishpass}"
+DB_PASSWORD="${DB_PASSWORD:-$(openssl rand -hex 16)}"
 INSTALL_FRONTEND="${INSTALL_FRONTEND:-1}"
 INSTALL_AI="${INSTALL_AI:-1}"
 
