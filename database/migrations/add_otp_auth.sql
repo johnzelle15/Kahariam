@@ -18,8 +18,5 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   INDEX idx_otp_user_expires (user_id, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Seed default admin user (password: admin123 — change in production!)
--- bcrypt hash of 'admin123': $2b$12$LJ3m4ys3Lk0TSwMCkGKYKePjVxGPLznGqir0OJsOaZKzJXqJqzYLu
-INSERT IGNORE INTO users (username, password_hash, email, role, active)
-VALUES ('admin', '$2b$12$LJ3m4ys3Lk0TSwMCkGKYKePjVxGPLznGqir0OJsOaZKzJXqJqzYLu',
-        'johnzelle.gabalones@gmail.com', 'admin', 1);
+-- Admin user seeding moved to scripts/utils/seed_admin.py — no fixed
+-- password is committed to source.
