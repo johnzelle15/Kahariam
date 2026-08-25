@@ -135,7 +135,7 @@ export default function LoginScreen() {
               className="text-xs font-medium tracking-[0.25em] uppercase mb-2"
               style={{ color: 'rgba(52, 211, 153, 0.8)' }}
             >
-              Aquaculture
+              Kahariam Farms
             </motion.p>
 
             <motion.h1

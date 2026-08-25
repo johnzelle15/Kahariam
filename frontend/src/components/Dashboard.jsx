@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp, Fish, ScanLine, DollarSign,
-  Activity, AlertTriangle, Filter, Calendar, X, Package,
+  Activity, AlertTriangle, Filter, X, Package,
   Lightbulb, Zap, Target, ShieldAlert
 } from 'lucide-react'
 import SalesTrend from './SalesTrend'
@@ -146,6 +146,10 @@ const fmtMonthYear = (ds) => {
 
 const pct = (a, b) => (b !== 0 ? ((a - b) / Math.abs(b)) * 100 : a !== 0 ? 100 : 0)
 const arrow = (v) => (v > 0 ? '↑' : v < 0 ? '↓' : '→')
+
+/* Every count in an insight goes through this — raw interpolation left six-figure
+   numbers unseparated next to formatted currency on the same line. */
+const fmtNum = (n) => Math.round(Number(n) || 0).toLocaleString()
 
 /* ── Adaptive helpers ── */
 
@@ -310,13 +314,15 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (todayRev > 0 && ydayRev > 0) {
     const dir = revChange >= 0
     insights.performance.push({
-      text: `${dir ? '📈' : '📉'} ${dir ? '+' : ''}${revChange.toFixed(1)}% revenue vs yesterday → ${formatCurrency(todayRev)}`,
-      detail: `Previous: ${formatCurrency(ydayRev)}`,
+      value: `${dir ? '+' : ''}${revChange.toFixed(1)}%`,
+      label: 'revenue vs yesterday',
+      detail: `${formatCurrency(todayRev)} · previous ${formatCurrency(ydayRev)}`,
       type: dir ? 'positive' : 'negative',
     })
   } else if (todayRev > 0) {
     insights.performance.push({
-      text: `🔵 ${formatCurrency(todayRev)} revenue today`,
+      value: formatCurrency(todayRev),
+      label: 'revenue today',
       detail: '',
       type: 'positive',
     })
@@ -326,16 +332,18 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const peakVsAvg = avgDaily > 0 ? ((peakDay.sold_total / avgDaily) - 1) * 100 : 0
     const peakSuffix = peakVsAvg > 200 ? 'outlier spike' : `+${peakVsAvg.toFixed(0)}% vs avg`
     insights.performance.push({
-      text: `📈 ${peakDay.sold_total.toLocaleString()} units peak on ${fmtShortDate(peakDay.date)} → ${peakSuffix}`,
-      detail: `${periodName} avg: ${avgDaily} units/day`,
+      value: `${fmtNum(peakDay.sold_total)} units`,
+      label: `peak on ${fmtShortDate(peakDay.date)} · ${peakSuffix}`,
+      detail: `${periodName} avg: ${fmtNum(avgDaily)} units/day`,
       type: 'positive',
     })
   }
 
   if (avgDaily > 0) {
     insights.performance.push({
-      text: `🔵 ${totalSold.toLocaleString()} sold, ${formatCurrency(totalRevenue)} → ${periodName} total`,
-      detail: `${avgDaily} units/day, ${formatCurrency(avgRevenue)}/day avg`,
+      value: `${fmtNum(totalSold)} sold`,
+      label: `${periodName} total · ${formatCurrency(totalRevenue)}`,
+      detail: `${fmtNum(avgDaily)} units/day · ${formatCurrency(avgRevenue)}/day avg`,
       type: 'neutral',
     })
   }
@@ -349,8 +357,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Period-over-period direction
   if (split && split.firstSold > 0) {
     insights.trends.push({
-      text: `${splitTrend >= 0 ? '📈' : '📉'} ${splitTrend >= 0 ? '+' : ''}${splitTrend.toFixed(1)}% sales → ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
-      detail: `${split.firstLabel}: ${split.firstSold.toLocaleString()} → ${split.secondLabel}: ${split.secondSold.toLocaleString()}`,
+      value: `${splitTrend >= 0 ? '+' : ''}${splitTrend.toFixed(1)}%`,
+      label: `sales · ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
+      detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} → ${split.secondLabel}: ${fmtNum(split.secondSold)}`,
       type: splitTrend >= 5 ? 'positive' : splitTrend <= -5 ? 'negative' : 'neutral',
     })
   }
@@ -360,8 +369,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const dir = momentumPct >= 0
     const windowLabel = windowSize === 1 ? 'day' : `${windowSize} days`
     insights.trends.push({
-      text: `${dir ? '📈' : '📉'} ${dir ? '+' : ''}${momentumPct.toFixed(1)}% last ${windowLabel} → ${dir ? 'accelerating' : 'decelerating'}`,
-      detail: `Recent: ${recentWindow.toLocaleString()} vs Prior: ${priorWindow.toLocaleString()}`,
+      value: `${dir ? '+' : ''}${momentumPct.toFixed(1)}%`,
+      label: `last ${windowLabel} · ${dir ? 'accelerating' : 'decelerating'}`,
+      detail: `recent ${fmtNum(recentWindow)} vs prior ${fmtNum(priorWindow)}`,
       type: momentumPct >= 10 ? 'positive' : momentumPct <= -10 ? 'negative' : 'neutral',
     })
   }
@@ -370,7 +380,8 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (tier === 'medium' && weeks.length >= 3) {
     const bestWeek = weeks.reduce((b, w) => w.sold > b.sold ? w : b, weeks[0])
     insights.trends.push({
-      text: `🔵 ${bestWeek.sold.toLocaleString()} units → best week (${bestWeek.label})`,
+      value: `${fmtNum(bestWeek.sold)} units`,
+      label: `best week · ${bestWeek.label}`,
       detail: `${weeks.length} weeks analyzed`,
       type: 'neutral',
     })
@@ -382,8 +393,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const worstMonth = months.reduce((w, m) => m.sold < w.sold ? m : w, months[0])
     if (bestMonth.label !== worstMonth.label) {
       insights.trends.push({
-        text: `📈 ${bestMonth.label}: ${bestMonth.sold.toLocaleString()} peak → ${worstMonth.label}: ${worstMonth.sold.toLocaleString()} low`,
-        detail: `${months.length} months compared`,
+        value: `${fmtNum(bestMonth.sold)} units`,
+        label: `peak in ${bestMonth.label} · low ${worstMonth.label}`,
+        detail: `${worstMonth.label}: ${fmtNum(worstMonth.sold)} · ${months.length} months compared`,
         type: 'neutral',
       })
     }
@@ -392,8 +404,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Recovery detection — skip noise from zero-to-nonzero bounces
   if (biggestDrop.pct < -20 && biggestGain.pct > 15 && biggestGain.pct <= 500 && biggestGain.idx > biggestDrop.idx) {
     insights.trends.push({
-      text: `📈 +${biggestGain.pct.toFixed(0)}% rebound → recovery after ${fmtShortDate(days[biggestDrop.idx].date)} dip`,
-      detail: `Dropped ${Math.abs(biggestDrop.pct).toFixed(0)}%, recovered in ${biggestGain.idx - biggestDrop.idx}d`,
+      value: `+${biggestGain.pct.toFixed(0)}%`,
+      label: `rebound after ${fmtShortDate(days[biggestDrop.idx].date)} dip`,
+      detail: `dropped ${Math.abs(biggestDrop.pct).toFixed(0)}%, recovered in ${biggestGain.idx - biggestDrop.idx}d`,
       type: 'positive',
     })
   }
@@ -401,14 +414,16 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Volatility — only when meaningful, skip extreme noise
   if (isVolatile && vol <= 2) {
     insights.trends.push({
-      text: `⚠️ High demand variability → inconsistent daily sales`,
-      detail: `CV: ${(vol * 100).toFixed(0)}% over ${periodName}`,
+      value: `${(vol * 100).toFixed(0)}% CV`,
+      label: 'high variability · inconsistent daily sales',
+      detail: `over ${periodName}`,
       type: 'negative',
     })
   } else if (isStable && len >= 5) {
     insights.trends.push({
-      text: `📈 Stable demand → consistent daily sales`,
-      detail: `CV: ${(vol * 100).toFixed(0)}% over ${periodName}`,
+      value: `${(vol * 100).toFixed(0)}% CV`,
+      label: 'stable demand · consistent daily sales',
+      detail: `over ${periodName}`,
       type: 'positive',
     })
   }
@@ -422,8 +437,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Zero revenue today — this is a risk, not performance
   if (todayRev === 0 && ydayRev > 0) {
     insights.risks.push({
-      text: `⚠️ ₱0 revenue today → −100% vs yesterday`,
-      detail: `Previous: ${formatCurrency(ydayRev)}`,
+      value: '₱0',
+      label: 'revenue today · −100% vs yesterday',
+      detail: `previous ${formatCurrency(ydayRev)}`,
       type: 'negative',
     })
   }
@@ -436,28 +452,32 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (dropDay && dropIsZero) {
     // Combined: the drop resulted in zero sales
     insights.risks.push({
-      text: `⚠️ 0 sales on ${fmtShortDate(dropDay.date)} → ${Math.abs(biggestDrop.pct).toFixed(0)}% drop from prior day`,
-      detail: `Previous day: ${sales[biggestDrop.idx - 1].toLocaleString()} units`,
+      value: '0 sales',
+      label: `on ${fmtShortDate(dropDay.date)} · ${Math.abs(biggestDrop.pct).toFixed(0)}% drop from prior day`,
+      detail: `previous day ${fmtNum(sales[biggestDrop.idx - 1])} units`,
       type: 'negative',
     })
   } else {
     if (biggestDrop.pct < -25) {
       insights.risks.push({
-        text: `⚠️ −${Math.abs(biggestDrop.pct).toFixed(0)}% drop on ${fmtShortDate(days[biggestDrop.idx].date)} → ${sales[biggestDrop.idx]} units`,
-        detail: `Previous day: ${sales[biggestDrop.idx - 1].toLocaleString()} units`,
+        value: `−${Math.abs(biggestDrop.pct).toFixed(0)}%`,
+        label: `drop on ${fmtShortDate(days[biggestDrop.idx].date)} · ${fmtNum(sales[biggestDrop.idx])} units`,
+        detail: `previous day ${fmtNum(sales[biggestDrop.idx - 1])} units`,
         type: 'negative',
       })
     }
     if (lowDay && lowDay.sold_total === 0 && len > 1 && !zeroIsDropDay) {
       insights.risks.push({
-        text: `⚠️ 0 sales on ${fmtShortDate(lowDay.date)} → verify downtime or gap`,
+        value: '0 sales',
+        label: `on ${fmtShortDate(lowDay.date)} · verify downtime or gap`,
         detail: '',
         type: 'negative',
       })
     } else if (lowDay && lowDay.sold_total > 0 && avgDaily > 0 && lowDay.sold_total < avgDaily * 0.35) {
       insights.risks.push({
-        text: `📉 ${lowDay.sold_total} units on ${fmtShortDate(lowDay.date)} → ${Math.round((lowDay.sold_total / avgDaily) * 100)}% of avg`,
-        detail: `Avg: ${avgDaily} units/day`,
+        value: `${fmtNum(lowDay.sold_total)} units`,
+        label: `on ${fmtShortDate(lowDay.date)} · ${Math.round((lowDay.sold_total / avgDaily) * 100)}% of avg`,
+        detail: `avg ${fmtNum(avgDaily)} units/day`,
         type: 'negative',
       })
     }
@@ -466,7 +486,8 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Revenue declining across period
   if (split && split.firstRev > 0 && splitRevTrend < -10) {
     insights.risks.push({
-      text: `📉 −${Math.abs(splitRevTrend).toFixed(1)}% revenue → late-period decline`,
+      value: `−${Math.abs(splitRevTrend).toFixed(1)}%`,
+      label: 'revenue · late-period decline',
       detail: `${split.firstLabel}: ${formatCurrency(split.firstRev)} → ${split.secondLabel}: ${formatCurrency(split.secondRev)}`,
       type: 'negative',
     })
@@ -476,14 +497,16 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   const criticals = activeAlerts.filter(a => a.status === 'critical')
   if (criticals.length > 0) {
     insights.risks.push({
-      text: `⚠️ Critical: ${criticals.map(a => `${a.variant} (${a.stock})`).join(', ')} → restock now`,
-      detail: 'Below safety threshold',
+      value: 'Critical',
+      label: `${criticals.map(a => `${a.variant} (${fmtNum(a.stock)})`).join(', ')} · restock now`,
+      detail: 'below safety threshold',
       type: 'negative',
     })
   } else if (activeAlerts.length > 0) {
     insights.risks.push({
-      text: `⚠️ ${activeAlerts.length} stock warning${activeAlerts.length > 1 ? 's' : ''} → ${activeAlerts.map(a => a.variant).join(', ')}`,
-      detail: 'Approaching low levels',
+      value: `${activeAlerts.length} warning${activeAlerts.length > 1 ? 's' : ''}`,
+      label: activeAlerts.map(a => a.variant).join(', '),
+      detail: 'approaching low levels',
       type: 'negative',
     })
   }
@@ -493,12 +516,15 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // ┌─────────────────────────────────────────┐
   // │  4. OPPORTUNITIES (max 3)               │
   // └─────────────────────────────────────────┘
-  if (topVariant && topVariant[1] > 0) {
+  // Only meaningful with more than one variant — "leads at 100%" says nothing.
+  // by_variant counts are stock on hand, not units sold.
+  if (topVariant && topVariant[1] > 0 && sortedVariants.length > 1) {
     const allTotal = sortedVariants.reduce((s, v) => s + v[1], 0)
     const share = allTotal > 0 ? Math.round((topVariant[1] / allTotal) * 100) : 0
     insights.opportunities.push({
-      text: `🟢 ${topVariant[0]} leads at ${share}% → ${topVariant[1].toLocaleString()} units sold`,
-      detail: 'Prioritize availability for top variant',
+      value: `${share}%`,
+      label: `${topVariant[0]} share · ${fmtNum(topVariant[1])} in stock`,
+      detail: 'prioritize availability for top variant',
       type: 'positive',
     })
   }
@@ -507,8 +533,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const gap = topVariant[1] - bottomVariant[1]
     if (gap > 0 && bottomVariant[1] > 0) {
       insights.opportunities.push({
-        text: `🟢 ${bottomVariant[0]} trails by ${gap.toLocaleString()} units → growth room`,
-        detail: 'Consider pricing or bundling to close gap',
+        value: `${fmtNum(gap)} units`,
+        label: `${bottomVariant[0]} trails · growth room`,
+        detail: 'consider pricing or bundling to close gap',
         type: 'neutral',
       })
     }
@@ -517,8 +544,9 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Upward momentum opportunity
   if (split && splitTrend > 15) {
     insights.opportunities.push({
-      text: `🟢 +${splitTrend.toFixed(0)}% growth trend → scale supply to match`,
-      detail: 'Demand accelerating in later half',
+      value: `+${splitTrend.toFixed(0)}%`,
+      label: 'growth trend · scale supply to match',
+      detail: 'demand accelerating in later half',
       type: 'positive',
     })
   }
@@ -527,13 +555,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
 
   return insights
 }
-
-/* ─── Range presets for insight panel ─── */
-const INSIGHT_RANGES = [
-  { key: '7d',    label: '7D',      days: 7 },
-  { key: '30d',   label: '30D',     days: 30 },
-  { key: 'month', label: '3 Months', days: 90 },
-]
 
 /* ─── Category config ─── */
 const INSIGHT_CATEGORIES = [
@@ -550,9 +571,14 @@ const TYPE_COLORS = {
 }
 
 /* ─── Analytics Insights Panel (premium SaaS layout) ─── */
+const MOBILE_VISIBLE = 2  // rows past this collapse on phones; all show from 640px up
+
 function InsightCard({ cat, items }) {
   const CatIcon = cat.icon
+  const [expanded, setExpanded] = useState(false)
   if (!items || items.length === 0) return null
+
+  const overflow = items.length - MOBILE_VISIBLE
 
   return (
     <motion.div
@@ -570,7 +596,6 @@ function InsightCard({ cat, items }) {
           <CatIcon className={`w-3.5 h-3.5 ${cat.color}`} />
         </div>
         <span className={`text-[11px] font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
-        <span className="ml-auto text-[10px] text-text-muted font-medium">{items.length}</span>
       </div>
 
       {/* Insight rows */}
@@ -581,22 +606,38 @@ function InsightCard({ cat, items }) {
             initial={{ opacity: 0, x: -6 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.06, duration: 0.3 }}
-            className="insight-row group"
-            title={insight.detail}
+            className={`insight-row${i >= MOBILE_VISIBLE && !expanded ? ' is-overflow' : ''}`}
           >
             <span className={`insight-dot ${cat.dot}`} />
             <div className="min-w-0 flex-1">
-              <span className={`text-[13px] font-medium leading-snug block ${TYPE_COLORS[insight.type]}`}>
-                {insight.text}
+              {/* Value and label are separate spans so a wrap breaks between them
+                  rather than mid-phrase, and only the number carries the colour. */}
+              <span className="text-[13px] leading-snug block">
+                {insight.value && (
+                  <span className={`font-bold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
+                )}
+                {insight.value && insight.label && ' '}
+                {insight.label && (
+                  <span className="font-medium text-text-secondary">{insight.label}</span>
+                )}
               </span>
+              {/* Always visible: hover-reveal reserved the same height anyway and
+                  was unreachable on touch, where :hover and title= never fire. */}
               {insight.detail && (
-                <span className="text-[11px] text-text-muted leading-snug block mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <span className="text-[11px] text-text-muted leading-snug block mt-0.5">
                   {insight.detail}
                 </span>
               )}
             </div>
           </motion.div>
         ))}
+
+        {overflow > 0 && (
+          <button onClick={() => setExpanded(v => !v)} className="insight-more-btn"
+            aria-expanded={expanded}>
+            {expanded ? 'Show less' : `+${overflow} more`}
+          </button>
+        )}
       </div>
     </motion.div>
   )
@@ -625,34 +666,8 @@ function InsightSkeleton() {
   )
 }
 
-function AnalyticsInsights({ stats, lowStockAlerts, loading }) {
-  const [dailyData, setDailyData] = useState([])
-  const [trendLoading, setTrendLoading] = useState(true)
-  const [rangeKey, setRangeKey] = useState('7d')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-  const [showCustom, setShowCustom] = useState(false)
-
-  // Fetch daily-trend data whenever range changes
-  useEffect(() => {
-    let cancelled = false
-    setTrendLoading(true)
-
-    let url
-    if (showCustom && customStart && customEnd) {
-      url = `/api/daily-trend?start_date=${customStart}&end_date=${customEnd}`
-    } else {
-      const preset = INSIGHT_RANGES.find(r => r.key === rangeKey)
-      url = `/api/daily-trend?days=${preset?.days || 7}`
-    }
-
-    rawApi.get(url)
-      .then(res => { if (!cancelled) setDailyData(res.data?.data || []) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setTrendLoading(false) })
-    return () => { cancelled = true }
-  }, [rangeKey, showCustom, customStart, customEnd, stats])
-
+// Range and daily-trend data come from Dashboard, shared with SalesTrend above.
+function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoading }) {
   if (loading || !stats) return null
 
   const insights = !trendLoading ? generateInsights(dailyData, stats, lowStockAlerts) : null
@@ -663,83 +678,35 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25, duration: 0.4 }}
-      className="space-y-4"
+      className="space-y-3 sm:space-y-4"
     >
       {/* ── Header bar ── */}
       <div className="glass-card analytics-header">
-        <div className="flex flex-col gap-3">
-          {/* Top row: title + range selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, rgba(217, 142, 59, 0.15), rgba(76, 122, 61, 0.15))' }}>
-                <Lightbulb className="w-4 h-4 text-accent-amber" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-text-primary tracking-tight">Analytics Overview</h3>
-                {dailyData.length > 0 && !trendLoading && (
-                  <p className="text-[10px] text-text-muted mt-0.5">
-                    {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analyzed
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Preset buttons */}
-              <div className="flex items-center gap-0.5 p-0.5 rounded-lg analytics-range-bar">
-                {INSIGHT_RANGES.map(r => (
-                  <button key={r.key}
-                    onClick={() => { setRangeKey(r.key); setShowCustom(false) }}
-                    className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200 ${
-                      !showCustom && rangeKey === r.key
-                        ? 'analytics-range-active'
-                        : 'text-text-muted hover:text-text-primary'
-                    }`}>
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom range toggle */}
-              <button
-                onClick={() => setShowCustom(!showCustom)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 ${
-                  showCustom ? 'analytics-range-active' : 'text-text-muted hover:text-text-primary analytics-range-bar'
-                }`}>
-                <Calendar className="w-3 h-3" /> Custom
-              </button>
-            </div>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, rgba(217, 142, 59, 0.15), rgba(76, 122, 61, 0.15))' }}>
+            <Lightbulb className="w-4 h-4 text-accent-amber" />
           </div>
-
-          {/* Custom range inputs */}
-          {showCustom && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center gap-2"
-            >
-              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                className="neu-input text-xs py-1.5 px-2.5" />
-              <span className="text-[10px] text-text-muted font-medium">to</span>
-              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                className="neu-input text-xs py-1.5 px-2.5" />
-            </motion.div>
-          )}
+          <div>
+            <h3 className="text-sm font-bold text-text-primary tracking-tight">Analytics Overview</h3>
+            {dailyData.length > 0 && !trendLoading && (
+              <p className="text-[10px] text-text-muted mt-0.5">
+                {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analyzed
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ── Insight cards grid ── */}
       {trendLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
           {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
         </div>
       )}
 
       {!trendLoading && hasAny && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
           {INSIGHT_CATEGORIES.map(cat => {
             const items = insights ? insights[cat.key] : []
             return <InsightCard key={cat.key} cat={cat} items={items} />
@@ -766,7 +733,24 @@ export default function Dashboard() {
   const [endDate, setEndDate] = useState('')
   const [socketConnected, setSocketConnected] = useState(false)
   const [kpiModal, setKpiModal] = useState(null) // { label, value, color, icon, details }
+  // One range + one daily-trend fetch, shared by SalesTrend and AnalyticsInsights
+  const [range, setRange] = useState({ days: 7, start: '', end: '', custom: false })
+  const [dailyData, setDailyData] = useState([])
+  const [trendLoading, setTrendLoading] = useState(true)
   const user = useAuthStore(s => s.user)
+
+  useEffect(() => {
+    let cancelled = false
+    setTrendLoading(true)
+    const qs = range.custom && range.start && range.end
+      ? `start_date=${range.start}&end_date=${range.end}`
+      : `days=${range.days}`
+    rawApi.get(`/api/daily-trend?${qs}`)
+      .then(res => { if (!cancelled) setDailyData(res.data?.data || []) })
+      .catch(e => console.error('Failed to load daily trend', e))
+      .finally(() => { if (!cancelled) setTrendLoading(false) })
+    return () => { cancelled = true }
+  }, [range, stats]) // stats changes on each new reading, so the trend refreshes with it
 
   useEffect(() => {
     loadStats(); loadLowStock()
@@ -906,11 +890,12 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Sales & Inventory Trend ── */}
-      <SalesTrend />
+      {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
+      <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
 
       {/* ── Analytics Insights ── */}
-      <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading} />
+      <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading}
+        dailyData={dailyData} trendLoading={trendLoading} />
 
       {/* ── Charts Grid ── */}
       <motion.div

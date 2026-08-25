@@ -234,17 +234,17 @@ export default function Counter() {
 
       {/* Controls */}
       <Card>
-        <div className="flex items-end gap-4">
-          <div className="flex flex-col gap-2 min-w-[160px]">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-2 basis-full sm:basis-auto sm:min-w-[160px]">
             <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variant</label>
-            <select value={variant} onChange={e => setVariant(e.target.value)} className="neu-input">
+            <select value={variant} onChange={e => setVariant(e.target.value)} className="neu-input w-full">
               <option>SPIN_20</option>
             </select>
           </div>
-          <Button variant="primary" size="lg" icon={Play} disabled={active} onClick={start}>
+          <Button className="flex-1 sm:flex-none" variant="primary" size="lg" icon={Play} disabled={active} onClick={start}>
             Start
           </Button>
-          <Button variant="danger" size="lg" icon={Square} disabled={!active} onClick={stop}>
+          <Button className="flex-1 sm:flex-none" variant="danger" size="lg" icon={Square} disabled={!active} onClick={stop}>
             Stop
           </Button>
         </div>

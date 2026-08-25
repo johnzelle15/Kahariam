@@ -219,11 +219,14 @@ export default function SecurityTab({ toast }) {
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyPage, setHistoryPage] = useState(1)
   const [historyTotal, setHistoryTotal] = useState(0)
-  const HISTORY_LIMIT = 8
+  const HISTORY_LIMIT = 5
 
   /* Security activity */
   const [activity, setActivity] = useState([])
   const [activityLoading, setActivityLoading] = useState(true)
+  // The endpoint returns the last 20; showing all of them buries the rest of the tab.
+  const [showAllActivity, setShowAllActivity] = useState(false)
+  const ACTIVITY_VISIBLE = 5
 
   /* Session management */
   const [sessions, setSessions] = useState([])
@@ -574,7 +577,7 @@ export default function SecurityTab({ toast }) {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {activity.map(ev => (
+              {(showAllActivity ? activity : activity.slice(0, ACTIVITY_VISIBLE)).map(ev => (
                 <div key={ev.id}
                   className="flex items-start gap-3 p-3 rounded-xl"
                   style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
@@ -597,6 +600,21 @@ export default function SecurityTab({ toast }) {
                   </span>
                 </div>
               ))}
+
+              {activity.length > ACTIVITY_VISIBLE && (
+                <button onClick={() => setShowAllActivity(v => !v)}
+                  aria-expanded={showAllActivity}
+                  className="w-full py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-colors"
+                  style={{
+                    background: 'var(--btn-secondary-bg)',
+                    border: '1px solid var(--glass-border)',
+                    color: 'var(--text-muted)',
+                  }}>
+                  {showAllActivity
+                    ? 'Show less'
+                    : `+${activity.length - ACTIVITY_VISIBLE} more`}
+                </button>
+              )}
             </div>
           )}
         </SettingsCard>

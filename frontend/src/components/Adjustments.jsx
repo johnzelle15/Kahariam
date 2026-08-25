@@ -193,7 +193,8 @@ export default function Adjustments() {
     return VARIANTS.filter(v => !usedVariants.includes(v))
   }
 
-  const WHOLESALE_MIN = 300
+  // 0 disables the minimum-order rule: the banner hides and Submit stays enabled. Was 300.
+  const WHOLESALE_MIN = 0
 
   function batchTotal() {
     return batchItems.reduce((sum, item) => sum + (item.count || 0), 0)
@@ -297,7 +298,11 @@ export default function Adjustments() {
     if (!value) return 'N/A'
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return String(value)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    // Year is noise when every row is the current one; hour:'numeric' drops the
+    // leading zero so this stays short enough not to wrap in a narrow card.
+    const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+    if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
+    return date.toLocaleDateString('en-US', opts)
   }
 
   function goPage(p) {
@@ -499,7 +504,7 @@ export default function Adjustments() {
               </select>
               <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
                 className="neu-input text-xs py-[7px] px-2">
-                {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}/pg</option>)}
+                {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} per page</option>)}
               </select>
             </div>
           </div>
@@ -553,46 +558,44 @@ export default function Adjustments() {
               const isDied = reasonTag === 'Died'
               return (
                 <div key={r.id}
-                  className={`p-4 rounded-xl border transition-colors hover:bg-white/[0.02]
+                  className={`p-3 rounded-xl border transition-colors hover:bg-white/[0.02]
                     ${isDied ? 'border-accent-amber/20 bg-accent-amber/[0.03]'
                       : isOut ? 'border-accent-red/20 bg-accent-red/[0.03]'
                       : 'border-accent-green/20 bg-accent-green/[0.03]'}
                   `}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center
-                        ${isDied ? 'bg-accent-amber/20'
-                          : isOut ? 'bg-accent-red/20'
-                          : 'bg-accent-green/20'}`}>
-                        {isDied
-                          ? <Skull className="w-4 h-4 text-accent-amber" />
-                          : isOut
-                            ? <ArrowDownRight className="w-4 h-4 text-accent-red" />
-                            : <ArrowUpRight className="w-4 h-4 text-accent-green" />
-                        }
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-text-primary">
-                          {isOut ? '−' : '+'}{displayCount} {r.variant} fish
-                        </p>
-                        <p className="text-xs text-text-muted">{getSource(r)}</p>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0
+                      ${isDied ? 'bg-accent-amber/20'
+                        : isOut ? 'bg-accent-red/20'
+                        : 'bg-accent-green/20'}`}>
+                      {isDied
+                        ? <Skull className="w-4 h-4 text-accent-amber" />
+                        : isOut
+                          ? <ArrowDownRight className="w-4 h-4 text-accent-red" />
+                          : <ArrowUpRight className="w-4 h-4 text-accent-green" />
+                      }
                     </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        {reasonTag && (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-                            ${isDied ? 'bg-accent-amber/20 text-accent-amber' : 'bg-accent-blue/20 text-accent-blue'}`}>
-                            {isDied ? <Skull className="w-2.5 h-2.5" /> : <ShoppingCart className="w-2.5 h-2.5" />}
-                            {reasonTag}
-                          </span>
-                        )}
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-                          ${isOut ? 'bg-accent-red/20 text-accent-red' : 'bg-accent-green/20 text-accent-green'}`}>
-                          {isOut ? 'OUT' : 'IN'}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-text-primary truncate">
+                          {isOut ? '−' : '+'}{displayCount.toLocaleString()} {r.variant}
+                        </p>
+                        {/* One badge only — the reason implies the direction, and the
+                            tint plus arrow already carry it. Falls back to IN/OUT
+                            when a row has no Sold/Died reason. */}
+                        <span className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
+                          ${isDied ? 'bg-accent-amber/20 text-accent-amber'
+                            : reasonTag ? 'bg-accent-blue/20 text-accent-blue'
+                            : isOut ? 'bg-accent-red/20 text-accent-red'
+                            : 'bg-accent-green/20 text-accent-green'}`}>
+                          {isDied ? <Skull className="w-2.5 h-2.5" />
+                            : reasonTag ? <ShoppingCart className="w-2.5 h-2.5" /> : null}
+                          {reasonTag || (isOut ? 'OUT' : 'IN')}
                         </span>
                       </div>
-                      <p className="text-xs text-text-muted mt-1">{searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}</p>
+                      <p className="text-xs text-text-muted truncate">
+                        {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
+                      </p>
                     </div>
                   </div>
                   {r.notes && (
@@ -618,7 +621,7 @@ export default function Adjustments() {
               <button key={p} onClick={() => goPage(p)}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all
                   ${p === page
-                    ? 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-lg shadow-accent-purple/20'
+                    ? 'bg-gradient-to-r from-accent-green to-accent-teal text-white shadow-lg shadow-accent-green/20'
                     : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
                   }`}>{p}</button>
             ))}

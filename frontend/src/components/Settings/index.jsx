@@ -111,7 +111,7 @@ export default function Settings() {
         >
           <div className="flex items-center gap-2 mb-1 text-xs"
             style={{ color: 'var(--text-muted)' }}>
-            <span>Aquaculture</span>
+            <span>Kahariam Farms</span>
             <ChevronRight className="w-3 h-3" />
             <span style={{ color: 'var(--text-secondary)' }}>Settings</span>
           </div>

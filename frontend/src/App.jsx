@@ -160,7 +160,7 @@ export default function App() {
             <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
         </button>
-        <span className="text-sm font-bold text-text-primary">Aquaculture</span>
+        <span className="text-sm font-bold text-text-primary">Kahariam Farms</span>
       </div>
       <main className="flex-1 min-w-0 transition-all duration-300">
         <div className="p-4 pt-16 md:pt-8 md:p-8 max-w-[1400px] mx-auto">

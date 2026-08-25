@@ -13,6 +13,21 @@ WHOLESALE_LINK_MARKER_PATTERN = re.compile(r"\[AUTO_LINK:WHOLESALE_PARENT_ID=(\d
 # Company sells wholesale only — one flat price per fish, no retail tier.
 PRICE_PER_FISH = float(os.environ.get('PRICE_PER_FISH', '0.40'))
 
+# Minimum fish per wholesale OUT submit. 0 disables the rule entirely
+# (every check below becomes vacuously false). Was 300.
+WHOLESALE_MIN_ORDER = int(os.environ.get('WHOLESALE_MIN_ORDER', '0'))
+
+
+def _fmt_dt(value):
+    """Serialize a stored datetime as plain local 'YYYY-MM-DD HH:MM'.
+
+    Returning the raw datetime lets Flask emit an HTTP-date
+    ('Sat, 22 Aug 2026 14:00:00 GMT'), which is both noisy to display and
+    wrong: these timestamps are naive local time, so the GMT suffix makes
+    JS Date() shift them into another day for evening entries.
+    """
+    return value.strftime('%Y-%m-%d %H:%M') if hasattr(value, 'strftime') else value
+
 # --- Structured transaction types ---
 VALID_TRANSACTION_TYPES = frozenset({'SOLD', 'DIED', 'WHOLESALE_IN'})
 OUTFLOW_TYPES = frozenset({'SOLD', 'DIED'})
@@ -64,7 +79,7 @@ def _serialize_inventory_row(row):
         'id': row['id'],
         'count': abs(count_val),
         'variant': row['variant'],
-        'date': row['date'],
+        'date': _fmt_dt(row['date']),
         'notes': notes_val,
         'action': action_value,
         'transaction_type': tx_type,
@@ -507,7 +522,7 @@ def get_statistics():
             "id": row["id"],
             "count": row["count"],
             "variant": row["variant"],
-            "date": row["date"],
+            "date": _fmt_dt(row["date"]),
             "notes": row["notes"],
             "action": action_value,
             "source": source_value
@@ -1149,10 +1164,10 @@ def adjust_stock():
 
         if is_wholesale and wholesale_action == 'OUT':
             # Enforce wholesale minimum quantity per submit for OUT only.
-            if count < 300:
+            if count < WHOLESALE_MIN_ORDER:
                 conn.rollback()
                 conn.close()
-                return jsonify({"status": "error", "message": f"Wholesale OUT requires at least 300 fish per submit. Requested: {count}"}), 400
+                return jsonify({"status": "error", "message": f"Wholesale OUT requires at least {WHOLESALE_MIN_ORDER} fish per submit. Requested: {count}"}), 400
 
             if current_stock <= 0:
                 conn.rollback()
@@ -1248,8 +1263,8 @@ def adjust_stock_batch():
         # Wholesale minimum order check (only for SOLD, not DIED)
         if transaction_type == 'SOLD':
             total_requested = sum(c for _, c in normalized)
-            if total_requested < 300:
-                return jsonify({"status": "error", "message": f"Minimum wholesale order is 300 fish to submit an adjustment note. Current total: {total_requested}"}), 400
+            if total_requested < WHOLESALE_MIN_ORDER:
+                return jsonify({"status": "error", "message": f"Minimum wholesale order is {WHOLESALE_MIN_ORDER} fish to submit an adjustment note. Current total: {total_requested}"}), 400
 
         # Map to legacy action
         action = _TX_TO_ACTION[transaction_type]
@@ -1340,8 +1355,8 @@ def adjust_stock_batch():
     if is_wholesale and wholesale_action != 'OUT':
         return jsonify({"status": "error", "message": "Wholesale adjustments support Sold/OUT only."}), 400
     total_requested = sum(count for _, count in normalized)
-    if is_wholesale and wholesale_action == 'OUT' and not is_died and total_requested < 300:
-        return jsonify({"status": "error", "message": f"Minimum wholesale order is 300 fish to submit an adjustment note. Current total: {total_requested}"}), 400
+    if is_wholesale and wholesale_action == 'OUT' and not is_died and total_requested < WHOLESALE_MIN_ORDER:
+        return jsonify({"status": "error", "message": f"Minimum wholesale order is {WHOLESALE_MIN_ORDER} fish to submit an adjustment note. Current total: {total_requested}"}), 400
 
     conn = get_db()
     c = conn.cursor()

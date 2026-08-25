@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { rawApi } from '../utils/api'
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, Minus, Calendar, Filter,
+  TrendingUp, TrendingDown, Minus, Calendar,
   Image, FileSpreadsheet, ChevronDown,
   DollarSign, Package, Activity
 } from 'lucide-react'
@@ -39,11 +38,17 @@ const PRESETS = [
   { label: '3 Months', days: 90 },
 ]
 
+const SOLD_COLOR = '#4C7A3D'
+
 /* ─── Custom Tooltip ─── */
 function SalesTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
   const row = payload[0]?.payload
   if (!row) return null
+  const rows = [
+    { label: 'Units Sold', color: SOLD_COLOR, value: Number(row.sold_total).toLocaleString() },
+    { label: 'Revenue', color: '#5E9B94', value: fmtCurrency(row.revenue) },
+  ]
   return (
     <div className="rounded-2xl text-sm overflow-hidden"
       style={{
@@ -56,16 +61,14 @@ function SalesTooltip({ active, payload }) {
         <p className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{fmtDateFull(row.date)}</p>
       </div>
       <div className="px-4 py-2.5 space-y-2">
-        {payload.map((p, i) => (
-          <div key={i} className="flex items-center justify-between gap-6">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center justify-between gap-6">
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full ring-2 ring-offset-1 ring-offset-transparent"
-                style={{ background: p.color, boxShadow: `0 0 6px ${p.color}30` }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{p.name}</span>
+              <span className="w-2 h-2 rounded-full"
+                style={{ background: r.color, boxShadow: `0 0 6px ${r.color}30` }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{r.label}</span>
             </span>
-            <span className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-              {p.name === 'Revenue' ? fmtCurrency(p.value) : Number(p.value).toLocaleString()}
-            </span>
+            <span className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{r.value}</span>
           </div>
         ))}
       </div>
@@ -76,7 +79,6 @@ function SalesTooltip({ active, payload }) {
 /* ─── KPI Stat Card ─── */
 function StatCard({ label, value, subValue, trend, icon: Icon, color }) {
   const isUp = trend > 0
-  const isDown = trend < 0
   return (
     <div className="flex flex-col gap-1.5 p-3 sm:p-4 rounded-2xl min-w-0 sm:min-w-[150px] relative overflow-hidden"
       style={{
@@ -106,27 +108,6 @@ function StatCard({ label, value, subValue, trend, icon: Icon, color }) {
   )
 }
 
-/* ─── Series Toggle ─── */
-function SeriesToggle({ label, color, active, onClick }) {
-  return (
-    <button onClick={onClick}
-      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-300"
-      style={{
-        background: active ? `${color}15` : 'var(--btn-secondary-bg)',
-        border: `1px solid ${active ? `${color}30` : 'var(--glass-border)'}`,
-        color: active ? color : '#64748b',
-        boxShadow: active ? `0 0 20px ${color}10` : 'none',
-      }}>
-      <span className="w-2.5 h-2.5 rounded-full transition-all duration-300"
-        style={{
-          background: active ? color : '#475569',
-          boxShadow: active ? `0 0 8px ${color}60` : 'none',
-        }} />
-      {label}
-    </button>
-  )
-}
-
 /* ─── Skeleton ─── */
 function ChartSkeleton() {
   return (
@@ -141,60 +122,14 @@ function ChartSkeleton() {
   )
 }
 
-/* ─── Series Definitions (Sales Only) ─── */
-const SERIES = {
-  sold_total: { label: 'Units Sold', color: '#4C7A3D' },
-  revenue:    { label: 'Revenue',    color: '#5E9B94' },
-}
-
 /* ════════════════════════════════════════════════════
    MAIN COMPONENT
+   Range state and data are owned by Dashboard so the
+   chart and the analytics panel always agree.
    ════════════════════════════════════════════════════ */
-export default function SalesTrend() {
+export default function SalesTrend({ data = [], loading, range, setRange }) {
   const chartRef = useRef(null)
-
-  const [data, setData] = useState([])
-  const [prices, setPrices] = useState({ retail: 0.40, wholesale: 0.40 })
-  const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
-
-  // Filters
-  const [days, setDays] = useState(7)
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-  const [variant, setVariant] = useState('')
-  const [showCustomRange, setShowCustomRange] = useState(false)
-
-  // Visible series (sales only — max 2)
-  const [visible, setVisible] = useState({
-    sold_total: true,
-    revenue: true,
-  })
-
-  const toggleSeries = (key) => setVisible(prev => ({ ...prev, [key]: !prev[key] }))
-
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (showCustomRange && customStart && customEnd) {
-        params.set('start_date', customStart)
-        params.set('end_date', customEnd)
-      } else {
-        params.set('days', String(days))
-      }
-      if (variant) params.set('variant', variant)
-      const res = await rawApi.get(`/api/daily-trend?${params}`)
-      setData(res.data.data || [])
-      if (res.data.prices) setPrices(res.data.prices)
-    } catch (e) {
-      console.error('Failed to load daily trend', e)
-    } finally {
-      setLoading(false)
-    }
-  }, [days, customStart, customEnd, variant, showCustomRange])
-
-  useEffect(() => { loadData() }, [loadData])
 
   /* ── Computed Stats ─── */
   const totalSold = data.reduce((s, d) => s + d.sold_total, 0)
@@ -213,6 +148,8 @@ export default function SalesTrend() {
   const revTrend = firstRev > 0 ? ((secondRev - firstRev) / firstRev) * 100 : (secondRev > 0 ? 100 : 0)
 
   const peakDay = data.reduce((best, d) => (d.sold_total > (best?.sold_total || 0) ? d : best), data[0])
+
+  const isEmpty = data.length === 0 || (totalSold === 0 && totalRevenue === 0)
 
   /* ── Export: Excel ─── */
   async function exportExcel() {
@@ -233,8 +170,7 @@ export default function SalesTrend() {
       ws['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 16 }]
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Sales Trend')
-      const filterLabel = variant || 'All'
-      XLSX.writeFile(wb, `sales-trend-${filterLabel}-${data[0]?.date || 'export'}.xlsx`)
+      XLSX.writeFile(wb, `sales-trend-${data[0]?.date || 'export'}.xlsx`)
     } finally {
       setExporting(false)
     }
@@ -290,9 +226,11 @@ export default function SalesTrend() {
             Sales Trend
           </h3>
           <p className="text-[10px] text-text-muted mt-1 ml-9">
-            {data.length > 0
-              ? `${fmtDateFull(data[0].date)} — ${fmtDateFull(data[data.length - 1].date)}`
-              : 'Loading...'}
+            {loading
+              ? 'Loading…'
+              : data.length > 0
+                ? `${fmtDateFull(data[0].date)} — ${fmtDateFull(data[data.length - 1].date)}`
+                : 'No data'}
           </p>
         </div>
 
@@ -313,64 +251,53 @@ export default function SalesTrend() {
         </div>
       </div>
 
-      {/* ── Filters ─── */}
+      {/* ── Range filter — governs this card AND the analytics panel below ─── */}
       <div className="flex flex-wrap items-center gap-2 mb-5">
         {/* Period Presets */}
         <div className="flex items-center gap-0.5 p-1 rounded-xl"
           style={{ background: 'var(--btn-secondary-bg)', border: '1px solid var(--glass-border)' }}>
-          {PRESETS.map(p => (
-            <button key={p.days}
-              onClick={() => { setDays(p.days); setShowCustomRange(false) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-                !showCustomRange && days === p.days
-                  ? 'text-white shadow-lg'
-                  : 'text-text-muted hover:text-text-primary hover:bg-glass-hover'
-              }`}
-              style={!showCustomRange && days === p.days ? {
-                background: 'linear-gradient(135deg, #4C7A3D, #5E9B94)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-              } : {}}>
-              {p.label}
-            </button>
-          ))}
+          {PRESETS.map(p => {
+            const active = !range.custom && range.days === p.days
+            return (
+              <button key={p.days}
+                onClick={() => setRange({ days: p.days, start: '', end: '', custom: false })}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
+                  active ? 'text-white shadow-lg' : 'text-text-muted hover:text-text-primary hover:bg-glass-hover'
+                }`}
+                style={active ? {
+                  background: 'linear-gradient(135deg, #4C7A3D, #5E9B94)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                } : {}}>
+                {p.label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Custom Range */}
-        <button onClick={() => setShowCustomRange(!showCustomRange)}
+        <button onClick={() => setRange(r => ({ ...r, custom: !r.custom }))}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-            showCustomRange
+            range.custom
               ? 'bg-accent-green/15 text-accent-green border border-accent-green/25'
               : 'text-text-muted hover:text-text-primary border border-glass-border'
           }`}
-          style={!showCustomRange ? { background: 'var(--btn-secondary-bg)' } : {}}>
+          style={!range.custom ? { background: 'var(--btn-secondary-bg)' } : {}}>
           <Calendar className="w-3.5 h-3.5" /> Custom
         </button>
 
-        {showCustomRange && (
+        {range.custom && (
           <div className="flex items-center gap-2">
-            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+            <input type="date" value={range.start} onChange={e => setRange(r => ({ ...r, start: e.target.value }))}
               className="neu-input text-xs py-1.5 px-2" />
             <span className="text-[10px] text-text-muted font-medium">to</span>
-            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+            <input type="date" value={range.end} onChange={e => setRange(r => ({ ...r, end: e.target.value }))}
               className="neu-input text-xs py-1.5 px-2" />
           </div>
         )}
-
-        <div className="w-px h-5 hidden sm:block" style={{ background: 'var(--glass-border)' }} />
-
-        {/* Variant Filter */}
-        <div className="flex items-center gap-1.5">
-          <Filter className="w-3.5 h-3.5 text-text-muted" />
-          <select value={variant} onChange={e => setVariant(e.target.value)}
-            className="neu-input text-xs py-1.5 px-2 min-w-[110px]">
-            <option value="">All Variants</option>
-            <option value="SPIN_20">SPIN_20</option>
-          </select>
-        </div>
       </div>
 
       {/* ── KPI Stats ─── */}
-      {!loading && data.length > 0 && (
+      {!loading && !isEmpty && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-5">
           <StatCard label="Total Sold" value={totalSold.toLocaleString()} subValue={`avg ${avgDaily}/day`}
             trend={soldTrend} icon={Package} color="#4C7A3D" />
@@ -383,45 +310,25 @@ export default function SalesTrend() {
         </div>
       )}
 
-      {/* ── Series Toggles ─── */}
-      <div className="flex items-center gap-2 mb-4">
-        {Object.entries(SERIES).map(([key, s]) => (
-          <SeriesToggle key={key} label={s.label} color={s.color}
-            active={visible[key]} onClick={() => toggleSeries(key)} />
-        ))}
-      </div>
-
       {/* ── Chart ─── */}
-      {loading ? <ChartSkeleton /> : data.length === 0 ? (
-        <div className="py-20 text-center">
-          <p className="text-sm text-text-muted">No sales data for the selected period</p>
+      {loading ? <ChartSkeleton /> : isEmpty ? (
+        <div className="py-16 text-center">
+          <p className="text-sm text-text-muted">No sales recorded for the selected period</p>
         </div>
       ) : (
         <div className="h-[280px] sm:h-[360px] mt-2 rounded-2xl overflow-hidden p-2"
           style={{ background: 'var(--glass-bg)' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 12, right: visible.revenue ? 50 : 16, left: 0, bottom: 8 }}>
+            <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
               <defs>
                 <linearGradient id="gradSoldWave" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4C7A3D" stopOpacity={0.25} />
-                  <stop offset="50%" stopColor="#4C7A3D" stopOpacity={0.06} />
-                  <stop offset="100%" stopColor="#4C7A3D" stopOpacity={0} />
+                  <stop offset="0%" stopColor={SOLD_COLOR} stopOpacity={0.25} />
+                  <stop offset="50%" stopColor={SOLD_COLOR} stopOpacity={0.06} />
+                  <stop offset="100%" stopColor={SOLD_COLOR} stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="gradRevenueWave" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#5E9B94" stopOpacity={0.2} />
-                  <stop offset="50%" stopColor="#5E9B94" stopOpacity={0.05} />
-                  <stop offset="100%" stopColor="#5E9B94" stopOpacity={0} />
-                </linearGradient>
-                {/* Glow filters */}
                 <filter id="glowGreen" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feFlood floodColor="#4C7A3D" floodOpacity="0.15" />
-                  <feComposite in2="blur" operator="in" />
-                  <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-                <filter id="glowTeal" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feFlood floodColor="#5E9B94" floodOpacity="0.15" />
+                  <feFlood floodColor={SOLD_COLOR} floodOpacity="0.15" />
                   <feComposite in2="blur" operator="in" />
                   <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
@@ -434,75 +341,40 @@ export default function SalesTrend() {
                 fontSize={10}
                 tickLine={false}
                 axisLine={false}
-                interval={data.length > 30 ? Math.floor(data.length / 8) : data.length > 14 ? 2 : 0}
+                interval="preserveStartEnd"
+                minTickGap={24}
                 dy={8}
               />
               <YAxis
-                yAxisId="left"
                 stroke="#475569"
                 fontSize={10}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={fmt}
                 domain={[0, 'auto']}
-                allowDataOverflow={false}
+                allowDecimals={false}
                 width={40}
               />
-              {visible.revenue && (
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  stroke="#475569"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={v => `₱${fmt(v)}`}
-                  domain={[0, 'auto']}
-                  allowDataOverflow={false}
-                  width={48}
-                />
-              )}
               <Tooltip content={<SalesTooltip />} cursor={{ stroke: 'var(--glass-border)', strokeWidth: 1 }} />
 
-              {/* Units Sold — green wave */}
-              {visible.sold_total && (
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="sold_total"
-                  name="Units Sold"
-                  stroke="#4C7A3D"
-                  fill="url(#gradSoldWave)"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{
-                    r: 4, fill: '#4C7A3D', stroke: '#064e3b', strokeWidth: 2,
-                    filter: 'url(#glowGreen)',
-                  }}
-                  animationDuration={1200}
-                  animationEasing="ease-in-out"
-                />
-              )}
-
-              {/* Revenue — teal wave */}
-              {visible.revenue && (
-                <Area
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="revenue"
-                  name="Revenue"
-                  stroke="#5E9B94"
-                  fill="url(#gradRevenueWave)"
-                  strokeWidth={1.5}
-                  dot={false}
-                  activeDot={{
-                    r: 3.5, fill: '#5E9B94', stroke: '#134e4a', strokeWidth: 2,
-                    filter: 'url(#glowTeal)',
-                  }}
-                  animationDuration={1200}
-                  animationEasing="ease-in-out"
-                />
-              )}
+              {/* Units sold. Revenue is units × flat price, so plotting it as a
+                  second series would just redraw this line on a second axis —
+                  it lives in the KPI card and the tooltip instead. */}
+              <Area
+                type="monotone"
+                dataKey="sold_total"
+                name="Units Sold"
+                stroke={SOLD_COLOR}
+                fill="url(#gradSoldWave)"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{
+                  r: 4, fill: SOLD_COLOR, stroke: '#064e3b', strokeWidth: 2,
+                  filter: 'url(#glowGreen)',
+                }}
+                animationDuration={1200}
+                animationEasing="ease-in-out"
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -526,14 +398,12 @@ export default function SalesTrend() {
                 </tr>
               </thead>
               <tbody>
-                {[...data].reverse().map((d) => {
-                  const prev = data[data.indexOf(d) - 1]
+                {data.slice().reverse().map((d, ri) => {
+                  const prev = data[data.length - 2 - ri]
                   const soldChange = prev ? d.sold_total - prev.sold_total : 0
                   return (
                     <tr key={d.date}
-                      className={`transition-colors ${
-                        d === peakDay ? 'bg-accent-amber/5' : ''
-                      }`}
+                      className={`transition-colors ${d === peakDay ? 'bg-accent-amber/5' : ''}`}
                       style={{ borderTop: '1px solid var(--table-border)' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--table-row-hover)'}
                       onMouseLeave={e => e.currentTarget.style.background = d === peakDay ? '' : 'transparent'}

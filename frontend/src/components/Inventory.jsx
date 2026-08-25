@@ -218,7 +218,7 @@ export default function Inventory() {
   }
 
   function confirmRestore(record) {
-    setConfirmAction({ type: 'restore', id: record.id, label: `${record.count} ${record.variant} (${record.action})` })
+    setConfirmAction({ type: 'restore', id: record.id, label: `${record.count} ${record.variant} (${record.action})`, record })
   }
 
   async function executeConfirmed() {
@@ -357,7 +357,7 @@ export default function Inventory() {
             </select>
             <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
               className="neu-input text-xs py-[7px] px-2">
-              {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}/pg</option>)}
+              {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} per page</option>)}
             </select>
             <button onClick={() => load(page)}
               className="neu-input py-[7px] px-2 text-text-muted hover:text-text-primary transition-colors"
@@ -436,14 +436,18 @@ export default function Inventory() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="dark-table table-fixed w-full">
+            {/* min-w must exceed the sum of the fixed cols below (550px), or
+                table-fixed collapses the unsized Type column to 0 and its badge
+                renders on top of the Archive column. Archive is sized for its
+                own header text, not just the 36px button. */}
+            <table className="dark-table table-fixed w-full min-w-[680px]">
               <colgroup>
-                <col className="w-[220px]" />
-                <col className="w-[130px]" />
+                <col className="w-[150px]" />
+                <col className="w-[110px]" />
                 <col className="w-[80px]" />
-                <col className="w-[100px]" />
+                <col className="w-[120px]" />
                 <col />
-                <col className="w-[64px]" />
+                <col className="w-[90px]" />
               </colgroup>
               <thead>
                 <tr>
@@ -468,8 +472,8 @@ export default function Inventory() {
                           {r.variant}
                         </span>
                       </td>
-                      <td className="font-semibold">{Math.abs(r.count)}</td>
-                      <td className="text-text-muted font-semibold">{formatCurrency(total)}</td>
+                      <td className="font-semibold tabular-nums">{Math.abs(r.count).toLocaleString()}</td>
+                      <td className="text-text-muted font-semibold tabular-nums">{formatCurrency(total)}</td>
                       <td>
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(typeLabel)}`}>
                           {typeLabel.replace('_', ' ')}
@@ -502,7 +506,7 @@ export default function Inventory() {
               <button key={p} onClick={() => goPage(p)}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all
                   ${p === page
-                    ? 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-lg shadow-accent-purple/20'
+                    ? 'bg-gradient-to-r from-accent-green to-accent-teal text-white shadow-lg shadow-accent-green/20'
                     : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
                   }`}>{p}</button>
             ))}
@@ -654,9 +658,32 @@ export default function Inventory() {
                   <p className="text-xs text-text-muted">This action can be reversed</p>
                 </div>
               </div>
+              {/* Show the record as a summary rather than inlining it in prose —
+                  the raw action enum ("WHOLESALE") was leaking into the sentence. */}
+              {confirmAction.record ? (
+                <div className="rounded-xl p-3 mb-4"
+                  style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-text-primary tabular-nums truncate">
+                      {Math.abs(confirmAction.record.count).toLocaleString()} {confirmAction.record.variant}
+                    </span>
+                    <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(getTypeLabel(confirmAction.record))}`}>
+                      {getTypeLabel(confirmAction.record).replace('_', ' ')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-muted mt-1 truncate">
+                    {confirmAction.record.date} · {formatCurrency(computeTotal(confirmAction.record))}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-text-secondary mb-4">
+                  <span className="font-semibold text-text-primary">{confirmAction.label}</span>
+                </p>
+              )}
               <p className="text-sm text-text-secondary mb-6">
-                Are you sure you want to {confirmAction.type === 'delete' ? 'archive' : 'restore'}{' '}
-                <span className="font-semibold text-text-primary">{confirmAction.label}</span>?
+                {confirmAction.type === 'delete'
+                  ? 'It will be hidden from this list. Stock and sales totals are not affected.'
+                  : 'It will return to the active records list.'}
               </p>
               <div className="flex items-center justify-end gap-3">
                 <button onClick={() => setConfirmAction(null)}
