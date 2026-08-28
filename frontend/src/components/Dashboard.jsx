@@ -1,30 +1,17 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { rawApi } from '../utils/api'
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend
-} from 'recharts'
-import {
-  TrendingUp, Fish, ScanLine, DollarSign,
-  Activity, AlertTriangle, Filter, X, Package,
-  Lightbulb, Zap, Target, ShieldAlert
+  TrendingUp, Fish, ScanLine, DollarSign, Package,
+  Lightbulb, Zap, Target, ShieldAlert, ChevronDown
 } from 'lucide-react'
 import SalesTrend from './SalesTrend'
-import { getNoteDisplay } from '../utils/notes'
+import { getNoteDisplay, getRecordType } from '../utils/notes'
+import { avgDailyOutflow, daysOfCover, stockStatus, coverLabel } from '../utils/stock'
 import { Button, EmptyState, Modal, PageHeader, StatCard, StatusIndicator, Skeleton } from './ui'
 import useAuthStore from '../store/authStore'
 
 /* ─── Helpers ─── */
-function useDebounce(fn, delay) {
-  const timer = useRef(null)
-  const fnRef = useRef(fn)
-  fnRef.current = fn
-  return useCallback((...args) => {
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => fnRef.current(...args), delay)
-  }, [delay])
-}
-
 function KpiSkeleton() {
   return (
     <div className="glass-card stat-glow p-5">
@@ -35,8 +22,13 @@ function KpiSkeleton() {
   )
 }
 
-const CHART_COLORS = ['#4C7A3D']
-const VARIANT_COLORS = { SPIN_20: '#4C7A3D' }
+/* Movement types, shown as a word and a colour rather than a signed number. */
+const ACTIVITY = {
+  WHOLESALE_IN: { label: 'Counted', dot: 'bg-accent-green', text: 'text-accent-green' },
+  SOLD:         { label: 'Sold',    dot: 'bg-accent-blue',  text: 'text-accent-blue' },
+  DIED:         { label: 'Died',    dot: 'bg-accent-red',   text: 'text-accent-red' },
+  UNKNOWN:      { label: 'Moved',   dot: 'bg-text-muted',   text: 'text-text-muted' },
+}
 
 const formatCurrency = v => {
   try { return '₱' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
@@ -50,85 +42,6 @@ function trendPercent(current, yesterday) {
   const diff = cur - yday
   if (yday !== 0) return (diff / Math.abs(yday)) * 100
   return diff !== 0 ? 100 : 0
-}
-
-/* ─── Low Stock Alerts ─── */
-function LowStockAlerts({ alerts, loading }) {
-  if (loading) {
-    return (
-      <div className="glass-card p-5">
-        <Skeleton width="40%" height={16} className="mb-3" />
-        <Skeleton width="100%" height={48} />
-      </div>
-    )
-  }
-
-  const activeAlerts = (alerts || []).filter(a => a.status !== 'ok')
-
-  return (
-    <div className="glass-card p-5 h-full">
-      <div className="flex items-center gap-2 mb-4">
-        <AlertTriangle className="w-4 h-4 text-accent-amber" />
-        <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider">Stock Alerts</h3>
-      </div>
-      {activeAlerts.length === 0 ? (
-        <p className="text-sm text-accent-green font-medium">All stock levels healthy</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {activeAlerts.map((a, i) => (
-            <div key={i} className={`flex items-center justify-between p-3 rounded-xl border
-              ${a.status === 'critical'
-                ? 'bg-accent-red/10 border-accent-red/20'
-                : 'bg-accent-amber/10 border-accent-amber/20'
-              }`}>
-              <div>
-                <p className="text-sm font-semibold text-text-primary">{a.variant}</p>
-                <p className="text-xs text-text-muted">{a.source === 'tank' ? 'Fish Tank' : 'Wholesale'}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-text-primary">{a.stock}</p>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full
-                  ${a.status === 'critical' ? 'bg-accent-red/20 text-accent-red' : 'bg-accent-amber/20 text-accent-amber'}
-                `}>{a.status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-4 pt-3 border-t border-white/5">
-        <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Indicators</p>
-        <div className="flex gap-4 text-xs text-text-muted">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-accent-red" /> Critical (≤15)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-accent-amber" /> Warning (16-30)
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Custom Tooltip ─── */
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="px-4 py-3 rounded-xl text-sm"
-      style={{
-        background: 'var(--tooltip-bg)',
-        border: '1px solid var(--tooltip-border)',
-        backdropFilter: 'blur(12px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-      }}>
-      <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }}>
-          {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
-        </p>
-      ))}
-    </div>
-  )
 }
 
 /* ═══════════════════════════════════════════════════
@@ -680,44 +593,43 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
       transition={{ delay: 0.25, duration: 0.4 }}
       className="space-y-3 sm:space-y-4"
     >
-      {/* ── Header bar ── */}
-      <div className="glass-card analytics-header">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, rgba(217, 142, 59, 0.15), rgba(76, 122, 61, 0.15))' }}>
-            <Lightbulb className="w-4 h-4 text-accent-amber" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-text-primary tracking-tight">Analytics Overview</h3>
-            {dailyData.length > 0 && !trendLoading && (
-              <p className="text-[10px] text-text-muted mt-0.5">
-                {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analyzed
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Collapsed by default: this is analyst reading, not the operational view the
+          dashboard exists for. Same native <details> pattern as Daily Breakdown.
+          When a dedicated Reports screen exists, this block moves there wholesale. */}
+      <details className="group">
+        <summary className="cursor-pointer list-none flex items-baseline gap-2 text-sm font-bold text-text-primary tracking-tight py-1 hover:text-accent-green transition-colors">
+          <ChevronDown className="w-3.5 h-3.5 self-center transition-transform duration-200 group-open:rotate-180" />
+          Analytics Overview
+          {dailyData.length > 0 && !trendLoading && (
+            <span className="text-xs font-medium text-text-muted">
+              {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analyzed
+            </span>
+          )}
+        </summary>
 
-      {/* ── Insight cards grid ── */}
-      {trendLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-          {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
-        </div>
-      )}
+        <div className="mt-3">
+          {/* ── Insight cards grid ── */}
+          {trendLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+              {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
+            </div>
+          )}
 
-      {!trendLoading && hasAny && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-          {INSIGHT_CATEGORIES.map(cat => {
-            const items = insights ? insights[cat.key] : []
-            return <InsightCard key={cat.key} cat={cat} items={items} />
-          })}
-        </div>
-      )}
+          {!trendLoading && hasAny && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+              {INSIGHT_CATEGORIES.map(cat => {
+                const items = insights ? insights[cat.key] : []
+                return <InsightCard key={cat.key} cat={cat} items={items} />
+              })}
+            </div>
+          )}
 
-      {/* Empty state */}
-      {!trendLoading && !hasAny && (
-        <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
-      )}
+          {/* Empty state */}
+          {!trendLoading && !hasAny && (
+            <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
+          )}
+        </div>
+      </details>
     </motion.div>
   )
 }
@@ -727,10 +639,6 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
   const [lowStockAlerts, setLowStockAlerts] = useState([])
-  const [lowStockLoading, setLowStockLoading] = useState(true)
-  const [variant, setVariant] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [socketConnected, setSocketConnected] = useState(false)
   const [kpiModal, setKpiModal] = useState(null) // { label, value, color, icon, details }
   // One range + one daily-trend fetch, shared by SalesTrend and AnalyticsInsights
@@ -767,72 +675,91 @@ export default function Dashboard() {
   async function loadLowStock() {
     try { setLowStockAlerts((await rawApi.get('/api/low-stock')).data.alerts || []) }
     catch (e) { console.error('Failed to load low stock', e) }
-    finally { setLowStockLoading(false) }
   }
 
   async function loadStats() {
     setStatsLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (variant) params.append('variant', variant)
-      if (startDate) params.append('start_date', startDate)
-      if (endDate) params.append('end_date', endDate)
-      const qs = params.toString()
-      setStats((await rawApi.get('/get_statistics' + (qs ? '?' + qs : ''))).data)
+      setStats((await rawApi.get('/get_statistics')).data)
     } catch (e) { console.error('Failed to load stats', e) }
     finally { setStatsLoading(false) }
-  }
-
-  const debouncedApply = useDebounce(() => { loadStats() }, 350)
-  function applyFilters() { debouncedApply() }
-  function clearFilters() {
-    setVariant(''); setStartDate(''); setEndDate('')
-    setTimeout(() => { loadStats() }, 0)
   }
 
   const yday = stats?.yesterday || {}
   const global = stats?.global || {}
 
-  // Lifetime fish stocked per variant (gross additions, matches the "Total Fish" KPI)
-  const variantCounts = stats ? ['SPIN_20'].map(name =>
-    Number(stats.by_variant_additions?.find(v => v.variant === name)?.count) || 0
-  ) : [0]
+  /* Stock actually on hand right now: wholesale in minus wholesale out, unfiltered.
+     `additions_total` is lifetime gross additions and never decreases — it is not stock. */
+  const stockOnHand = Number(global.wholesale_total || 0)
+  const outflowRate = avgDailyOutflow(dailyData, 7)
+  const cover = daysOfCover(stockOnHand, outflowRate)
+  const stockTone = stockStatus(stockOnHand, cover)
 
-  const pieData = ['SPIN_20'].map((name, i) => ({
-    name, value: variantCounts[i]
-  }))
+  // Today's outflow in units — the trend series' last row is always today.
+  const soldToday = dailyData.length > 0 ? Number(dailyData[dailyData.length - 1].sold_total || 0) : 0
 
   const kpiCards = stats ? [
-    { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, current: global.additions_total, yesterday: yday.additions_total },
-    { key: 'today_session', label: "Today's Session", value: Number(stats.today_session_total || 0).toLocaleString(), icon: ScanLine, current: global.today_session_total, yesterday: yday.today_session_total },
-    { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0) },
-    { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, current: global.total_revenue, yesterday: yday.total_revenue, rawValue: Number(stats.total_revenue || 0) },
+    {
+      key: 'stock_on_hand', label: 'Stock on Hand', value: stockOnHand.toLocaleString(), icon: Package,
+      emphasis: true, tone: stockTone, sub: coverLabel(cover),
+      current: global.wholesale_total, yesterday: yday.wholesale_total,
+    },
+    {
+      key: 'today_session', label: 'Counted Today', value: Number(stats.today_session_total || 0).toLocaleString(), icon: ScanLine,
+      sub: Number(stats.today_session_total || 0) === 0 ? 'No session yet today' : 'fish added to inventory',
+      current: global.today_session_total, yesterday: yday.today_session_total,
+    },
+    {
+      key: 'sold_today', label: 'Sold Today', value: soldToday.toLocaleString(), icon: DollarSign,
+      sub: formatCurrency(stats.today_revenue),
+      current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0),
+    },
+    {
+      key: 'total_fish', label: 'Stocked All Time', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish,
+      sub: 'gross additions, never decreases',
+    },
   ] : []
 
   function openKpiModal(card) {
     let details = null
 
-    if (card.key === 'total_fish') {
+    if (card.key === 'stock_on_hand') {
+      const ydayStock = Number(yday.wholesale_total || 0)
+      const diff = stockOnHand - ydayStock
+      details = {
+        title: 'Stock on Hand',
+        subtitle: `${stockOnHand.toLocaleString()} SPIN_20 available for sale right now`,
+        rows: [
+          { label: 'Available now', color: '#4C7A3D', value: `${stockOnHand.toLocaleString()} fish` },
+          { label: 'As of yesterday', color: '#5E9B94', value: `${ydayStock.toLocaleString()} fish` },
+          { label: 'Selling at', color: '#D98E3B', value: `${Math.round(outflowRate).toLocaleString()} fish/day (7-day avg)` },
+          { label: 'Cover remaining', color: '#B5533F', value: coverLabel(cover) },
+        ],
+        extra: diff === 0
+          ? 'No change from yesterday'
+          : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish since yesterday`
+      }
+    } else if (card.key === 'total_fish') {
       const total = Number(stats.additions_total || 0)
       const ydayTotal = Number(yday.additions_total || 0)
       const diff = total - ydayTotal
       details = {
-        title: 'Total Fish Inventory',
-        subtitle: `Total: ${total.toLocaleString()} fish (SPIN_20)`,
+        title: 'Stocked All Time',
+        subtitle: `${total.toLocaleString()} fish added since records began`,
         rows: [
-          { label: 'Total (all time)', color: '#4C7A3D', value: `${total.toLocaleString()} fish` },
+          { label: 'Gross additions (all time)', color: '#4C7A3D', value: `${total.toLocaleString()} fish` },
           { label: 'As of yesterday', color: '#5E9B94', value: `${ydayTotal.toLocaleString()} fish` },
+          { label: 'Still on hand', color: '#D98E3B', value: `${stockOnHand.toLocaleString()} fish` },
         ],
-        extra: diff === 0
-          ? 'No change from yesterday'
-          : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish added since yesterday`
+        extra: 'This is a lifetime running total of fish added — it never decreases and is not current stock.'
+          + (diff === 0 ? '' : ` ${diff > 0 ? '+' : ''}${diff.toLocaleString()} added since yesterday.`)
       }
     } else if (card.key === 'today_session') {
       const todayCount = Number(stats.today_session_total || 0)
       const ydayCount = Number(yday.today_session_total || 0)
       const diff = todayCount - ydayCount
       details = {
-        title: "Today's Session",
+        title: 'Counted Today',
         subtitle: `Counted today: ${todayCount.toLocaleString()} fish`,
         rows: [
           { label: 'Today', color: '#4C7A3D', value: `${todayCount.toLocaleString()} fish` },
@@ -842,135 +769,104 @@ export default function Dashboard() {
           ? 'No change from yesterday'
           : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish vs. yesterday`
       }
-    } else if (card.key === 'today_revenue' || card.key === 'total_revenue') {
-      const isToday = card.key === 'today_revenue'
+    } else if (card.key === 'sold_today') {
       const pricePerFish = 0.40
       details = {
-        title: isToday ? "Today's Revenue Breakdown" : 'Total Revenue Breakdown',
-        subtitle: `Exact: ${formatCurrency(card.rawValue)}`,
+        title: 'Sold Today',
+        subtitle: `${soldToday.toLocaleString()} fish · ${formatCurrency(card.rawValue)}`,
         rows: [
-          { label: 'Price per fish', color: '#4C7A3D', value: `₱${pricePerFish.toFixed(2)} (wholesale)` },
+          { label: 'Units sold today', color: '#4C7A3D', value: `${soldToday.toLocaleString()} fish` },
+          { label: 'Price per fish', color: '#5E9B94', value: `₱${pricePerFish.toFixed(2)} (wholesale)` },
+          { label: 'Revenue today', color: '#D98E3B', value: formatCurrency(card.rawValue) },
         ],
-        extra: isToday
-          ? `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`
-          : `Yesterday cumulative: ${formatCurrency(Number(yday.total_revenue || 0))}`
+        extra: `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`
       }
     }
     setKpiModal({ ...card, details })
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title={`Welcome back${user?.username ? `, ${user.username}` : ''}`}
         subtitle="Here's what's happening on the farm today."
+        actions={socketConnected && <StatusIndicator status="active" label="Live" />}
       />
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
-        ) : kpiCards.map((card, i) => (
-          <motion.div key={i}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-            whileHover={{ scale: 1.015, y: -1 }}
-          >
-            <StatCard
-              label={card.label}
-              value={card.value}
-              icon={card.icon}
-              trend={Math.round(trendPercent(card.current, card.yesterday) * 10) / 10}
-              trendLabel="vs yesterday"
-              onClick={() => openKpiModal(card)}
-            />
-          </motion.div>
+        ) : kpiCards.map(card => (
+          <StatCard
+            key={card.key}
+            label={card.label}
+            value={card.value}
+            icon={card.icon}
+            tone={card.tone}
+            sub={card.sub}
+            emphasis={card.emphasis}
+            trend={Math.round(trendPercent(card.current, card.yesterday) * 10) / 10}
+            trendLabel="vs yesterday"
+            onClick={() => openKpiModal(card)}
+          />
         ))}
       </div>
 
-      {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
-      <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
+      {/* ── Chart beside recent activity: uses the page width instead of stacking,
+             which is what kept the dashboard two viewports tall. ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <div className="xl:col-span-2 min-w-0">
+        {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
+        <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
+        </div>
+        <div className="min-w-0">
+        {/* ── Recent Sessions ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="glass-card p-4 sm:p-6"
+        >
+          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Recent Activity</h3>
+          {statsLoading ? (
+            <div className="space-y-2">
+              <Skeleton width="100%" height={18} />
+              <Skeleton width="90%" height={18} />
+              <Skeleton width="95%" height={18} />
+            </div>
+          ) : (!stats?.recent_additions || stats.recent_additions.length === 0) ? (
+            <EmptyState icon={Fish} title="No recent entries" message="Counting sessions and sales will show up here." />
+          ) : (
+            <div className="space-y-0.5">
+              {stats.recent_additions.map(r => {
+                const note = getNoteDisplay(r.notes, r.action)
+                const kind = ACTIVITY[getRecordType(r)] || ACTIVITY.UNKNOWN
+                return (
+                  <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-white/[0.02]">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${kind.dot}`} />
+                    <span className="text-xs text-text-muted font-medium tabular-nums min-w-[90px] sm:min-w-[110px]">{r.date}</span>
+                    {/* Magnitude, not the stored sign — "-65560" is a database detail. */}
+                    <span className="text-sm font-semibold text-text-primary">
+                      <span className={kind.text}>{kind.label}</span>{' '}
+                      <span className="tabular-nums">{Math.abs(Number(r.count) || 0).toLocaleString()}</span>{' '}
+                      {r.variant}
+                    </span>
+                    <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${note.isFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
+                      {note.text}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </motion.div>
+        </div>
+      </div>
 
       {/* ── Analytics Insights ── */}
       <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading}
         dailyData={dailyData} trendLoading={trendLoading} />
-
-      {/* ── Charts Grid ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 gap-5"
-      >
-        {/* Variant Pie */}
-        <div className="glass-card p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
-              Overall Variant Inventory
-            </h3>
-            {socketConnected && <StatusIndicator status="active" label="Live" />}
-          </div>
-          {statsLoading ? <Skeleton width="100%" height={200} /> : (
-            variantCounts.every(v => v === 0) ? (
-              <EmptyState icon={Package} title="No inventory data yet" message="Counted fish will appear here once you save your first session." />
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                    dataKey="value" paddingAngle={4} strokeWidth={0}>
-                    {pieData.map((entry, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )
-          )}
-        </div>
-
-        {/* Low Stock Alerts */}
-        <div>
-          <LowStockAlerts alerts={lowStockAlerts} loading={lowStockLoading} />
-        </div>
-      </motion.div>
-
-      {/* ── Recent Sessions ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
-        className="glass-card p-4 sm:p-6"
-      >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Recent Sessions</h3>
-        {statsLoading ? (
-          <div className="space-y-2">
-            <Skeleton width="100%" height={18} />
-            <Skeleton width="90%" height={18} />
-            <Skeleton width="95%" height={18} />
-          </div>
-        ) : (!stats?.recent_additions || stats.recent_additions.length === 0) ? (
-          <EmptyState icon={Fish} title="No recent entries" message="Saved counting sessions will show up here." />
-        ) : (
-          <div className="space-y-2">
-            {stats.recent_additions.map(r => {
-              const note = getNoteDisplay(r.notes, r.action)
-              return (
-                <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 rounded-xl transition-colors hover:bg-white/[0.02]">
-                  <div className="w-2 h-2 rounded-full bg-accent-green flex-shrink-0" />
-                  <span className="text-xs text-text-muted font-medium min-w-[90px] sm:min-w-[100px]">{r.date}</span>
-                  <span className="text-sm font-semibold text-text-primary">{r.count} {r.variant}</span>
-                  <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${note.isFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
-                    — {note.text}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </motion.div>
 
       {/* ── KPI Detail Modal ── */}
       <Modal

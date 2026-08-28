@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
+import { getRecordType } from '../utils/notes'
 import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
 
 const VARIANTS = ['SPIN_20']
@@ -14,29 +15,12 @@ function formatCurrency(val) {
 const PRICE_PER_FISH = 0.40
 
 function computeTotal(record) {
-  const type = getTypeLabel(record)
+  const type = getRecordType(record)
   const count = Math.abs(Number(record?.count) || 0)
   if (type === 'SOLD') {
     return count * PRICE_PER_FISH
   }
   return null
-}
-
-function getTypeLabel(record) {
-  const tt = (record?.transaction_type || '').toUpperCase()
-  if (tt) {
-    if (tt === 'WHOLESALE_SOLD') return 'SOLD'
-    if (tt === 'TANK_IN') return 'WHOLESALE_IN'
-    return tt
-  }
-  const action = (record?.action || '').toUpperCase()
-  const notes = (record?.notes || '').toLowerCase()
-  if (action === 'OUT' && notes.startsWith('died')) return 'DIED'
-  if (action === 'OUT') return 'SOLD'
-  if (action === 'IN') return 'WHOLESALE_IN'
-  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) >= 0) return 'WHOLESALE_IN'
-  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) < 0) return 'SOLD'
-  return action || 'UNKNOWN'
 }
 
 function getTypeBadgeClass(type) {
@@ -461,7 +445,7 @@ export default function Inventory() {
               </thead>
               <tbody>
                 {displayRecords.map(r => {
-                  const typeLabel = getTypeLabel(r)
+                  const typeLabel = getRecordType(r)
                   const total = computeTotal(r)
                   return (
                     <tr key={r.id}>
@@ -587,7 +571,7 @@ export default function Inventory() {
                   </thead>
                   <tbody>
                     {archiveRecords.map(r => {
-                      const typeLabel = getTypeLabel(r)
+                      const typeLabel = getRecordType(r)
                       const total = computeTotal(r)
                       return (
                         <tr key={r.id}>
@@ -667,8 +651,8 @@ export default function Inventory() {
                     <span className="text-sm font-semibold text-text-primary tabular-nums truncate">
                       {Math.abs(confirmAction.record.count).toLocaleString()} {confirmAction.record.variant}
                     </span>
-                    <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(getTypeLabel(confirmAction.record))}`}>
-                      {getTypeLabel(confirmAction.record).replace('_', ' ')}
+                    <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(getRecordType(confirmAction.record))}`}>
+                      {getRecordType(confirmAction.record).replace('_', ' ')}
                     </span>
                   </div>
                   <p className="text-xs text-text-muted mt-1 truncate">

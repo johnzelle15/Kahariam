@@ -26,3 +26,28 @@ export function getNoteDisplay(notes, action) {
 
   return { text: fallback, isFallback: true }
 }
+
+/**
+ * Classify an inventory row into a movement type: WHOLESALE_IN | SOLD | DIED.
+ *
+ * Single source of truth — the dashboard activity list and the inventory ledger
+ * must never disagree about what a row is. Rows from /get_statistics carry no
+ * transaction_type, so the action + sign + notes fallback is the common path.
+ */
+export function getRecordType(record) {
+  const tt = (record?.transaction_type || '').toUpperCase()
+  if (tt) {
+    if (tt === 'WHOLESALE_SOLD') return 'SOLD'
+    if (tt === 'TANK_IN') return 'WHOLESALE_IN'
+    return tt
+  }
+  const action = (record?.action || '').toUpperCase()
+  const notes = (record?.notes || '').toLowerCase()
+  if (action === 'OUT' && notes.startsWith('died')) return 'DIED'
+  if (action === 'OUT') return 'SOLD'
+  if (action === 'IN') return 'WHOLESALE_IN'
+  if (action === 'WHOLESALE' || action === 'INVENTORY') {
+    return Number(record?.count) < 0 ? 'SOLD' : 'WHOLESALE_IN'
+  }
+  return action || 'UNKNOWN'
+}

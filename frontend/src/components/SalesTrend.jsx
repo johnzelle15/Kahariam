@@ -4,11 +4,7 @@ import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
-import {
-  TrendingUp, TrendingDown, Minus, Calendar,
-  Image, FileSpreadsheet, ChevronDown,
-  DollarSign, Package, Activity
-} from 'lucide-react'
+import { Calendar, Image, FileSpreadsheet, ChevronDown, Activity } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { toPng } from 'html-to-image'
 
@@ -76,48 +72,11 @@ function SalesTooltip({ active, payload }) {
   )
 }
 
-/* ─── KPI Stat Card ─── */
-function StatCard({ label, value, subValue, trend, icon: Icon, color }) {
-  const isUp = trend > 0
-  return (
-    <div className="flex flex-col gap-1.5 p-3 sm:p-4 rounded-2xl min-w-0 sm:min-w-[150px] relative overflow-hidden"
-      style={{
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
-      }}>
-      <div className="absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-[0.04]"
-        style={{ background: color }} />
-      <div className="flex items-center gap-1.5">
-        <Icon className="w-3.5 h-3.5" style={{ color }} />
-        <span className="text-[9px] sm:text-[10px] font-bold text-text-muted uppercase tracking-wider truncate">{label}</span>
-      </div>
-      <p className="text-base sm:text-xl font-extrabold text-text-primary truncate">{value}</p>
-      <div className="flex items-center gap-1">
-        {trend !== 0 && (
-          <>
-            {isUp ? <TrendingUp className="w-3 h-3 text-accent-green" /> : <TrendingDown className="w-3 h-3 text-accent-red" />}
-            <span className={`text-[10px] font-bold ${isUp ? 'text-accent-green' : 'text-accent-red'}`}>
-              {isUp ? '+' : ''}{trend.toFixed(1)}%
-            </span>
-          </>
-        )}
-        {trend === 0 && <Minus className="w-3 h-3 text-text-muted" />}
-        {subValue && <span className="text-[10px] text-text-muted ml-1">{subValue}</span>}
-      </div>
-    </div>
-  )
-}
-
-/* ─── Skeleton ─── */
+/* ─── Skeleton — matches the rendered chart geometry so nothing reflows on load ─── */
 function ChartSkeleton() {
   return (
-    <div className="space-y-4 animate-pulse">
-      <div className="flex gap-3">
-        <div className="skeleton-dark rounded-2xl" style={{ width: 150, height: 80 }} />
-        <div className="skeleton-dark rounded-2xl" style={{ width: 150, height: 80 }} />
-        <div className="skeleton-dark rounded-2xl" style={{ width: 150, height: 80 }} />
-      </div>
-      <div className="skeleton-dark rounded-2xl" style={{ width: '100%', height: 340 }} />
+    <div className="animate-pulse">
+      <div className="skeleton-dark rounded-2xl" style={{ width: '100%', height: 260 }} />
     </div>
   )
 }
@@ -135,18 +94,6 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
   const totalSold = data.reduce((s, d) => s + d.sold_total, 0)
   const totalRevenue = data.reduce((s, d) => s + d.revenue, 0)
   const avgDaily = data.length > 0 ? Math.round(totalSold / data.length) : 0
-  const avgRevenue = data.length > 0 ? totalRevenue / data.length : 0
-
-  const mid = Math.floor(data.length / 2)
-  const firstHalf = data.slice(0, mid)
-  const secondHalf = data.slice(mid)
-  const firstSold = firstHalf.reduce((s, d) => s + d.sold_total, 0)
-  const secondSold = secondHalf.reduce((s, d) => s + d.sold_total, 0)
-  const soldTrend = firstSold > 0 ? ((secondSold - firstSold) / firstSold) * 100 : (secondSold > 0 ? 100 : 0)
-  const firstRev = firstHalf.reduce((s, d) => s + d.revenue, 0)
-  const secondRev = secondHalf.reduce((s, d) => s + d.revenue, 0)
-  const revTrend = firstRev > 0 ? ((secondRev - firstRev) / firstRev) * 100 : (secondRev > 0 ? 100 : 0)
-
   const peakDay = data.reduce((best, d) => (d.sold_total > (best?.sold_total || 0) ? d : best), data[0])
 
   const isEmpty = data.length === 0 || (totalSold === 0 && totalRevenue === 0)
@@ -216,7 +163,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       }}>
 
       {/* ── Header ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 sm:mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
         <div>
           <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -252,7 +199,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       </div>
 
       {/* ── Range filter — governs this card AND the analytics panel below ─── */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         {/* Period Presets */}
         <div className="flex items-center gap-0.5 p-1 rounded-xl"
           style={{ background: 'var(--btn-secondary-bg)', border: '1px solid var(--glass-border)' }}>
@@ -297,17 +244,23 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       </div>
 
       {/* ── KPI Stats ─── */}
+      {/* Period summary as one line — three tiles restated what the chart already plots. */}
       {!loading && !isEmpty && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-5">
-          <StatCard label="Total Sold" value={totalSold.toLocaleString()} subValue={`avg ${avgDaily}/day`}
-            trend={soldTrend} icon={Package} color="#4C7A3D" />
-          <StatCard label="Revenue" value={fmtCurrency(totalRevenue)} subValue={`avg ${fmtCurrency(avgRevenue)}/day`}
-            trend={revTrend} icon={DollarSign} color="#5E9B94" />
+        <p className="text-xs text-text-secondary mb-3 flex flex-wrap gap-x-1.5 gap-y-1">
+          <span><b className="font-semibold text-text-primary tabular-nums">{totalSold.toLocaleString()}</b> sold</span>
+          <span className="text-text-muted">·</span>
+          <span><b className="font-semibold text-text-primary tabular-nums">{fmtCurrency(totalRevenue)}</b></span>
+          <span className="text-text-muted">·</span>
+          <span className="text-text-muted tabular-nums">avg {avgDaily.toLocaleString()}/day</span>
           {peakDay && peakDay.sold_total > 0 && (
-            <StatCard label="Peak Day" value={`${peakDay.sold_total} sold`}
-              subValue={fmtDate(peakDay.date)} trend={0} icon={TrendingUp} color="#D98E3B" />
+            <>
+              <span className="text-text-muted">·</span>
+              <span className="text-text-muted tabular-nums">
+                peak {peakDay.sold_total.toLocaleString()} on {fmtDate(peakDay.date)}
+              </span>
+            </>
           )}
-        </div>
+        </p>
       )}
 
       {/* ── Chart ─── */}
@@ -316,7 +269,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
           <p className="text-sm text-text-muted">No sales recorded for the selected period</p>
         </div>
       ) : (
-        <div className="h-[280px] sm:h-[360px] mt-2 rounded-2xl overflow-hidden p-2"
+        <div className="h-[220px] sm:h-[260px] rounded-2xl overflow-hidden p-2"
           style={{ background: 'var(--glass-bg)' }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
@@ -382,7 +335,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
 
       {/* ── Daily Breakdown Table ─── */}
       {!loading && data.length > 0 && (
-        <details className="mt-5 group">
+        <details className="mt-3 group">
           <summary className="cursor-pointer text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-2 hover:text-text-secondary transition-colors py-1">
             <ChevronDown className="w-3.5 h-3.5 transition-transform duration-300 group-open:rotate-180" />
             Daily Breakdown
