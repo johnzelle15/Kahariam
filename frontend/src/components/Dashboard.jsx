@@ -793,11 +793,10 @@ export default function Dashboard() {
   const yday = stats?.yesterday || {}
   const global = stats?.global || {}
 
-  const variantCounts = stats ? ['SPIN_20'].map(name => {
-    const tank = Number(stats.by_variant?.find(v => v.variant === name)?.count) || 0
-    const wholesale = Number(stats.by_variant_wholesale?.find(v => v.variant === name)?.count) || 0
-    return tank + wholesale
-  }) : [0]
+  // Lifetime fish stocked per variant (gross additions, matches the "Total Fish" KPI)
+  const variantCounts = stats ? ['SPIN_20'].map(name =>
+    Number(stats.by_variant_additions?.find(v => v.variant === name)?.count) || 0
+  ) : [0]
 
   const pieData = ['SPIN_20'].map((name, i) => ({
     name, value: variantCounts[i]
