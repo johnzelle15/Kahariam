@@ -1,75 +1,129 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { rawApi } from '../utils/api'
-import { Play, Square, Save, Lock, Loader2, CheckCircle2, XCircle } from 'lucide-react'
-import { Button, Card, Modal, PageHeader, StatusIndicator } from './ui'
+import { Play, Save, Lock, CheckCircle2, XCircle, WifiOff, Undo2 } from 'lucide-react'
+import { Button, Modal } from './ui'
+import useAuthStore from '../store/authStore'
+
+const VARIANT = 'SPIN_20'
+const UNDO_WINDOW_MS = 10000
 
 /* ──────────────────────────────────────────────────────────────
-   Toast Notification
+   Toast — carries an optional Undo, because the save it confirms
+   is otherwise irreversible from this screen.
    ────────────────────────────────────────────────────────────── */
-function Toast({ toast, onDismiss }) {
-  if (!toast) return null
-  const isError = toast.type === 'error'
+function Toast({ toast, onUndo }) {
   return (
     <AnimatePresence>
-      <motion.div
-        key={toast.id}
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5
-          px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl border
-          ${isError
-            ? 'bg-red-500/10 border-red-500/20 text-red-400'
-            : 'bg-accent-green/10 border-accent-green/20 text-accent-green'
-          }`}
-      >
-        {isError
-          ? <XCircle className="w-4.5 h-4.5 shrink-0" />
-          : <CheckCircle2 className="w-4.5 h-4.5 shrink-0" />}
-        {toast.message}
-      </motion.div>
+      {toast && (
+        <motion.div
+          key={toast.id}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.15 }}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
+            px-5 py-3 rounded-xl text-sm font-semibold border shadow-lg
+            ${toast.type === 'error'
+              ? 'bg-accent-red/10 border-accent-red/25 text-accent-red'
+              : 'bg-accent-green/10 border-accent-green/25 text-accent-green'}`}
+        >
+          {toast.type === 'error'
+            ? <XCircle className="w-4 h-4 shrink-0" />
+            : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+          {toast.message}
+          {toast.undoId != null && (
+            <button
+              onClick={onUndo}
+              className="ml-1 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1
+                text-xs font-bold border border-current/30 hover:bg-current/10 transition-colors"
+            >
+              <Undo2 className="w-3.5 h-3.5" /> Undo
+            </button>
+          )}
+        </motion.div>
+      )}
     </AnimatePresence>
   )
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Counter Component
-   ────────────────────────────────────────────────────────────── */
+/* Elapsed wall-clock for the running session, as mm:ss or h:mm:ss. */
+function formatElapsed(ms) {
+  if (ms == null || ms < 0) return '—'
+  const total = Math.floor(ms / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = n => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
+}
+
 export default function Counter() {
-  const DEVICE_ID = 'test-device'
+  const user = useAuthStore(s => s.user)
 
-  function getUserId() {
-    let uid = localStorage.getItem('fc_user_id')
-    if (!uid) {
-      uid = 'user-' + Math.random().toString(36).substr(2, 9)
-      localStorage.setItem('fc_user_id', uid)
-    }
-    return uid
-  }
-
-  const [lockWarning, setLockWarning] = useState('')
-  const [variant, setVariant] = useState('SPIN_20')
   const [count, setCount] = useState(0)
   const [active, setActive] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
+  const [hasSocket, setHasSocket] = useState(false)
+  const [device, setDevice] = useState({ id: null, name: null })
+  const [session, setSession] = useState(null)
+  const [lockWarning, setLockWarning] = useState('')
+  const [loadError, setLoadError] = useState('')
 
-  // Save flow state
   const [isSaving, setIsSaving] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
-  const [confirmDialog, setConfirmDialog] = useState(false)
+  const [confirmSave, setConfirmSave] = useState(false)
   const [toast, setToast] = useState(null)
+  const [now, setNow] = useState(Date.now())
 
-  const showToast = useCallback((message, type = 'success') => {
+  // Rate is derived from observed count deltas rather than asked of the
+  // backend: the operator needs to see the line moving, not an exact figure.
+  const rateRef = useRef({ lastCount: 0, lastAt: null, perMin: null })
+  const [rate, setRate] = useState(null)
+  const toastTimer = useRef(null)
+
+  const userId = user?.id != null ? String(user.id) : 'unknown'
+
+  const showToast = useCallback((message, type = 'success', undoId = null) => {
     const id = Date.now()
-    setToast({ id, message, type })
-    setTimeout(() => setToast(prev => prev?.id === id ? null : prev), 3500)
+    setToast({ id, message, type, undoId })
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(
+      () => setToast(prev => (prev?.id === id ? null : prev)),
+      undoId != null ? UNDO_WINDOW_MS : 3500
+    )
   }, [])
+
+  const fetchState = useCallback(async () => {
+    try {
+      const res = await rawApi.get('/get_state')
+      const d = res.data || {}
+      setActive(!!d.active)
+      setDevice({ id: d.device_id || null, name: d.device_name || null })
+      setSession(d.session || null)
+      setLoadError('')
+
+      const r2 = await rawApi.get('/get_count')
+      setCount(r2.data.count || 0)
+
+      if (d.device_id) {
+        try {
+          const ls = await axios.get(`/api/v1/devices/${d.device_id}/lock_status`)
+          const data = ls?.data
+          if (data?.locked && data.locked_by !== userId) {
+            setLockWarning('In use by another user')
+          } else setLockWarning('')
+        } catch { /* lock status is advisory; never block the screen on it */ }
+      }
+    } catch (e) {
+      setLoadError(e.response?.data?.message || 'Could not reach the counter service.')
+    }
+  }, [userId])
 
   useEffect(() => {
     fetchState()
     if (typeof window !== 'undefined' && window.io) {
+      setHasSocket(true)
       const socket = window.io()
       socket.on('connect', () => { setSocketConnected(true); fetchState() })
       socket.on('disconnect', () => setSocketConnected(false))
@@ -79,204 +133,237 @@ export default function Counter() {
       socket.on('counting_state', d => {
         setActive(!!d.active)
         if (!d.active) setLockWarning('')
+        fetchState()
       })
-      const interval = setInterval(fetchState, 5000)
-      return () => {
-        clearInterval(interval)
-        socket.off('reading')
-        socket.off('counting_state')
-        socket.disconnect()
-      }
+      const poll = setInterval(fetchState, 5000)
+      return () => { clearInterval(poll); socket.off('reading'); socket.off('counting_state'); socket.disconnect() }
     }
-  }, [])
+    // No socket transport: fall back to polling so the count still advances.
+    const poll = setInterval(fetchState, 2000)
+    return () => clearInterval(poll)
+  }, [fetchState])
 
-  async function fetchState() {
-    try {
-      const res = await rawApi.get('/get_state')
-      setActive(!!res.data.active)
-      const r2 = await rawApi.get('/get_count')
-      setCount(r2.data.count || 0)
-      try {
-        const uid = getUserId()
-        const ls = await axios.get(`/api/v1/devices/${DEVICE_ID}/lock_status`)
-        const data = ls?.data
-        if (!data || typeof data !== 'object') { setLockWarning('') }
-        else if (data.locked) {
-          setLockWarning(data.locked_by === uid ? 'You have the lock' : `Device locked by ${data.locked_by}`)
-        } else { setLockWarning('') }
-      } catch { /* ignore */ }
-    } catch (e) { console.error(e) }
-  }
+  // Ticks the elapsed clock while a run is open.
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active])
+
+  // Track throughput across count updates.
+  useEffect(() => {
+    if (!active) {
+      rateRef.current = { lastCount: count, lastAt: null, perMin: null }
+      setRate(null)
+      return
+    }
+    const r = rateRef.current
+    const at = Date.now()
+    if (r.lastAt && count > r.lastCount) {
+      const minutes = (at - r.lastAt) / 60000
+      if (minutes > 0.02) {
+        const instant = (count - r.lastCount) / minutes
+        // Smoothed: raw per-tick rates swing too hard to read at a glance.
+        r.perMin = r.perMin == null ? instant : r.perMin * 0.7 + instant * 0.3
+        setRate(Math.round(r.perMin))
+        r.lastCount = count
+        r.lastAt = at
+      }
+    } else if (!r.lastAt) {
+      r.lastCount = count
+      r.lastAt = at
+    }
+  }, [count, active])
+
+  const startedAt = session?.started_at
+    ? new Date(session.started_at.replace(' ', 'T')).getTime()
+    : null
+  const elapsed = active && startedAt ? now - startedAt : null
 
   async function start() {
     try {
-      const uid = getUserId()
-      const lockRes = await axios.post(`/api/v1/devices/${DEVICE_ID}/lock`, { user_id: uid })
-      if (lockRes?.data?.status === 'ok') {
-        setLockWarning(`Locked by ${uid}`)
-        await rawApi.get('/start')
-        setActive(true)
-        showToast('Started counting…')
-        // Reset save state for a new counting session
-        setIsSaved(false)
-        poll()
-      } else { showToast('Failed to acquire lock', 'error') }
+      if (device.id) {
+        const lockRes = await axios.post(`/api/v1/devices/${device.id}/lock`, { user_id: userId })
+        if (lockRes?.data?.status !== 'ok') {
+          showToast('Could not reserve the counter', 'error')
+          return
+        }
+      }
+      await rawApi.get(`/start?variant=${encodeURIComponent(VARIANT)}`)
+      setActive(true)
+      showToast('Counting started')
+      fetchState()
     } catch (e) {
       const err = e.response?.data
       if (err?.status === 'locked') {
-        showToast('Device is locked by another user', 'error')
-        setLockWarning(`Locked by ${err.locked_by || 'someone'}`)
-      } else { showToast(e.response?.data?.message || 'Failed to start', 'error') }
+        showToast('Another user is counting right now', 'error')
+        setLockWarning('In use by another user')
+      } else {
+        showToast(err?.message || 'Could not start counting', 'error')
+      }
     }
   }
 
-  async function stop() {
-    try {
-      await rawApi.get('/stop')
-      setActive(false)
-      const r = await rawApi.get('/get_count')
-      setCount(r.data.count || 0)
-      showToast('Stopped')
-      setLockWarning('')
-      try {
-        const uid = getUserId()
-        await axios.post(`/api/v1/devices/${DEVICE_ID}/unlock`, { user_id: uid })
-      } catch { /* ignore */ }
-    } catch (e) {
-      fetchState()
-      showToast(e.response?.data?.message || 'Failed to stop', 'error')
+  async function stopCounting() {
+    await rawApi.get('/stop')
+    setActive(false)
+    if (device.id) {
+      try { await axios.post(`/api/v1/devices/${device.id}/unlock`, { user_id: userId }) }
+      catch { /* advisory */ }
     }
   }
 
-  async function poll() {
-    if (!active) return
-    try {
-      const r = await rawApi.get('/get_count')
-      setCount(r.data.count || 0)
-    } catch { /* ignore */ }
-    setTimeout(poll, 1000)
-  }
-
-  // ── Save handlers with confirmation ────────────────────────
-
-  function requestSave() {
-    if (isSaving || isSaved) return
-    setConfirmDialog(true)
-  }
-
-  async function handleConfirmSave() {
-    if (isSaving || isSaved || !confirmDialog) return
+  /* One action. Stopping and saving used to be two steps with a disabled
+     button in between and nothing on screen explaining why. */
+  async function handleStopAndSave() {
     setIsSaving(true)
     try {
-      await rawApi.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
-      showToast('Saved to inventory')
-      // Reset count on backend and locally so re-saving is impossible even after tab switch
-      try { await rawApi.post('/update_count', { count: 0 }) } catch { /* ignore */ }
+      if (active) await stopCounting()
+      const fresh = (await rawApi.get('/get_count')).data.count || 0
+      const toSave = fresh || count
+      if (toSave <= 0) {
+        showToast('Nothing counted to save', 'error')
+        return
+      }
+
+      const res = await rawApi.post('/save_inventory',
+        { count: toSave, variant: VARIANT, notes: '', action: 'WHOLESALE' })
+      try { await rawApi.post('/update_count', { count: 0 }) } catch { /* best effort */ }
       setCount(0)
-      setIsSaved(true)
-    } catch {
-      showToast('Save failed', 'error')
+      showToast(`Saved ${toSave.toLocaleString()} ${VARIANT}`, 'success', res.data?.id ?? null)
+      fetchState()
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Save failed', 'error')
     } finally {
       setIsSaving(false)
-      setConfirmDialog(false)
+      setConfirmSave(false)
     }
   }
 
-  const saveDisabled = count <= 0 || isSaving || isSaved || active
+  async function handleUndo() {
+    const id = toast?.undoId
+    if (id == null) return
+    setToast(null)
+    try {
+      await rawApi.post(`/undo_save/${id}`)
+      showToast('Save undone')
+      fetchState()
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Could not undo', 'error')
+    }
+  }
+
+  const offline = hasSocket && !socketConnected
+  const canSave = count > 0 && !isSaving
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      {/* Save confirmation modal */}
+    /* Sized to the shortest screen this runs on — a 1024x600 Pi panel — so the
+       count and both controls are reachable without scrolling. */
+    <div className="flex flex-col gap-3" style={{ minHeight: 'calc(100vh - 4rem)' }}>
+
       <Modal
-        open={!!confirmDialog}
-        onClose={() => !isSaving && setConfirmDialog(false)}
-        title="Save to Inventory?"
+        open={confirmSave}
+        onClose={() => !isSaving && setConfirmSave(false)}
+        title="Save this count?"
         size="sm"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setConfirmDialog(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button variant="primary" icon={Save} loading={isSaving} onClick={handleConfirmSave}>
-              {isSaving ? 'Saving…' : 'Confirm'}
+            <Button variant="ghost" onClick={() => setConfirmSave(false)} disabled={isSaving}>Cancel</Button>
+            <Button variant="primary" icon={Save} loading={isSaving} onClick={handleStopAndSave}>
+              {isSaving ? 'Saving…' : 'Save'}
             </Button>
           </>
         }
       >
         <p className="text-sm text-text-secondary">
-          Are you sure you want to save {count} {variant} fish to inventory? This cannot be undone.
+          {count.toLocaleString()} {VARIANT} will be added to inventory.
+          You can undo this for a short time afterwards.
         </p>
       </Modal>
 
-      {/* Toast */}
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast toast={toast} onUndo={handleUndo} />
 
-      <PageHeader
-        title="AI Fish Counter"
-        actions={
-          <StatusIndicator
-            status={socketConnected ? 'active' : 'idle'}
-            label={socketConnected ? 'Live Connected' : 'Disconnected'}
-          />
-        }
-      />
+      {/* ── Context strip: everything about the run in one line ── */}
+      <div className="glass-card px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs shrink-0">
+        <span className="font-bold text-text-primary">{VARIANT}</span>
+        <span className="text-text-muted">
+          {device.name || (device.id ? `Counter ${device.id.slice(0, 8)}` : 'No counter device')}
+        </span>
+        <span className="text-text-muted">{session?.username || user?.username || '—'}</span>
+        {active && <span className="text-text-muted tabular-nums">{formatElapsed(elapsed)} elapsed</span>}
+        <span className="ml-auto inline-flex items-center gap-2 font-semibold">
+          <span className={`h-2 w-2 rounded-full ${active ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
+          <span className={active ? 'text-accent-green' : 'text-text-muted'}>
+            {active ? 'Counting' : 'Idle'}
+          </span>
+        </span>
+      </div>
 
-      {lockWarning && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center gap-2 rounded-xl border border-accent-amber/20 bg-accent-amber/10
-            px-4 py-2 text-sm font-semibold text-accent-amber"
-        >
-          <Lock className="w-4 h-4 shrink-0" /> {lockWarning}
-        </motion.div>
+      {offline && (
+        <div className="flex items-center gap-2 rounded-lg border border-accent-amber/25 bg-accent-amber/10
+          px-4 py-2 text-xs font-semibold text-accent-amber shrink-0">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          Live updates disconnected — the count may be behind. Reconnecting…
+        </div>
       )}
 
-      {/* Controls */}
-      <Card>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-2 basis-full sm:basis-auto sm:min-w-[160px]">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variant</label>
-            <select value={variant} onChange={e => setVariant(e.target.value)} className="neu-input w-full">
-              <option>SPIN_20</option>
-            </select>
-          </div>
-          <Button className="flex-1 sm:flex-none" variant="primary" size="lg" icon={Play} disabled={active} onClick={start}>
-            Start
-          </Button>
-          <Button className="flex-1 sm:flex-none" variant="danger" size="lg" icon={Square} disabled={!active} onClick={stop}>
-            Stop
-          </Button>
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent-red/25 bg-accent-red/10
+          px-4 py-2 text-xs font-semibold text-accent-red shrink-0">
+          {loadError}
+          <button onClick={fetchState} className="underline underline-offset-2 hover:no-underline">Retry</button>
         </div>
-      </Card>
+      )}
 
-      {/* Count Display */}
-      <Card className="text-center">
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Current Count</h3>
-        <div className="relative">
-          <p className="text-6xl sm:text-8xl font-black text-accent-green leading-none">
-            {count}
-          </p>
-          {active && (
-            <div className="absolute -inset-4 rounded-2xl"
-              style={{ boxShadow: '0 0 30px rgba(124, 179, 66, 0.12)' }} />
-          )}
+      {lockWarning && (
+        <div className="flex items-center gap-2 rounded-lg border border-accent-amber/25 bg-accent-amber/10
+          px-4 py-2 text-xs font-semibold text-accent-amber shrink-0">
+          <Lock className="w-4 h-4 shrink-0" /> {lockWarning}
         </div>
+      )}
 
-        <div className="mt-6 flex items-center justify-center">
-          <Button
-            variant="primary"
-            size="lg"
-            icon={isSaved ? CheckCircle2 : Save}
-            loading={isSaving}
-            disabled={saveDisabled}
-            className={isSaved ? 'opacity-40 cursor-not-allowed saturate-0' : ''}
-            onClick={requestSave}
-          >
-            {isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save to Inventory'}
-          </Button>
-        </div>
-      </Card>
+      {/* ── The count fills the frame. It is the only thing on this screen
+             anyone reads from across a room. ── */}
+      <div className="glass-card flex-1 min-h-0 flex flex-col items-center justify-center gap-2 p-4">
+        <p className="text-xs font-bold text-text-muted uppercase tracking-wider">Fish counted</p>
+        <p className="font-bold tabular-nums leading-none text-accent-green"
+          style={{ fontSize: 'clamp(3.5rem, 16vh, 8rem)' }}>
+          {count.toLocaleString()}
+        </p>
+        <p className="text-sm text-text-muted tabular-nums h-5">
+          {active
+            ? (rate != null ? `${rate.toLocaleString()} fish/min` : 'measuring rate…')
+            : count > 0 ? 'Stopped — ready to save' : 'Press Start to begin'}
+        </p>
+      </div>
+
+      {/* ── Actions pinned to the bottom, thumb height, always in the same place ── */}
+      <div className="grid grid-cols-2 gap-3 shrink-0">
+        <Button
+          variant={active ? 'secondary' : 'primary'}
+          icon={Play}
+          disabled={active}
+          onClick={start}
+          className="!py-0 h-16 text-base font-bold"
+        >
+          {active ? 'Counting…' : 'Start'}
+        </Button>
+        <Button
+          variant={canSave ? 'primary' : 'secondary'}
+          icon={Save}
+          loading={isSaving}
+          disabled={!canSave}
+          onClick={() => setConfirmSave(true)}
+          className="!py-0 h-16 text-base font-bold"
+        >
+          {active ? 'Stop & Save' : 'Save'}
+        </Button>
+      </div>
+      {!canSave && !active && count === 0 && (
+        <p className="text-xs text-text-muted text-center shrink-0 -mt-1">
+          Save becomes available once fish have been counted.
+        </p>
+      )}
     </div>
   )
 }

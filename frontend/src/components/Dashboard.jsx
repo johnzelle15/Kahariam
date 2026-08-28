@@ -28,6 +28,7 @@ const ACTIVITY = {
   SOLD:         { label: 'Sold',    dot: 'bg-accent-blue',  text: 'text-accent-blue' },
   DIED:         { label: 'Died',    dot: 'bg-accent-red',   text: 'text-accent-red' },
   UNKNOWN:      { label: 'Moved',   dot: 'bg-text-muted',   text: 'text-text-muted' },
+  ABORTED:      { label: 'Stopped', dot: 'bg-text-muted',   text: 'text-text-muted' },
 }
 
 const formatCurrency = v => {
@@ -640,6 +641,8 @@ export default function Dashboard() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [lowStockAlerts, setLowStockAlerts] = useState([])
   const [socketConnected, setSocketConnected] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [sessions, setSessions] = useState([])
   const [kpiModal, setKpiModal] = useState(null) // { label, value, color, icon, details }
   // One range + one daily-trend fetch, shared by SalesTrend and AnalyticsInsights
   const [range, setRange] = useState({ days: 7, start: '', end: '', custom: false })
@@ -655,34 +658,43 @@ export default function Dashboard() {
       : `days=${range.days}`
     rawApi.get(`/api/daily-trend?${qs}`)
       .then(res => { if (!cancelled) setDailyData(res.data?.data || []) })
-      .catch(e => console.error('Failed to load daily trend', e))
+      .catch(() => { if (!cancelled) setLoadError('Could not load the sales trend.') })
       .finally(() => { if (!cancelled) setTrendLoading(false) })
     return () => { cancelled = true }
   }, [range, stats]) // stats changes on each new reading, so the trend refreshes with it
 
   useEffect(() => {
-    loadStats(); loadLowStock()
+    reload()
     if (typeof window !== 'undefined' && window.io) {
       const socket = window.io()
       socket.on('connect', () => setSocketConnected(true))
       socket.on('disconnect', () => setSocketConnected(false))
-      socket.on('reading', () => { loadStats(); loadLowStock() })
-      socket.on('counting_state', () => { loadStats(); loadLowStock() })
+      socket.on('reading', () => reload())
+      socket.on('counting_state', () => reload())
       return () => { socket.disconnect?.() }
     }
   }, [])
 
+  function reload() { loadStats(); loadLowStock(); loadSessions() }
+
   async function loadLowStock() {
     try { setLowStockAlerts((await rawApi.get('/api/low-stock')).data.alerts || []) }
-    catch (e) { console.error('Failed to load low stock', e) }
+    catch { setLoadError('Could not load stock levels.') }
+  }
+
+  async function loadSessions() {
+    try { setSessions((await rawApi.get('/api/sessions?limit=6')).data.sessions || []) }
+    catch { /* sessions are supplementary; the activity list falls back to movements */ }
   }
 
   async function loadStats() {
     setStatsLoading(true)
     try {
       setStats((await rawApi.get('/get_statistics')).data)
-    } catch (e) { console.error('Failed to load stats', e) }
-    finally { setStatsLoading(false) }
+      setLoadError('')
+    } catch {
+      setLoadError('Could not load dashboard data.')
+    } finally { setStatsLoading(false) }
   }
 
   const yday = stats?.yesterday || {}
@@ -694,6 +706,63 @@ export default function Dashboard() {
   const outflowRate = avgDailyOutflow(dailyData, 7)
   const cover = daysOfCover(stockOnHand, outflowRate)
   const stockTone = stockStatus(stockOnHand, cover)
+
+  /* One activity stream. Counting runs come from counting_sessions, which know
+     who ran them and for how long; sales and losses come from inventory. A run
+     that reached inventory is dropped from the movement side so it appears once,
+     while movements predating session tracking still show. */
+  const sessionInventoryIds = new Set(
+    sessions.map(s => s.inventory_id).filter(id => id != null)
+  )
+
+  function sessionDuration(s) {
+    if (!s.started_at || !s.ended_at) return null
+    const ms = new Date(s.ended_at.replace(' ', 'T')) - new Date(s.started_at.replace(' ', 'T'))
+    if (!(ms > 0)) return null
+    const mins = Math.floor(ms / 60000)
+    const secs = Math.floor((ms % 60000) / 1000)
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+  }
+
+  const SESSION_STATUS_NOTE = {
+    saved: 'saved to inventory',
+    completed: 'counted, not yet saved',
+    aborted: 'stopped with no count',
+    active: 'in progress',
+  }
+
+  const activityFeed = [
+    ...sessions.map(s => {
+      const dur = sessionDuration(s)
+      return {
+        key: `s${s.id}`,
+        at: s.ended_at || s.started_at || '',
+        date: (s.ended_at || s.started_at || '').slice(0, 16),
+        // An aborted run counted nothing; "Stopped 0 SPIN_20" reads as a quantity
+        // when the point is that there wasn't one.
+        count: s.status === 'aborted' ? null : Number(s.final_count || 0),
+        variant: s.status === 'aborted' ? '' : (s.variant || ''),
+        kind: s.status === 'aborted' ? ACTIVITY.ABORTED : ACTIVITY.WHOLESALE_IN,
+        note: [s.username, dur, SESSION_STATUS_NOTE[s.status]].filter(Boolean).join(' · '),
+        noteFallback: false,
+      }
+    }),
+    ...(stats?.recent_additions || [])
+      .filter(r => !sessionInventoryIds.has(r.id))
+      .map(r => {
+        const note = getNoteDisplay(r.notes, r.action)
+        return {
+          key: `i${r.id}`,
+          at: r.date || '',
+          date: r.date,
+          count: Math.abs(Number(r.count) || 0),
+          variant: r.variant,
+          kind: ACTIVITY[getRecordType(r)] || ACTIVITY.UNKNOWN,
+          note: note.text,
+          noteFallback: note.isFallback,
+        }
+      }),
+  ].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 6)
 
   // Today's outflow in units — the trend series' last row is always today.
   const soldToday = dailyData.length > 0 ? Number(dailyData[dailyData.length - 1].sold_total || 0) : 0
@@ -793,6 +862,16 @@ export default function Dashboard() {
         actions={socketConnected && <StatusIndicator status="active" label="Live" />}
       />
 
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent-red/25
+          bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red">
+          {loadError}
+          <button onClick={reload} className="underline underline-offset-2 hover:no-underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {statsLoading ? (
@@ -835,29 +914,26 @@ export default function Dashboard() {
               <Skeleton width="90%" height={18} />
               <Skeleton width="95%" height={18} />
             </div>
-          ) : (!stats?.recent_additions || stats.recent_additions.length === 0) ? (
+          ) : activityFeed.length === 0 ? (
             <EmptyState icon={Fish} title="No recent entries" message="Counting sessions and sales will show up here." />
           ) : (
-            <div className="space-y-0.5">
-              {stats.recent_additions.map(r => {
-                const note = getNoteDisplay(r.notes, r.action)
-                const kind = ACTIVITY[getRecordType(r)] || ACTIVITY.UNKNOWN
-                return (
-                  <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-white/[0.02]">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${kind.dot}`} />
-                    <span className="text-xs text-text-muted font-medium tabular-nums min-w-[90px] sm:min-w-[110px]">{r.date}</span>
-                    {/* Magnitude, not the stored sign — "-65560" is a database detail. */}
-                    <span className="text-sm font-semibold text-text-primary">
-                      <span className={kind.text}>{kind.label}</span>{' '}
-                      <span className="tabular-nums">{Math.abs(Number(r.count) || 0).toLocaleString()}</span>{' '}
-                      {r.variant}
-                    </span>
-                    <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${note.isFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
-                      {note.text}
-                    </span>
-                  </div>
-                )
-              })}
+            <div className="space-y-0.5 max-h-[26rem] overflow-y-auto">
+              {activityFeed.map(item => (
+                <div key={item.key} className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-white/[0.02]">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.kind.dot}`} />
+                  <span className="text-xs text-text-muted font-medium tabular-nums min-w-[90px] sm:min-w-[110px]">{item.date}</span>
+                  {/* Magnitude, not the stored sign — "-65560" is a database detail. */}
+                  <span className="text-sm font-semibold text-text-primary">
+                    <span className={item.kind.text}>{item.kind.label}</span>
+                    {item.count != null && (
+                      <> <span className="tabular-nums">{item.count.toLocaleString()}</span> {item.variant}</>
+                    )}
+                  </span>
+                  <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${item.noteFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
+                    {item.note}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </motion.div>

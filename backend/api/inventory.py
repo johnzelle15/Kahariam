@@ -12,6 +12,7 @@ WHOLESALE_LINK_MARKER_PATTERN = re.compile(r"\[AUTO_LINK:WHOLESALE_PARENT_ID=(\d
 
 # Company sells wholesale only — one flat price per fish, no retail tier.
 PRICE_PER_FISH = float(os.environ.get('PRICE_PER_FISH', '0.40'))
+UNDO_WINDOW_SECONDS = int(os.environ.get('UNDO_WINDOW_SECONDS', '120'))
 
 # Minimum fish per wholesale OUT submit. 0 disables the rule entirely
 # (every check below becomes vacuously false). Was 300.
@@ -226,9 +227,26 @@ def save_inventory():
         VALUES (?, ?, ?, ?, ?, ?)
     ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes, action, tx_type))
     conn.commit()
+
+    # Link the run that produced this count, so a session records whether it
+    # ever reached inventory. Best-effort: a bookkeeping failure must not
+    # invalidate a save that already committed.
+    try:
+        inventory_id = getattr(c, 'lastrowid', None)
+        c.execute(
+            "UPDATE counting_sessions SET status='saved', inventory_id=? "
+            "WHERE status='completed' AND inventory_id IS NULL "
+            'ORDER BY id DESC LIMIT 1',
+            (inventory_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[WARN] could not link session to inventory row: {e}")
+
     conn.close()
-    
-    return jsonify({"status": "success", "message": f"Saved {count} {variant} fish to inventory!"})
+
+    return jsonify({"status": "success", "id": inventory_id,
+                    "message": f"Saved {count} {variant} fish to inventory!"})
 
 
 @inventory_bp.route('/get_inventory')
@@ -377,6 +395,52 @@ def delete_inventory(id):
     conn.close()
 
     return jsonify({"status": "success", "message": "Record moved to archive"})
+
+
+@inventory_bp.route('/undo_save/<int:record_id>', methods=['POST'])
+@require_auth
+def undo_save(record_id):
+    """Reverse a counting save, stock effect included.
+
+    Distinct from /delete_inventory, which archives a row for UI purposes
+    while it keeps counting toward stock. Undo sets `deleted`, so the fish
+    leave the totals as well as the list.
+
+    Time-boxed to UNDO_WINDOW_SECONDS so this stays an undo of the save the
+    operator just made, not a way to rewrite arbitrary history.
+    """
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, date, deleted FROM inventory WHERE id = ?', (record_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': 'Record not found'}), 404
+    if int(_row_value(row, 'deleted', 2, 0) or 0) == 1:
+        conn.close()
+        return jsonify({'status': 'success', 'message': 'Already undone'})
+
+    saved_at = _row_value(row, 'date', 1)
+    if not isinstance(saved_at, datetime):
+        try:
+            saved_at = datetime.strptime(str(saved_at), '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            saved_at = None
+    if saved_at and (datetime.now() - saved_at).total_seconds() > UNDO_WINDOW_SECONDS:
+        conn.close()
+        return jsonify({'status': 'error',
+                        'message': 'Too late to undo. Correct this from Inventory instead.'}), 409
+
+    c.execute('UPDATE inventory SET deleted = 1 WHERE id = ?', (record_id,))
+    # The run no longer reached inventory, so it is completed, not saved.
+    try:
+        c.execute("UPDATE counting_sessions SET status='completed', inventory_id=NULL "
+                  'WHERE inventory_id = ?', (record_id,))
+    except Exception as e:
+        print(f"[WARN] could not unlink session on undo: {e}")
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'message': 'Save undone'})
 
 
 @inventory_bp.route('/clear_inventory', methods=['POST'])

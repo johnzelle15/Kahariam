@@ -194,6 +194,25 @@ def init_db():
         ''')
         conn.commit()
 
+    if not table_exists('counting_sessions'):
+        c.execute('''
+            CREATE TABLE counting_sessions (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                device_id VARCHAR(255) NULL,
+                user_id BIGINT UNSIGNED NULL,
+                username VARCHAR(120) NULL,
+                variant VARCHAR(255) NULL,
+                started_at DATETIME NOT NULL,
+                ended_at DATETIME NULL,
+                final_count INT NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL DEFAULT 'active',
+                inventory_id INT NULL,
+                INDEX idx_sessions_started (started_at),
+                INDEX idx_sessions_status (status)
+            )
+        ''')
+        conn.commit()
+
     dev_token = os.environ.get('DEV_DEVICE_TOKEN')
     raw = conn._conn.cursor()
     raw.execute('SELECT COUNT(*) as cnt FROM devices')
