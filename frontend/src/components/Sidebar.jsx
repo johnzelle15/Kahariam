@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import logoImg from '../assets/logo.png'
+import logoImg from '../assets/logo.svg'
 import {
   LayoutDashboard,
   ScanLine,
@@ -130,9 +130,15 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       {/* Logo */}
       <div className={`flex items-center gap-3 px-5 py-6 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
-        <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden">
-          <img src={logoImg} alt="Kahariam Farms Logo" className="w-full h-full object-cover" />
-        </div>
+        {/* object-contain, not cover: the mark is wider than it is tall, so
+            cover was cropping its sides off inside the square. The SVG is
+            transparent, so it needs no tile behind it. When the rail is
+            collapsed the mark is the only branding left, so it keeps a label. */}
+        <img
+          src={logoImg}
+          alt={!isMobile && collapsed ? 'Kahariam Farms' : ''}
+          className="w-9 h-9 flex-shrink-0 object-contain"
+        />
         {(isMobile || !collapsed) && (
           <div className="overflow-hidden flex-1">
             <h1 className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
