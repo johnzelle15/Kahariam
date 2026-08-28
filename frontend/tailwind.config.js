@@ -20,14 +20,11 @@ export default {
           hover: 'var(--glass-bg-hover)',
         },
         accent: {
-          purple: 'var(--accent-purple)',
-          blue: 'var(--accent-blue)',
-          cyan: 'var(--accent-cyan)',
           green: 'var(--accent-green)',
-          teal: 'var(--accent-teal)',
-          red: 'var(--accent-red)',
+          blue: 'var(--accent-blue)',
           amber: 'var(--accent-amber)',
-          terracotta: 'var(--accent-terracotta)',
+          red: 'var(--accent-red)',
+          purple: 'var(--accent-purple)',
         },
         text: {
           primary: 'var(--text-primary)',
@@ -36,7 +33,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['Inter Variable', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       borderRadius: {
         '2xl': '1rem',

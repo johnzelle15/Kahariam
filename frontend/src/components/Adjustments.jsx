@@ -130,7 +130,7 @@ export default function Adjustments() {
     const parts = text.split(regex)
     return parts.map((part, i) =>
       regex.test(part)
-        ? <mark key={i} className="bg-accent-purple/30 text-accent-purple rounded-sm px-0.5 font-semibold">{part}</mark>
+        ? <mark key={i} className="bg-accent-amber/25 text-accent-amber rounded-sm px-0.5 font-semibold">{part}</mark>
         : part
     )
   }
@@ -325,7 +325,7 @@ export default function Adjustments() {
       {/* Adjust Stock Form */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.35 }}
         className="glass-card p-4 sm:p-6"
       >
@@ -447,8 +447,8 @@ export default function Adjustments() {
       {/* History */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.35 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
         className="glass-card p-4 sm:p-6"
       >
         <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">
@@ -467,7 +467,7 @@ export default function Adjustments() {
                 value={searchInput}
                 onChange={e => handleSearchChange(e.target.value)}
                 placeholder="Search notes, dates, days..."
-                className="neu-input w-full pl-10 pr-8 py-[7px] text-xs transition-all duration-200 focus:ring-1 focus:ring-accent-purple/30"
+                className="neu-input w-full pl-10 pr-8 py-[7px] text-xs transition-all duration-200 focus:ring-1 focus:ring-accent-green/30"
               />
               {searchInput && (
                 <button onClick={clearSearch}
@@ -482,7 +482,7 @@ export default function Adjustments() {
               <input type="date" value={searchStartDate}
                 onChange={e => { setSearchStartDate(e.target.value); setPage(1) }}
                 className="neu-input text-xs py-[7px] px-2" />
-              <span className="text-text-muted/40 text-[10px]">–</span>
+              <span className="text-text-muted/40 text-xs">–</span>
               <input type="date" value={searchEndDate}
                 onChange={e => { setSearchEndDate(e.target.value); setPage(1) }}
                 className="neu-input text-xs py-[7px] px-2" />
@@ -512,20 +512,20 @@ export default function Adjustments() {
           {/* Active filter tags */}
           {(searchQuery || searchStartDate || searchEndDate) && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-white/[0.04]">
-              <span className="text-[9px] text-text-muted/50 font-medium uppercase tracking-wider">Filters:</span>
+              <span className="text-xs text-text-muted/50 font-medium uppercase tracking-wider">Filters:</span>
               {searchQuery && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-purple/10 text-accent-purple border border-accent-purple/15">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
                   {searchQuery}
                   <button onClick={clearSearch} className="hover:text-white transition-colors"><X className="w-2 h-2" /></button>
                 </span>
               )}
               {searchStartDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
                   {searchStartDate}
                 </span>
               )}
               {searchEndDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
                   {searchEndDate}
                 </span>
               )}
@@ -543,7 +543,7 @@ export default function Adjustments() {
             </p>
             {(searchQuery || searchStartDate || searchEndDate) && (
               <button onClick={() => { clearSearch(); clearDateFilter() }}
-                className="mt-2 text-xs font-bold text-accent-purple hover:text-accent-purple/80 transition-colors">
+                className="mt-2 text-xs font-bold text-accent-green hover:text-accent-green/80 transition-colors">
                 Clear all filters
               </button>
             )}
@@ -583,7 +583,7 @@ export default function Adjustments() {
                         {/* One badge only — the reason implies the direction, and the
                             tint plus arrow already carry it. Falls back to IN/OUT
                             when a row has no Sold/Died reason. */}
-                        <span className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
+                        <span className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider
                           ${isDied ? 'bg-accent-amber/20 text-accent-amber'
                             : reasonTag ? 'bg-accent-blue/20 text-accent-blue'
                             : isOut ? 'bg-accent-red/20 text-accent-red'
@@ -621,7 +621,7 @@ export default function Adjustments() {
               <button key={p} onClick={() => goPage(p)}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all
                   ${p === page
-                    ? 'bg-gradient-to-r from-accent-green to-accent-teal text-white shadow-lg shadow-accent-green/20'
+                    ? 'bg-accent-green text-[var(--on-accent)]'
                     : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
                   }`}>{p}</button>
             ))}
@@ -671,8 +671,8 @@ export default function Adjustments() {
                 {confirmSubmit.items.map((item, i) => (
                   <motion.div key={i}
                     initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.15 }}
                     className="flex items-center justify-between p-2.5 rounded-xl border"
                     style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                     <span className="flex items-center gap-2">

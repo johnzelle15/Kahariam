@@ -1,3 +1,7 @@
+/* Self-hosted so it loads on a farm Pi with no internet — and so the app's own
+   CSP (default-src 'self') doesn't have to be widened to a third-party host. */
+@import '@fontsource-variable/inter';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,33 +18,37 @@
   --bg-tertiary: 42 53 41;
   --bg-elevated: 56 68 55;
 
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-bg-hover: rgba(255, 255, 255, 0.055);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-border-hover: rgba(255, 255, 255, 0.10);
+  /* Solid surfaces, not translucency: nothing sits behind these cards, so the
+     blur cost bought no visual effect — and borders at 6% read as absent. */
+  --glass-bg: #1c231c;
+  --glass-bg-hover: #222a21;
+  --glass-border: rgba(255, 255, 255, 0.11);
+  --glass-border-hover: rgba(255, 255, 255, 0.18);
 
   --text-primary: #edefe9;
   --text-secondary: #b7c2b0;
   --text-muted: #8fa089;
 
-  --accent-purple: #a78bfa;
-  --accent-blue: #6fa0af;
-  --accent-cyan: #22d3ee;
+  /* Four roles, not eight hues. Green is brand + primary + positive; amber and
+     red are status only; blue marks outbound movement and non-admin identity.
+     --accent-purple survives solely as the admin-role identity chip, desaturated
+     to sit inside the olive palette instead of fighting it. */
   --accent-green: #7cb342;
-  --accent-teal: #6fb3ac;
-  --accent-red: #d97862;
+  --accent-blue: #6fa0af;
   --accent-amber: #e0a24f;
-  --accent-terracotta: #c27c52;
+  --accent-red: #d97862;
+  --accent-purple: #9a8fc4;
+  --on-accent: #16200f;
 
-  --input-bg: rgba(31, 40, 31, 0.85);
+  --input-bg: #1f281f;
   --input-border: rgba(255, 255, 255, 0.06);
   --input-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.25), inset -1px -1px 2px rgba(255, 255, 255, 0.02);
   --input-focus-shadow: 0 0 0 3px rgba(124, 179, 66, 0.16);
 
-  --sidebar-bg: rgba(22, 28, 22, 0.75);
+  --sidebar-bg: #1a201a;
   --sidebar-border: rgba(255, 255, 255, 0.05);
 
-  --tooltip-bg: rgba(31, 40, 31, 0.96);
+  --tooltip-bg: #232c22;
   --tooltip-border: rgba(255, 255, 255, 0.08);
 
   --chart-grid: rgba(255, 255, 255, 0.04);
@@ -69,33 +77,31 @@
   --bg-tertiary: 228 223 209;
   --bg-elevated: 213 207 189;
 
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-bg-hover: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(42, 46, 39, 0.08);
-  --glass-border-hover: rgba(42, 46, 39, 0.14);
+  --glass-bg: #ffffff;
+  --glass-bg-hover: #f7f5ef;
+  --glass-border: rgba(42, 46, 39, 0.14);
+  --glass-border-hover: rgba(42, 46, 39, 0.22);
 
   --text-primary: #2a2e27;
   --text-secondary: #5a6154;
-  --text-muted: #8a8f86;
+  --text-muted: #6b716a;
 
-  --accent-purple: #7c3aed;
-  --accent-blue: #4a7c8c;
-  --accent-cyan: #0891b2;
   --accent-green: #4c7a3d;
-  --accent-teal: #5e9b94;
-  --accent-red: #b5533f;
+  --accent-blue: #4a7c8c;
   --accent-amber: #d98e3b;
-  --accent-terracotta: #ad6a42;
+  --accent-red: #b5533f;
+  --accent-purple: #6b5fa8;
+  --on-accent: #ffffff;
 
-  --input-bg: rgba(255, 255, 255, 0.92);
+  --input-bg: #ffffff;
   --input-border: rgba(42, 46, 39, 0.10);
   --input-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(255, 255, 255, 0.9);
   --input-focus-shadow: 0 0 0 3px rgba(76, 122, 61, 0.14);
 
-  --sidebar-bg: rgba(255, 255, 255, 0.85);
+  --sidebar-bg: #ffffff;
   --sidebar-border: rgba(42, 46, 39, 0.06);
 
-  --tooltip-bg: rgba(255, 255, 255, 0.96);
+  --tooltip-bg: #ffffff;
   --tooltip-border: rgba(42, 46, 39, 0.08);
 
   --chart-grid: rgba(42, 46, 39, 0.06);
@@ -123,7 +129,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: rgb(var(--bg-primary));
   color: var(--text-primary);
   margin: 0;
@@ -135,18 +141,25 @@ body {
 #root { padding: 0; min-height: 100vh; }
 
 /* ═══════════════════════════════════════════
-   GLASSMORPHISM CARD
+   CARD — the single card definition.
+   The <Card> primitive renders this class, so the CSS and the React
+   component can no longer drift apart the way they had.
    ═══════════════════════════════════════════ */
 .glass-card {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 1rem;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0.75rem;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.glass-card:hover {
+/* Raised surface — reserved for P0 content, so elevation means priority. */
+.glass-card-raised {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* Hover is opt-in: a card that lights up without being clickable is noise. */
+.glass-card-interactive:hover {
   background: var(--glass-bg-hover);
   border-color: var(--glass-border-hover);
 }
@@ -166,10 +179,8 @@ body {
 .insight-card {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   padding: 0.75rem 0.875rem 0.875rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
@@ -323,11 +334,9 @@ body {
   border-radius: 0.75rem;
   font-weight: 600;
   font-size: 0.875rem;
-  color: white;
+  color: var(--on-accent);
   cursor: pointer;
-  /* Brand green/teal — matches the SalesTrend period selector and the chart
-     palette. Was purple/blue, which appears nowhere else in the product. */
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-teal));
+  background: var(--accent-green);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.05);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -395,7 +404,7 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-teal), var(--accent-amber));
+  background: var(--accent-green);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -470,7 +479,6 @@ body {
   background: var(--tooltip-bg) !important;
   border: 1px solid var(--tooltip-border) !important;
   border-radius: 0.75rem !important;
-  backdrop-filter: blur(12px) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
@@ -570,7 +578,7 @@ body {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s ease;
@@ -582,9 +590,8 @@ body {
 }
 
 .theme-pill button[data-active="true"] {
-  color: white;
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-teal));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: var(--on-accent);
+  background: var(--accent-green);
 }
 
 /* ═══════════════════════════════════════════
@@ -624,7 +631,6 @@ body {
 
 .modal-panel {
   background: rgba(15, 23, 42, 0.95);
-  backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 1.25rem;
   padding: 2rem;
@@ -728,7 +734,6 @@ html {
   border-radius: 1rem;
   background: var(--tooltip-bg);
   border: 1px solid var(--tooltip-border);
-  backdrop-filter: blur(12px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   font-size: 0.875rem;
   color: var(--text-primary);
@@ -742,7 +747,7 @@ html {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: var(--accent-blue);
-  color: white;
+  color: var(--on-accent);
   border: none;
   cursor: pointer;
   transition: opacity 0.15s ease;
@@ -792,3 +797,52 @@ html {
     font-size: 12px;
   }
 }
+
+/* ═══════════════════════════════════════════
+   REDUCED MOTION
+   Framer Motion is handled by <MotionConfig reducedMotion="user">;
+   this covers the CSS transitions and keyframes it does not see.
+   ═══════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   SIDEBAR NAV
+   Was driven by onMouseEnter/onMouseLeave handlers mutating inline styles,
+   which meant no theming, no override, and no keyboard focus state at all.
+   ═══════════════════════════════════════════ */
+.nav-item {
+  color: var(--text-muted);
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-item:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-hover);
+}
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: -2px;
+  color: var(--text-primary);
+}
+.nav-item[aria-current="page"] {
+  color: var(--text-primary);
+  background: var(--glass-bg-hover);
+}
+
+.nav-action {
+  color: var(--text-muted);
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-action:hover { color: var(--text-primary); background: var(--glass-bg-hover); }
+.nav-action:focus-visible { outline: 2px solid var(--accent-green); outline-offset: -2px; }
+
+.nav-action-danger:hover { color: var(--accent-red); background: rgba(217, 120, 98, 0.10); }
+.nav-action-danger:focus-visible { outline: 2px solid var(--accent-red); outline-offset: -2px; }

@@ -49,7 +49,6 @@ function ToastContainer({ toasts, dismiss }) {
               color: t.type === 'success' ? '#34d399'
                    : t.type === 'error'   ? '#f87171'
                    : '#60a5fa',
-              backdropFilter: 'blur(16px)',
             }}
             onClick={() => dismiss(t.id)}
           >
@@ -121,7 +120,7 @@ export default function Settings() {
             </h1>
             {/* Role badge */}
             <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider"
               style={{
                 background: isAdmin ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
                 color:      isAdmin ? 'var(--accent-purple)'   : 'var(--accent-blue)',

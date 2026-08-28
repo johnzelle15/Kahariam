@@ -38,8 +38,8 @@ function ThemeSwitcher({ collapsed }) {
     return (
       <button
         onClick={() => setTheme(next)}
-        className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer tap-feedback"
-        style={{ color: 'var(--text-muted)', background: 'var(--btn-secondary-bg)' }}
+        className="nav-action w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer tap-feedback"
+        style={{ background: 'var(--btn-secondary-bg)' }}
         title={`Theme: ${THEMES[theme].label} — click to switch`}
         aria-label={`Switch to ${THEMES[next].label} theme`}
       >
@@ -94,12 +94,10 @@ function LogoutButton({ collapsed }) {
       <>
         <button
           onClick={() => setConfirming(true)}
-          className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer"
-          style={{ color: 'var(--accent-red)', background: 'transparent' }}
+          className="nav-action nav-action-danger w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer"
+          style={{ color: 'var(--accent-red)' }}
           title="Sign out"
           aria-label="Sign out"
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
           <LogOut className="w-4 h-4" />
         </button>
@@ -112,10 +110,7 @@ function LogoutButton({ collapsed }) {
     <>
       <button
         onClick={() => setConfirming(true)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors duration-150 border-none cursor-pointer text-xs font-medium"
-        style={{ color: 'var(--text-muted)', background: 'transparent' }}
-        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+        className="nav-action nav-action-danger w-full flex items-center gap-2 px-3 py-2 rounded-lg border-none cursor-pointer text-xs font-medium"
       >
         <LogOut className="w-3.5 h-3.5" />
         <span className="truncate">{user?.username ? `Sign out (${user.username})` : 'Sign out'}</span>
@@ -143,7 +138,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
             <h1 className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
               Kahariam Farms
             </h1>
-            <p className="text-[10px] font-medium tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs font-medium tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
               Fish Management
             </p>
           </div>
@@ -171,29 +166,10 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
               className={`
-                group relative flex items-center gap-3 rounded-xl
-                transition-all duration-200 border-none cursor-pointer tap-feedback
+                nav-item group relative flex items-center gap-3 rounded-lg
+                border-none cursor-pointer tap-feedback
                 ${!isMobile && collapsed ? 'justify-center p-3' : 'px-4 py-3'}
               `}
-              style={{
-                color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                background: isActive
-                  ? 'var(--glass-bg-hover)'
-                  : 'transparent',
-                boxShadow: isActive ? '0 1px 4px rgba(0, 0, 0, 0.06)' : 'none',
-              }}
-              onMouseEnter={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'var(--glass-bg-hover)'
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-muted)'
-                }
-              }}
             >
               {isActive && (
                 <motion.div
@@ -251,9 +227,8 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
         <div className="p-3">
           <button
             onClick={onToggle}
-            className="w-full flex items-center justify-center p-2 rounded-lg
-              transition-colors duration-150 border-none cursor-pointer"
-            style={{ color: 'var(--text-muted)', background: 'var(--btn-secondary-bg)' }}
+            className="nav-action w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer"
+            style={{ background: 'var(--btn-secondary-bg)' }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -274,7 +249,6 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
         `}
         style={{
           background: 'var(--sidebar-bg)',
-          backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           borderRight: '1px solid var(--sidebar-border)',
           boxShadow: '2px 0 16px rgba(0, 0, 0, 0.12)',
@@ -302,7 +276,6 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
               className="absolute inset-y-0 left-0 w-[260px] flex flex-col"
               style={{
                 background: 'var(--sidebar-bg)',
-                backdropFilter: 'blur(24px)',
                 WebkitBackdropFilter: 'blur(24px)',
                 borderRight: '1px solid var(--sidebar-border)',
                 boxShadow: '2px 0 16px rgba(0, 0, 0, 0.25)',

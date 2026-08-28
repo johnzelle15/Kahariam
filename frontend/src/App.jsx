@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
 import Dashboard from './components/Dashboard'
 import Counter from './components/Counter'
 import Inventory from './components/Inventory'
@@ -40,15 +40,22 @@ function hasEntered() {
   try { return sessionStorage.getItem(STORAGE_KEY) === '1' } catch { return false }
 }
 
+/* A short cross-fade only. The previous slide re-animated the whole screen on
+   every tab switch, which delayed the first read of the data on the hardware
+   least able to afford it. */
 const pageVariants = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] } },
-  exit: { opacity: 0, y: -8, transition: { duration: 0.15 } },
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.12 } },
+  exit: { opacity: 0, transition: { duration: 0.08 } },
 }
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(!hasEntered())
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // Auto-collapse on tablet / Pi widths: at 1024px an expanded 240px rail is a
+  // quarter of the screen, and the manual toggle was a step every user repeated.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 1280
+  )
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const initTheme = useThemeStore(s => s.initTheme)
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
@@ -59,6 +66,13 @@ export default function App() {
   const [tab, setTabState] = useState(() => getInitialTab(role))
 
   useEffect(() => { initTheme() }, [initTheme])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1279px)')
+    const apply = e => setSidebarCollapsed(e.matches)
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
 
   // If role changes or tab is not allowed, reset to default
   useEffect(() => {
@@ -111,7 +125,6 @@ export default function App() {
           style={{
             background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.07)',
-            backdropFilter: 'blur(20px)',
             boxShadow: '0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}
         >
@@ -131,7 +144,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <AnimatePresence>
         {showWelcome && <WelcomeScreen onEnter={handleEnter} />}
       </AnimatePresence>
@@ -152,7 +165,7 @@ export default function App() {
       />
       {/* Mobile top bar */}
       <div className="fixed top-0 left-0 right-0 z-40 md:hidden flex items-center gap-3 px-4 py-3"
-        style={{ background: 'rgb(var(--bg-primary) / 0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--glass-border)' }}>
+        style={{ background: 'rgb(var(--bg-primary) / 0.95)', borderBottom: '1px solid var(--glass-border)' }}>
         <button onClick={() => setMobileMenuOpen(true)}
           className="w-9 h-9 rounded-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
           aria-label="Open menu">
@@ -163,7 +176,7 @@ export default function App() {
         <span className="text-sm font-bold text-text-primary">Kahariam Farms</span>
       </div>
       <main className="flex-1 min-w-0 transition-all duration-300">
-        <div className="p-4 pt-16 md:pt-8 md:p-8 max-w-[1400px] mx-auto">
+        <div className="p-4 pt-16 md:pt-6 md:px-6 lg:p-8 max-w-[1760px] mx-auto">
           <AnimatePresence mode="wait">
             <motion.div key={tab} variants={pageVariants} initial="initial" animate="animate" exit="exit">
               {tab === 'dashboard' && allowedTabs.has('dashboard') && <Dashboard />}
@@ -176,6 +189,6 @@ export default function App() {
         </div>
       </main>
       </motion.div>
-    </>
+    </MotionConfig>
   )
 }

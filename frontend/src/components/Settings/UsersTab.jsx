@@ -22,7 +22,7 @@ function SettingsCard({ title, description, children, action }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22 }}
       className="rounded-2xl p-5 md:p-6"
-      style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(16px)' }}
+      style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
     >
       <div className="flex items-start justify-between gap-2 mb-5">
         <div>
@@ -43,22 +43,22 @@ function Skeleton({ height = 40 }) {
 /* ── Availability indicator ─────────────────────────────────────────────────── */
 function AvailBadge({ state }) {
   if (state === 'checking') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
       <Loader2 className="w-3 h-3 animate-spin" /> Checking…
     </span>
   )
   if (state === 'available') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--accent-green)' }}>
+    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--accent-green)' }}>
       <CheckCircle className="w-3 h-3" /> Available
     </span>
   )
   if (state === 'taken') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--accent-red)' }}>
+    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--accent-red)' }}>
       <XCircle className="w-3 h-3" /> Already exists
     </span>
   )
   if (state === 'invalid') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--accent-amber)' }}>
+    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--accent-amber)' }}>
       <AlertCircle className="w-3 h-3" /> Invalid format
     </span>
   )
@@ -296,7 +296,7 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
                                unameState === 'taken'     ? '0 0 0 2px rgba(239,68,68,0.2)' : 'none',
                   }}
                 />
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   Only letters, numbers, and underscore _ allowed
                 </p>
               </div>
@@ -335,7 +335,7 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
                 }}
               />
               {!isEdit && (
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   A random password will be generated and emailed to this address.
                 </p>
               )}
@@ -343,7 +343,7 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
                 <button type="button"
                   onClick={() => staff?.email && onResendCredentials?.(staff)}
                   disabled={!staff?.email}
-                  className="self-start flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-lg text-[11px] font-medium
+                  className="self-start flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-lg text-xs font-medium
                     border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   style={{ background: 'rgba(96,165,250,0.10)', color: 'var(--accent-blue)' }}
                   title={staff?.email ? undefined : 'No email on file'}>
@@ -388,7 +388,7 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
                 { ok: unameState === 'available', label: 'Username' },
                 { ok: emailState === 'available', label: 'Email' },
               ].map(({ ok, label }) => (
-                <span key={label} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                <span key={label} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
                   style={{
                     background: ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.06)',
                     color:      ok ? 'var(--accent-green)'   : 'var(--text-muted)',
@@ -576,12 +576,12 @@ export default function UsersTab({ toast }) {
                             <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                               {member.fullname || member.username}
                             </p>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>@{member.username}</p>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>@{member.username}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
                           style={{
                             background: member.role === 'admin' ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
                             color: member.role === 'admin' ? 'var(--accent-purple)' : 'var(--accent-blue)',
@@ -660,7 +660,7 @@ export default function UsersTab({ toast }) {
                           @{log.username}
                         </td>
                         <td className="py-2.5 px-3">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold"
+                          <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
                             style={{ background: 'rgba(139,92,246,0.10)', color: 'var(--accent-purple)' }}>
                             {log.action}
                           </span>

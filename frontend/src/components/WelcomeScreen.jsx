@@ -153,7 +153,6 @@ export default function WelcomeScreen({ onEnter }) {
         <div className="relative p-8 sm:p-10 rounded-3xl border border-white/[0.08] overflow-hidden"
           style={{
             background: 'rgba(255, 255, 255, 0.03)',
-            backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
             boxShadow: '0 32px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
@@ -245,7 +244,7 @@ export default function WelcomeScreen({ onEnter }) {
                 animate={ready ? {} : { opacity: [1, 0.4, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
               />
-              <span className="text-[11px] font-medium tracking-wide"
+              <span className="text-xs font-medium tracking-wide"
                 style={{ color: ready ? '#7cb342' : '#8fa089' }}>
                 {statusText}
               </span>
@@ -288,7 +287,7 @@ export default function WelcomeScreen({ onEnter }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 1.2 }}
-              className="mt-6 text-[10px] font-medium tracking-wider"
+              className="mt-6 text-xs font-medium tracking-wider"
               style={{ color: '#4a5449' }}
             >
               KAHARIAM FARMS · FISH MANAGEMENT

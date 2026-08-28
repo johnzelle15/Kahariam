@@ -495,8 +495,8 @@ function InsightCard({ cat, items }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
       className="insight-card group/card"
     >
@@ -508,7 +508,7 @@ function InsightCard({ cat, items }) {
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${cat.iconBg}`}>
           <CatIcon className={`w-3.5 h-3.5 ${cat.color}`} />
         </div>
-        <span className={`text-[11px] font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
+        <span className={`text-xs font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
       </div>
 
       {/* Insight rows */}
@@ -516,9 +516,9 @@ function InsightCard({ cat, items }) {
         {items.map((insight, i) => (
           <motion.div
             key={i}
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.06, duration: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
             className={`insight-row${i >= MOBILE_VISIBLE && !expanded ? ' is-overflow' : ''}`}
           >
             <span className={`insight-dot ${cat.dot}`} />
@@ -537,7 +537,7 @@ function InsightCard({ cat, items }) {
               {/* Always visible: hover-reveal reserved the same height anyway and
                   was unreachable on touch, where :hover and title= never fire. */}
               {insight.detail && (
-                <span className="text-[11px] text-text-muted leading-snug block mt-0.5">
+                <span className="text-xs text-text-muted leading-snug block mt-0.5">
                   {insight.detail}
                 </span>
               )}
@@ -588,9 +588,9 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.25, duration: 0.4 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
       className="space-y-3 sm:space-y-4"
     >
       {/* Collapsed by default: this is analyst reading, not the operational view the
@@ -794,7 +794,7 @@ export default function Dashboard() {
       />
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
         ) : kpiCards.map(card => (
@@ -815,7 +815,7 @@ export default function Dashboard() {
 
       {/* ── Chart beside recent activity: uses the page width instead of stacking,
              which is what kept the dashboard two viewports tall. ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
         <div className="xl:col-span-2 min-w-0">
         {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
         <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
@@ -823,9 +823,9 @@ export default function Dashboard() {
         <div className="min-w-0">
         {/* ── Recent Sessions ── */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
           className="glass-card p-4 sm:p-6"
         >
           <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Recent Activity</h3>

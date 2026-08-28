@@ -18,7 +18,6 @@ function SettingsCard({ title, description, children }) {
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
       }}
     >
       {(title || description) && (
@@ -82,7 +81,7 @@ function RoleBadge({ role }) {
   const isAdmin = role === 'admin'
   return (
     <span
-      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider"
+      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider"
       style={{
         background: isAdmin ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
         color:      isAdmin ? 'var(--accent-purple)'   : 'var(--accent-blue)',
@@ -332,7 +331,7 @@ export default function AccountTab({ toast }) {
               />
               {/* Explain why username is locked */}
               {!isAdmin && (
-                <div className="sm:col-span-2 -mt-2 flex items-center gap-1.5 text-[11px]"
+                <div className="sm:col-span-2 -mt-2 flex items-center gap-1.5 text-xs"
                   style={{ color: 'var(--text-muted)' }}>
                   <Lock className="w-3 h-3 flex-shrink-0" />
                   Username can only be changed by an administrator.

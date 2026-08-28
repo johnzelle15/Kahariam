@@ -50,7 +50,6 @@ function SalesTooltip({ active, payload }) {
       style={{
         background: 'var(--tooltip-bg)',
         border: '1px solid var(--tooltip-border)',
-        backdropFilter: 'blur(14px)',
         boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 0 24px rgba(76,122,61,0.04)',
       }}>
       <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid var(--glass-border)' }}>
@@ -152,14 +151,13 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
 
   return (
     <motion.div ref={chartRef}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15, duration: 0.5 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
       className="rounded-2xl p-4 sm:p-6"
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(12px)',
       }}>
 
       {/* ── Header ─── */}
@@ -172,7 +170,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
             </div>
             Sales Trend
           </h3>
-          <p className="text-[10px] text-text-muted mt-1 ml-9">
+          <p className="text-xs text-text-muted mt-1 ml-9">
             {loading
               ? 'Loading…'
               : data.length > 0
@@ -184,13 +182,13 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
         {/* Export */}
         <div className="flex items-center gap-1.5">
           <button onClick={exportExcel} disabled={exporting || data.length === 0}
-            className="flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary"
+            className="flex items-center gap-1.5 text-xs sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary"
             style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
             title="Export to Excel">
             <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
           </button>
           <button onClick={exportPng} disabled={exporting || data.length === 0}
-            className="flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary"
+            className="flex items-center gap-1.5 text-xs sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary"
             style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
             title="Export as PNG">
             <Image className="w-3.5 h-3.5" /> PNG
@@ -236,7 +234,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
           <div className="flex items-center gap-2">
             <input type="date" value={range.start} onChange={e => setRange(r => ({ ...r, start: e.target.value }))}
               className="neu-input text-xs py-1.5 px-2" />
-            <span className="text-[10px] text-text-muted font-medium">to</span>
+            <span className="text-xs text-text-muted font-medium">to</span>
             <input type="date" value={range.end} onChange={e => setRange(r => ({ ...r, end: e.target.value }))}
               className="neu-input text-xs py-1.5 px-2" />
           </div>
@@ -290,8 +288,8 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
               <XAxis
                 dataKey="label"
-                stroke="#475569"
-                fontSize={10}
+                stroke="var(--chart-text)"
+                fontSize={12}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
@@ -299,14 +297,14 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
                 dy={8}
               />
               <YAxis
-                stroke="#475569"
-                fontSize={10}
+                stroke="var(--chart-text)"
+                fontSize={12}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={fmt}
                 domain={[0, 'auto']}
                 allowDecimals={false}
-                width={40}
+                width={54}
               />
               <Tooltip content={<SalesTooltip />} cursor={{ stroke: 'var(--glass-border)', strokeWidth: 1 }} />
 
@@ -365,7 +363,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
                       <td className="py-2 px-3 text-right font-semibold text-text-primary">
                         {d.sold_total}
                         {soldChange !== 0 && (
-                          <span className={`ml-1 text-[9px] ${soldChange > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                          <span className={`ml-1 text-xs ${soldChange > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                             {soldChange > 0 ? '↑' : '↓'}
                           </span>
                         )}
@@ -377,7 +375,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '1px solid var(--glass-border)', background: 'var(--glass-bg)' }}>
-                  <td className="py-2.5 px-3 font-bold text-text-primary uppercase text-[10px] tracking-wider">Total</td>
+                  <td className="py-2.5 px-3 font-bold text-text-primary uppercase text-xs tracking-wider">Total</td>
                   <td className="py-2.5 px-3 text-right font-bold text-text-primary">{totalSold.toLocaleString()}</td>
                   <td className="py-2.5 px-3 text-right font-bold text-accent-green">{fmtCurrency(totalRevenue)}</td>
                 </tr>

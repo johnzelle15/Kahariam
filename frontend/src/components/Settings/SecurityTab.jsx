@@ -22,7 +22,6 @@ function SettingsCard({ title, description, children }) {
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
       }}
     >
       {(title || description) && (
@@ -594,7 +593,7 @@ export default function SecurityTab({ toast }) {
                       </p>
                     )}
                   </div>
-                  <span className="text-[11px] whitespace-nowrap flex-shrink-0"
+                  <span className="text-xs whitespace-nowrap flex-shrink-0"
                     style={{ color: 'var(--text-muted)' }}>
                     {formatDate(ev.created_at)}
                   </span>
@@ -604,7 +603,7 @@ export default function SecurityTab({ toast }) {
               {activity.length > ACTIVITY_VISIBLE && (
                 <button onClick={() => setShowAllActivity(v => !v)}
                   aria-expanded={showAllActivity}
-                  className="w-full py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-colors"
+                  className="w-full py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors"
                   style={{
                     background: 'var(--btn-secondary-bg)',
                     border: '1px solid var(--glass-border)',
@@ -666,17 +665,17 @@ export default function SecurityTab({ toast }) {
                             {devName || 'Unknown browser'}
                           </p>
                           {sess.is_current && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold"
                               style={{ background: 'rgba(52,211,153,0.12)', color: 'var(--accent-green)' }}>
                               <CheckCircle className="w-2.5 h-2.5" /> Current
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                          <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                          <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
                             {sess.ip_address}
                           </span>
-                          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                             Last seen {formatDate(sess.last_seen)}
                           </span>
                         </div>

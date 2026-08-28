@@ -98,7 +98,6 @@ export default function LoginScreen() {
         <div className="relative p-8 sm:p-10 rounded-3xl border border-white/[0.08] overflow-hidden"
           style={{
             background: 'rgba(255, 255, 255, 0.03)',
-            backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
             boxShadow: '0 32px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>

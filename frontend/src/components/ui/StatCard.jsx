@@ -32,8 +32,8 @@ export default function StatCard({
       padded
       className={clsx(
         'flex flex-col gap-2 h-full',
-        emphasis && 'bg-[var(--glass-bg-hover)] border-[var(--glass-border-hover)]',
-        onClick && 'cursor-pointer hover:border-[var(--glass-border-hover)] transition-colors'
+        emphasis && 'glass-card-raised',
+        onClick && 'glass-card-interactive cursor-pointer'
       )}
       {...(onClick
         ? {

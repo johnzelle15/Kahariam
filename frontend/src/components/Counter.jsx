@@ -224,7 +224,7 @@ export default function Counter() {
       {lockWarning && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={{ opacity: 1 }}
           className="flex items-center gap-2 rounded-xl border border-accent-amber/20 bg-accent-amber/10
             px-4 py-2 text-sm font-semibold text-accent-amber"
         >
