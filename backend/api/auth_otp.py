@@ -18,7 +18,7 @@ import smtplib
 import string
 import threading
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from functools import wraps
@@ -33,7 +33,30 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/v1/auth')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me-in-production')
+def _require_jwt_secret() -> str:
+    """Fail loudly rather than fall back to a known key.
+
+    This used to default to 'change-me-in-production'. A missing or unedited
+    JWT_SECRET would then start the app normally while every token it issued
+    was forgeable by anyone who has read this file — the worst kind of
+    failure, because nothing looks wrong.
+    """
+    secret = (os.environ.get('JWT_SECRET') or '').strip()
+    placeholders = {'change-me-in-production', 'changeme', 'secret', 'your-secret-key'}
+    if not secret or secret.lower() in placeholders:
+        raise RuntimeError(
+            'JWT_SECRET is missing or still set to a placeholder. Set it to a '
+            'random value (for example: python -c "import secrets; '
+            'print(secrets.token_urlsafe(48))") in your .env before starting.'
+        )
+    if len(secret) < 32:
+        raise RuntimeError(
+            f'JWT_SECRET is too short ({len(secret)} chars). Use at least 32.'
+        )
+    return secret
+
+
+JWT_SECRET = _require_jwt_secret()
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRY_HOURS = int(os.environ.get('JWT_EXPIRY_HOURS', '8'))
 
@@ -313,6 +336,48 @@ def _recent_failures(c, user_id):
         return 0, 0
 
 
+def _create_otp_token(user_id: int) -> str:
+    """Short-lived proof that this caller completed the password step.
+
+    /verify-otp and /resend-otp used to identify the pending sign-in by a raw
+    user_id, which is a small integer anyone can guess — so neither endpoint
+    had evidence the caller had passed step one. This handle is signed, scoped
+    to the OTP step, and expires with the code.
+    """
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            'sub': int(user_id),
+            'purpose': 'otp',
+            'iat': int(now.timestamp()),
+            'exp': int((now + timedelta(minutes=OTP_EXPIRY_MINUTES + 1)).timestamp()),
+        },
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM,
+    )
+
+
+def _read_otp_token(token: str):
+    """Return the user id from a valid OTP handle, or None.
+
+    The purpose claim matters: without it a normal session token would be
+    accepted here, letting a signed-in user skip the OTP step for any account.
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={'verify_sub': False})
+    except jwt.PyJWTError:
+        return None
+    if payload.get('purpose') != 'otp':
+        return None
+    try:
+        return int(payload['sub'])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @auth_bp.route('/login', methods=['POST'])
@@ -420,7 +485,7 @@ def login():
 
         return jsonify({
             'message': 'OTP sent',
-            'user_id': user_id,
+            'otp_token': _create_otp_token(user_id),
             'email_hint': masked,
             'expires_in': OTP_EXPIRY_MINUTES * 60,  # seconds
         }), 200
@@ -433,7 +498,7 @@ def login():
 def resend_otp():
     """
     POST /api/v1/auth/resend-otp
-    Body: { "user_id": 1 }
+    Body: { "otp_token": "..." }
 
     Re-sends the code for a login already in progress. Without this an expired
     code was a dead end: the only way forward was to go back and re-enter the
@@ -443,14 +508,13 @@ def resend_otp():
     row, so it cannot be pointed at arbitrary user ids to mail them. A cooldown
     and an hourly cap bound it further.
 
-    NOTE: user_id alone identifies the pending login here, matching
-    /verify-otp. Binding both to a short-lived signed handle issued by /login
-    would be stronger.
+    Identified by the signed otp_token from /login, so a caller must have
+    passed the password step to reach this.
     """
     data = request.get_json(silent=True) or {}
-    user_id = data.get('user_id')
+    user_id = _read_otp_token(data.get('otp_token'))
     if not user_id:
-        return jsonify({'error': 'user_id is required'}), 400
+        return jsonify({'error': 'Your sign-in expired. Please sign in again.'}), 401
 
     conn = get_db()
     try:
@@ -517,16 +581,18 @@ def resend_otp():
 def verify_otp():
     """
     POST /api/v1/auth/verify-otp
-    Body: { "user_id": 1, "otp": "123456" }
+    Body: { "otp_token": "...", "otp": "123456" }
 
     Verifies the OTP, returns JWT on success.
     """
     data = request.get_json(silent=True) or {}
-    user_id = data.get('user_id')
     otp_input = (data.get('otp') or '').strip()
+    user_id = _read_otp_token(data.get('otp_token'))
 
-    if not user_id or not otp_input:
-        return jsonify({'error': 'user_id and otp are required'}), 400
+    if not user_id:
+        return jsonify({'error': 'Your sign-in expired. Please sign in again.'}), 401
+    if not otp_input:
+        return jsonify({'error': 'otp is required'}), 400
 
     conn = get_db()
     try:

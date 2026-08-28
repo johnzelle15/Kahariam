@@ -25,14 +25,20 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
+    /* Point at a running instance; override with E2E_BASE_URL. The app needs a
+       database and, on the Pi, camera hardware, so the tests attach to a server
+       you started rather than trying to boot one. */
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5000',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
 
-  /* Configure projects for major browsers */
+  /* The real targets: Chromium on the Raspberry Pi panel, Chrome on the
+     phones and tablets staff use, and a desktop browser for admin work.
+     WebKit is omitted — it is not a target here, and its system libraries are
+     not present on Raspberry Pi OS. Add it back with `npx playwright
+     install-deps webkit` if Safari ever matters. */
   projects: [
     {
       name: 'chromium',
@@ -45,8 +51,8 @@ export default defineConfig({
     },
 
     {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 5'] },
     },
 
     /* Test against mobile viewports. */

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
-import { rawApi } from '../utils/api'
+import api, { rawApi } from '../utils/api'
 import { Play, Save, Lock, CheckCircle2, XCircle, WifiOff, Undo2 } from 'lucide-react'
 import { Button, Modal } from './ui'
 import useAuthStore from '../store/authStore'
@@ -108,7 +107,7 @@ export default function Counter() {
 
       if (d.device_id) {
         try {
-          const ls = await axios.get(`/api/v1/devices/${d.device_id}/lock_status`)
+          const ls = await api.get(`/devices/${d.device_id}/lock_status`)
           const data = ls?.data
           if (data?.locked && data.locked_by !== userId) {
             setLockWarning('In use by another user')
@@ -183,7 +182,7 @@ export default function Counter() {
   async function start() {
     try {
       if (device.id) {
-        const lockRes = await axios.post(`/api/v1/devices/${device.id}/lock`, { user_id: userId })
+        const lockRes = await api.post(`/devices/${device.id}/lock`)
         if (lockRes?.data?.status !== 'ok') {
           showToast('Could not reserve the counter', 'error')
           return
@@ -208,7 +207,7 @@ export default function Counter() {
     await rawApi.get('/stop')
     setActive(false)
     if (device.id) {
-      try { await axios.post(`/api/v1/devices/${device.id}/unlock`, { user_id: userId }) }
+      try { await api.post(`/devices/${device.id}/unlock`) }
       catch { /* advisory */ }
     }
   }
