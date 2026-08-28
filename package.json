@@ -1,0 +1,18 @@
+{
+  "name": "fish-counter",
+  "version": "1.0.0",
+  "description": "Integrated System and Digital Aquafarm with Smart Fish Counting",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.4.0"
+  }
+}
