@@ -40,12 +40,10 @@ JWT_EXPIRY_HOURS = int(os.environ.get('JWT_EXPIRY_HOURS', '8'))
 OTP_LENGTH = 6
 OTP_EXPIRY_MINUTES = 5
 OTP_MAX_ATTEMPTS = 3
+LOGIN_MAX_ATTEMPTS = int(os.environ.get('LOGIN_MAX_ATTEMPTS', '5'))
+LOGIN_LOCKOUT_MINUTES = int(os.environ.get('LOGIN_LOCKOUT_MINUTES', '15'))
 OTP_RESEND_COOLDOWN_SECONDS = int(os.environ.get('OTP_RESEND_COOLDOWN_SECONDS', '60'))
 OTP_MAX_SENDS_PER_HOUR = int(os.environ.get('OTP_MAX_SENDS_PER_HOUR', '6'))
-
-# ── TESTING ONLY ──────────────────────────────────────────────────────────────
-# In production, remove this and always send OTP to the user's own email.
-ADMIN_TEST_EMAIL = 'johnzelle.gabalones@gmail.com'
 
 EMAIL_USER = os.environ.get('EMAIL_USER', '')
 EMAIL_PASS = os.environ.get('EMAIL_PASS', '')
@@ -66,17 +64,13 @@ def _generate_otp() -> str:
 
 
 def _resolve_otp_email(role: str, user_email: str) -> str:
-    """
-    Determine where to send the OTP.
+    """Where the OTP goes: the address on the account, always.
 
-    SYSTEM RULE:
-      - admin → ADMIN_TEST_EMAIL (testing only; in production send to user's real email)
-      - staff → the email stored in the database
+    Admin codes used to be redirected to one hardcoded mailbox for testing,
+    which meant every admin's second factor landed in the same inbox and no
+    admin could receive their own. `role` is kept in the signature because
+    callers pass it and a future policy may need it.
     """
-    if role == 'admin':
-        # TESTING: all admin OTPs go to the hardcoded test address.
-        # TODO: In production, send to the user's own email instead.
-        return ADMIN_TEST_EMAIL
     return user_email
 
 
@@ -256,6 +250,69 @@ def require_auth(f):
     return decorated
 
 
+def _client_ip_ua():
+    xff = request.headers.get('X-Forwarded-For', '')
+    ip = xff.split(',')[0].strip() if xff else (request.remote_addr or '')
+    ua = (request.headers.get('User-Agent') or '')[:255]
+    return ip, ua
+
+
+def _record_login_attempt(c, user_id, status):
+    """Write a login_history row.
+
+    Failures were never recorded, which left the security activity view blind
+    and gave account lockout nothing to count.
+    """
+    try:
+        ip, ua = _client_ip_ua()
+        c.execute(
+            'INSERT INTO login_history (user_id, ip_address, device, status) VALUES (?, ?, ?, ?)',
+            (user_id, ip, ua, status),
+        )
+    except Exception as e:
+        print(f'[AUTH] could not record login attempt: {e}')
+
+
+# INTERVAL takes a literal, not a placeholder. LOGIN_LOCKOUT_MINUTES is coerced
+# to int at import, so it cannot carry anything but a number into the statement.
+_FAILURE_WINDOW_SQL = (
+    'SELECT COUNT(*) AS n, '
+    '       TIMESTAMPDIFF(SECOND, MAX(login_time), NOW()) AS since_last '
+    'FROM login_history '
+    "WHERE user_id = ? AND status = 'failed' "
+    '  AND login_time > (NOW() - INTERVAL {} MINUTE) '
+    # Compared by id, not by time: login_time is second-granular, so a failure
+    # landing in the same second as a success would slip past a '>' on the
+    # timestamp. Ids are monotonic, which makes "since the last success" exact.
+    '  AND id > COALESCE(('
+    '        SELECT MAX(h2.id) FROM login_history h2 '
+    "        WHERE h2.user_id = ? AND h2.status = 'success'"
+    '      ), 0)'
+)
+
+
+def _recent_failures(c, user_id):
+    """Failed attempts counting against this account right now.
+
+    Only failures inside the window AND newer than the last successful login,
+    so signing in successfully clears the slate rather than leaving earlier
+    failures to lock the account minutes later.
+
+    Ages come from the database clock, so this never depends on the app process
+    and MariaDB agreeing about the timezone.
+
+    Returns (count, seconds_since_most_recent_failure).
+    """
+    try:
+        c.execute(_FAILURE_WINDOW_SQL.format(int(LOGIN_LOCKOUT_MINUTES)), (user_id, user_id))
+        row = c.fetchone()
+        return int(row['n'] or 0), int(row['since_last'] or 0)
+    except Exception as e:
+        # A bookkeeping failure must never lock out a legitimate user.
+        print(f'[AUTH] could not read login failures: {e}')
+        return 0, 0
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @auth_bp.route('/login', methods=['POST'])
@@ -292,7 +349,18 @@ def login():
             return jsonify({'error': 'Invalid credentials'}), 401
 
         if not user.get('active', 1):
-            return jsonify({'error': 'Account is disabled'}), 403
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        # Lockout is checked BEFORE the password is compared, so a locked
+        # account answers the same way whatever password is supplied and
+        # cannot be used to test guesses.
+        failures, since_last = _recent_failures(c, user['id'])
+        if failures >= LOGIN_MAX_ATTEMPTS:
+            retry_after = max(0, LOGIN_LOCKOUT_MINUTES * 60 - since_last)
+            return jsonify({
+                'error': 'Too many failed sign-in attempts. Try again later.',
+                'retry_after': retry_after,
+            }), 429
 
         # Verify password — guard against empty/null hash in DB
         stored_hash = user.get('password_hash') or ''
@@ -303,10 +371,18 @@ def login():
             pw_matches = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
         except Exception as e:
             print(f'[AUTH] bcrypt error for user {user.get("username")}: {e}')
-            return jsonify({'error': 'Invalid credentials'}), 401
+            pw_matches = False
 
         if not pw_matches:
-            return jsonify({'error': 'Invalid credentials'}), 401
+            _record_login_attempt(c, user['id'], 'failed')
+            conn.commit()
+            remaining = max(0, LOGIN_MAX_ATTEMPTS - (failures + 1))
+            payload = {'error': 'Invalid credentials'}
+            # Warn only as the limit approaches; naming the count on every
+            # attempt would tell an attacker the account exists.
+            if remaining <= 2:
+                payload['attempts_remaining'] = remaining
+            return jsonify(payload), 401
 
         user_id = user['id']
         username = user['username']
