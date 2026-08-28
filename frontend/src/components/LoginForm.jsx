@@ -120,9 +120,8 @@ export default function LoginForm({ onForgotPassword }) {
         whileTap={!loading ? { scale: 0.97 } : {}}
         className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
         style={{
-          background: 'linear-gradient(135deg, #059669, #34d399)',
-          boxShadow: '0 0 20px rgba(52,211,153,0.15), 0 4px 12px rgba(0,0,0,0.2)',
-          border: '1px solid rgba(52,211,153,0.2)',
+          background: 'var(--accent-green)',
+          color: 'var(--on-accent)',
         }}
       >
         {loading ? (
@@ -142,7 +141,7 @@ export default function LoginForm({ onForgotPassword }) {
             disabled={loading}
             className="text-xs font-medium transition-colors"
             style={{ color: '#8b95a8' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#34d399'}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-green)'}
             onMouseLeave={e => e.currentTarget.style.color = '#8b95a8'}
           >
             Forgot password?

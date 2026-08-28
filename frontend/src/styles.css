@@ -846,3 +846,21 @@ html {
 
 .nav-action-danger:hover { color: var(--accent-red); background: rgba(217, 120, 98, 0.10); }
 .nav-action-danger:focus-visible { outline: 2px solid var(--accent-red); outline-offset: -2px; }
+
+/* ═══════════════════════════════════════════
+   AUTOFILL
+   Chrome paints its own near-white background over autofilled inputs, which
+   made the remembered username field read as a different control from the
+   password field beside it. The inset shadow trick is the only way to override
+   it; -webkit-text-fill-color is needed because `color` alone is ignored.
+   ═══════════════════════════════════════════ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  caret-color: var(--text-primary);
+  transition: background-color 9999s ease-in-out 0s;
+}

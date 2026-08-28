@@ -42,6 +42,20 @@ const useAuthStore = create((set, get) => ({
   /**
    * Step 2 — Verify OTP → receive JWT.
    */
+  resendOtp: async () => {
+    const { otpUserId } = get()
+    if (!otpUserId) return { ok: false, error: 'No sign-in in progress.' }
+    try {
+      const { data } = await api.post('/auth/resend-otp', { user_id: otpUserId })
+      set({ otpExpiresIn: data.expires_in || 300, error: null })
+      return { ok: true }
+    } catch (e) {
+      const d = e.response?.data || {}
+      set({ error: d.error || 'Could not resend the code.' })
+      return { ok: false, error: d.error, retryAfter: d.retry_after }
+    }
+  },
+
   verifyOtp: async (otp) => {
     const { otpUserId } = get()
     set({ loading: true, error: null })

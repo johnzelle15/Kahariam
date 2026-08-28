@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kahariam Farms">
+  <title>Kahariam Farms</title>
+  <defs>
+    <!-- Sun disc with a flat base: a circle chorded at y=44, which is the
+         silhouette of the original mark. Everything clips to this so the sun
+         and both hills share one edge. -->
+    <clipPath id="kf-mark">
+      <path d="M8.9 44A26 26 0 1 1 55.1 44Z"/>
+    </clipPath>
+    <radialGradient id="kf-sun" cx="50%" cy="58%" r="58%">
+      <stop offset="0" stop-color="#FBF4C8"/>
+      <stop offset="34%" stop-color="#F9DE79"/>
+      <stop offset="66%" stop-color="#F2BE33"/>
+      <stop offset="100%" stop-color="#DE9205"/>
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#kf-mark)">
+    <rect x="0" y="0" width="64" height="64" fill="url(#kf-sun)"/>
+
+    <!-- Two slopes crossing left of centre: the far hill falls to the right,
+         the near one rises, and the overlap reads as the crossing in the mark. -->
+    <path d="M0 64V27C10 28 20 33 32 36C44 39 54 40.5 64 41V64Z" fill="#146E39"/>
+    <path d="M0 64V33C10 34 22 37.5 32 38C42 38 52 28 64 26V64Z" fill="#249A4F"/>
+  </g>
+</svg>

@@ -40,6 +40,8 @@ JWT_EXPIRY_HOURS = int(os.environ.get('JWT_EXPIRY_HOURS', '8'))
 OTP_LENGTH = 6
 OTP_EXPIRY_MINUTES = 5
 OTP_MAX_ATTEMPTS = 3
+OTP_RESEND_COOLDOWN_SECONDS = int(os.environ.get('OTP_RESEND_COOLDOWN_SECONDS', '60'))
+OTP_MAX_SENDS_PER_HOUR = int(os.environ.get('OTP_MAX_SENDS_PER_HOUR', '6'))
 
 # ── TESTING ONLY ──────────────────────────────────────────────────────────────
 # In production, remove this and always send OTP to the user's own email.
@@ -347,6 +349,90 @@ def login():
             'expires_in': OTP_EXPIRY_MINUTES * 60,  # seconds
         }), 200
 
+    finally:
+        conn.close()
+
+
+@auth_bp.route('/resend-otp', methods=['POST'])
+def resend_otp():
+    """
+    POST /api/v1/auth/resend-otp
+    Body: { "user_id": 1 }
+
+    Re-sends the code for a login already in progress. Without this an expired
+    code was a dead end: the only way forward was to go back and re-enter the
+    password.
+
+    Deliberately narrow. It acts only when the user already has a recent OTP
+    row, so it cannot be pointed at arbitrary user ids to mail them. A cooldown
+    and an hourly cap bound it further.
+
+    NOTE: user_id alone identifies the pending login here, matching
+    /verify-otp. Binding both to a short-lived signed handle issued by /login
+    would be stronger.
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'user_id is required'}), 400
+
+    conn = get_db()
+    try:
+        c = conn.cursor()
+
+        # Only for a login already in flight: there must be a recent OTP row.
+        # Ages come from the database clock so this never depends on whether
+        # the app process and MariaDB agree about the timezone.
+        c.execute(
+            'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age '
+            'FROM otp_codes WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+            (user_id,)
+        )
+        latest = c.fetchone()
+        if not latest or latest['age'] is None or int(latest['age']) > 3600:
+            return jsonify({'error': 'No sign-in in progress. Please sign in again.'}), 400
+
+        age = int(latest['age'])
+        if age < OTP_RESEND_COOLDOWN_SECONDS:
+            return jsonify({
+                'error': 'Please wait before requesting another code.',
+                'retry_after': OTP_RESEND_COOLDOWN_SECONDS - age,
+            }), 429
+
+        c.execute(
+            'SELECT COUNT(*) AS n FROM otp_codes '
+            'WHERE user_id = ? AND created_at > (NOW() - INTERVAL 1 HOUR)',
+            (user_id,)
+        )
+        if int(c.fetchone()['n'] or 0) >= OTP_MAX_SENDS_PER_HOUR:
+            return jsonify({'error': 'Too many codes requested. Please try again later.'}), 429
+
+        c.execute('SELECT id, username, email, role, active FROM users WHERE id = ?', (user_id,))
+        user = c.fetchone()
+        if not user or not user.get('active', 1):
+            return jsonify({'error': 'No sign-in in progress. Please sign in again.'}), 400
+
+        # Retire the old code so only the newest one can be used.
+        c.execute('UPDATE otp_codes SET used = 1 WHERE user_id = ? AND used = 0', (user_id,))
+
+        otp_code = _generate_otp()
+        expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        c.execute(
+            'INSERT INTO otp_codes (user_id, otp_code, expires_at) VALUES (?, ?, ?)',
+            (user_id, _hash_otp(otp_code), expires_at.strftime('%Y-%m-%d %H:%M:%S'))
+        )
+        conn.commit()
+
+        recipient = _resolve_otp_email(user.get('role', 'staff'), user.get('email', ''))
+        if not recipient:
+            return jsonify({'error': 'No email address configured for this account'}), 500
+        try:
+            _send_otp_email(recipient, otp_code, user['username'])
+        except Exception as e:
+            print(f'[AUTH] Failed to resend OTP email: {e}')
+            return jsonify({'error': 'Failed to send OTP email. Please try again.'}), 500
+
+        return jsonify({'message': 'OTP resent', 'expires_in': OTP_EXPIRY_MINUTES * 60}), 200
     finally:
         conn.close()
 
