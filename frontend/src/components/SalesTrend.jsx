@@ -7,6 +7,7 @@ import {
 import { Calendar, Image, FileSpreadsheet, ChevronDown, Activity } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { toPng } from 'html-to-image'
+import { EmptyState } from './ui'
 
 /* ─── Helpers ─── */
 const fmt = (n) => {
@@ -263,8 +264,17 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
 
       {/* ── Chart ─── */}
       {loading ? <ChartSkeleton /> : isEmpty ? (
-        <div className="py-16 text-center">
-          <p className="text-sm text-text-muted">No sales recorded for the selected period</p>
+        /* Sits on the same tinted panel the chart uses, so an empty range
+           still reads as "the chart, with nothing in it" rather than a gap
+           where a card should be — which is how it looked on a wide screen,
+           beside a Recent Activity column full of rows. */
+        <div className="rounded-2xl" style={{ background: 'var(--glass-bg)' }}>
+          <EmptyState
+            compact
+            icon={Activity}
+            title="No sales in this period"
+            message="Sales recorded against this range will plot here."
+          />
         </div>
       ) : (
         <div className="h-[220px] sm:h-[260px] rounded-2xl overflow-hidden p-2"

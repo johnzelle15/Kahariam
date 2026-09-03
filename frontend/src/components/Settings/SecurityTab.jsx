@@ -10,35 +10,9 @@ import {
   Smartphone, Globe, Trash2, LogOut,
 } from 'lucide-react'
 import api from '../../utils/api'
+import { Button, SettingsCard, Skeleton } from '../ui'
 
 /* ── Shared primitives ────────────────────────────────────────────────────────── */
-function SettingsCard({ title, description, children }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className="rounded-2xl p-5 md:p-6"
-      style={{
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
-      }}
-    >
-      {(title || description) && (
-        <div className="mb-5">
-          {title && <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>}
-          {description && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{description}</p>}
-        </div>
-      )}
-      {children}
-    </motion.div>
-  )
-}
-
-function Skeleton({ width = '100%', height = 16, className = '' }) {
-  return <div className={`rounded-lg animate-pulse ${className}`} style={{ width, height, background: 'var(--skeleton-via)' }} />
-}
-
 function PasswordInput({ id, label, value, onChange, disabled, placeholder }) {
   const [show, setShow] = useState(false)
   return (
@@ -175,28 +149,10 @@ function ConfirmModal({ open, onConfirm, onCancel, loading }) {
               Are you sure you want to change your password? You will remain logged in.
             </p>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={onCancel}
-                disabled={loading}
-                className="px-4 py-2 rounded-xl text-sm font-medium border-none cursor-pointer transition-colors"
-                style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-none cursor-pointer
-                  disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
-                style={{
-                  background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                  color: '#fff',
-                  boxShadow: '0 4px 12px rgba(139,92,246,0.25)',
-                }}
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
+              <Button variant="primary" icon={ShieldCheck} loading={loading} onClick={onConfirm}>
                 {loading ? 'Saving…' : 'Confirm'}
-              </button>
+              </Button>
             </div>
           </motion.div>
         </div>
@@ -437,21 +393,7 @@ export default function SecurityTab({ toast }) {
               )}
 
               <div className="flex justify-end mt-1">
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-                    transition-all duration-200 border-none cursor-pointer"
-                  style={{
-                    background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                    color: '#fff',
-                    boxShadow: '0 4px 14px rgba(139,92,246,0.25)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(139,92,246,0.4)' }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(139,92,246,0.25)' }}
-                >
-                  <Lock className="w-4 h-4" />
-                  Update Password
-                </button>
+                <Button type="submit" variant="primary" icon={Lock}>Update Password</Button>
               </div>
             </div>
           </form>
@@ -780,24 +722,12 @@ export default function SecurityTab({ toast }) {
                 All devices except this one will be signed out immediately. They will need to log in again.
               </p>
               <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setShowLogoutAllConfirm(false)}
-                  disabled={logoutAllLoading}
-                  className="px-4 py-2 rounded-xl text-sm font-medium border-none cursor-pointer transition-colors"
-                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}
-                >
+                <Button variant="ghost" onClick={() => setShowLogoutAllConfirm(false)} disabled={logoutAllLoading}>
                   Cancel
-                </button>
-                <button
-                  onClick={handleLogoutAll}
-                  disabled={logoutAllLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-none
-                    cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
-                  style={{ background: 'rgba(239,68,68,0.85)', color: '#fff' }}
-                >
-                  {logoutAllLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                </Button>
+                <Button variant="danger" icon={LogOut} loading={logoutAllLoading} onClick={handleLogoutAll}>
                   {logoutAllLoading ? 'Signing out…' : 'Logout All Devices'}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>

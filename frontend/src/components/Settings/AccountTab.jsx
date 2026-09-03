@@ -6,39 +6,9 @@ import { motion } from 'framer-motion'
 import { User, Camera, Save, Loader2, Mail, AtSign, Clock, Shield, Lock } from 'lucide-react'
 import api from '../../utils/api'
 import useAuthStore from '../../store/authStore'
+import { Button, SettingsCard, Skeleton } from '../ui'
 
 /* ── Reusable helpers ────────────────────────────────────────────────────────── */
-function SettingsCard({ title, description, children }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className="rounded-2xl p-5 md:p-6"
-      style={{
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
-      }}
-    >
-      {(title || description) && (
-        <div className="mb-5">
-          {title && (
-            <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {title}
-            </h3>
-          )}
-          {description && (
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {description}
-            </p>
-          )}
-        </div>
-      )}
-      {children}
-    </motion.div>
-  )
-}
-
 function InputField({ label, id, value, onChange, type = 'text', placeholder, disabled, icon: Icon }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -91,15 +61,6 @@ function RoleBadge({ role }) {
       <Shield className="w-2.5 h-2.5" />
       {role}
     </span>
-  )
-}
-
-function Skeleton({ width = '100%', height = 16, className = '' }) {
-  return (
-    <div
-      className={`rounded-lg animate-pulse ${className}`}
-      style={{ width, height, background: 'var(--skeleton-via)' }}
-    />
   )
 }
 
@@ -355,22 +316,9 @@ export default function AccountTab({ toast }) {
             </div>
 
             <div className="mt-5 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-                  transition-all duration-200 border-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{
-                  background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                  color: '#fff',
-                  boxShadow: '0 4px 14px rgba(139,92,246,0.25)',
-                }}
-                onMouseEnter={e => { if (!saving) e.currentTarget.style.boxShadow = '0 4px 20px rgba(139,92,246,0.4)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(139,92,246,0.25)' }}
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <Button type="submit" variant="primary" icon={Save} loading={saving}>
                 {saving ? 'Saving…' : 'Save Profile'}
-              </button>
+              </Button>
             </div>
           </form>
         )}

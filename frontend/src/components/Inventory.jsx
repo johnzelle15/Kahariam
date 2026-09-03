@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
 import { getRecordType } from '../utils/notes'
 import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
+import { Button } from './ui'
 
 const VARIANTS = ['SPIN_20']
 const PER_PAGE_OPTIONS = [5, 10, 20, 50]
@@ -535,9 +536,9 @@ export default function Inventory() {
                   <option>SPIN_20</option>
                 </select>
               </div>
-              <button onClick={loadArchive} className="glow-btn glow-btn-secondary flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </button>
+              <Button variant="secondary" icon={RefreshCw} onClick={loadArchive}>
+                Refresh
+              </Button>
             </div>
 
             {/* Restore Messages */}
@@ -670,19 +671,17 @@ export default function Inventory() {
                   : 'It will return to the active records list.'}
               </p>
               <div className="flex items-center justify-end gap-3">
-                <button onClick={() => setConfirmAction(null)}
-                  className="glow-btn glow-btn-secondary text-xs py-2 px-4">
+                <Button variant="secondary" size="sm" onClick={() => setConfirmAction(null)}>
                   Cancel
-                </button>
-                <button onClick={executeConfirmed}
-                  className={`glow-btn text-xs py-2 px-4 flex items-center gap-1.5 ${
-                    confirmAction.type === 'delete' ? '' : 'glow-btn-green'
-                  }`}>
-                  {confirmAction.type === 'delete'
-                    ? <><Archive className="w-3.5 h-3.5" /> Archive</>
-                    : <><RotateCcw className="w-3.5 h-3.5" /> Restore</>
-                  }
-                </button>
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={confirmAction.type === 'delete' ? Archive : RotateCcw}
+                  onClick={executeConfirmed}
+                >
+                  {confirmAction.type === 'delete' ? 'Archive' : 'Restore'}
+                </Button>
               </div>
             </motion.div>
           </div>

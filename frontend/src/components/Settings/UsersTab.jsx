@@ -13,32 +13,7 @@ import {
   Check, AlertCircle,
 } from 'lucide-react'
 import api from '../../utils/api'
-
-/* ── Shared primitives ──────────────────────────────────────────────────────── */
-function SettingsCard({ title, description, children, action }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className="rounded-2xl p-5 md:p-6"
-      style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
-    >
-      <div className="flex items-start justify-between gap-2 mb-5">
-        <div>
-          {title && <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>}
-          {description && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{description}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </motion.div>
-  )
-}
-
-function Skeleton({ height = 40 }) {
-  return <div className="rounded-lg animate-pulse" style={{ height, background: 'var(--skeleton-via)' }} />
-}
+import { Button, SettingsCard, Skeleton } from '../ui'
 
 /* ── Availability indicator ─────────────────────────────────────────────────── */
 function AvailBadge({ state }) {
@@ -104,22 +79,10 @@ function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer"
-            style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
-            Cancel
-          </button>
-          <button onClick={onConfirm} disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
-              border-none cursor-pointer disabled:opacity-60"
-            style={{
-              background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-              color: '#fff',
-              boxShadow: '0 4px 12px rgba(139,92,246,0.3)',
-            }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          <Button variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" className="flex-1" icon={Check} loading={saving} onClick={onConfirm}>
             {saving ? 'Creating…' : 'Yes, create'}
-          </button>
+          </Button>
         </div>
       </motion.div>
     </div>
@@ -403,26 +366,17 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
 
           {/* ── Actions ── */}
           <div className="flex justify-end gap-2 mt-5">
-            <button onClick={onClose}
-              className="px-4 py-2 rounded-xl text-sm font-medium border-none cursor-pointer"
-              style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmitClick}
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button
+              variant="primary"
+              icon={Save}
+              loading={saving}
               disabled={!canSubmit}
+              onClick={handleSubmitClick}
               title={!canSubmit && !isEdit ? 'Complete all requirements above' : undefined}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold
-                border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                color: '#fff',
-                boxShadow: canSubmit ? '0 4px 12px rgba(139,92,246,0.3)' : 'none',
-              }}
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {isEdit ? 'Save Changes' : 'Create Account'}
-            </button>
+            </Button>
           </div>
         </motion.div>
       </div>
@@ -528,18 +482,9 @@ export default function UsersTab({ toast }) {
           title="Staff Accounts"
           description="Create and manage user access"
           action={
-            <button
-              onClick={() => setStaffModal({ mode: 'create' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                border-none cursor-pointer transition-all duration-200"
-              style={{
-                background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                color: '#fff',
-                boxShadow: '0 2px 8px rgba(139,92,246,0.25)',
-              }}
-            >
-              <Plus className="w-3.5 h-3.5" /> New Staff
-            </button>
+            <Button variant="primary" size="sm" icon={Plus} onClick={() => setStaffModal({ mode: 'create' })}>
+              New Staff
+            </Button>
           }
         >
           {staffLoading ? (
@@ -752,23 +697,18 @@ export default function UsersTab({ toast }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setToggleConfirm(null)} disabled={toggling}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer disabled:opacity-60"
-                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
+                <Button variant="ghost" className="flex-1" onClick={() => setToggleConfirm(null)} disabled={toggling}>
                   Cancel
-                </button>
-                <button onClick={() => toggleStaff(toggleConfirm)} disabled={toggling}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
-                    border-none cursor-pointer disabled:opacity-60"
-                  style={{
-                    background: toggleConfirm.active
-                      ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                      : 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#fff',
-                  }}>
-                  {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant={toggleConfirm.active ? 'danger' : 'primary'}
+                  className="flex-1"
+                  icon={Check}
+                  loading={toggling}
+                  onClick={() => toggleStaff(toggleConfirm)}
+                >
                   {toggling ? 'Saving…' : toggleConfirm.active ? 'Yes, deactivate' : 'Yes, activate'}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>
@@ -813,21 +753,12 @@ export default function UsersTab({ toast }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setResendConfirm(null)} disabled={resending}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer disabled:opacity-60"
-                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
+                <Button variant="ghost" className="flex-1" onClick={() => setResendConfirm(null)} disabled={resending}>
                   Cancel
-                </button>
-                <button onClick={() => resendCredentials(resendConfirm)} disabled={resending}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
-                    border-none cursor-pointer disabled:opacity-60"
-                  style={{
-                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                    color: '#fff',
-                  }}>
-                  {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                </Button>
+                <Button variant="primary" className="flex-1" icon={Mail} loading={resending} onClick={() => resendCredentials(resendConfirm)}>
                   {resending ? 'Sending…' : 'Yes, resend'}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>

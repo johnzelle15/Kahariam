@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { io } from 'socket.io-client'
 import api, { rawApi } from '../utils/api'
-import { Play, Save, Lock, CheckCircle2, XCircle, WifiOff, Undo2 } from 'lucide-react'
+import { Play, Square, Save, Lock, CheckCircle2, XCircle, WifiOff, Undo2 } from 'lucide-react'
 import { Button, Modal } from './ui'
 import useAuthStore from '../store/authStore'
 
@@ -63,8 +64,9 @@ export default function Counter() {
 
   const [count, setCount] = useState(0)
   const [active, setActive] = useState(false)
-  const [socketConnected, setSocketConnected] = useState(false)
-  const [hasSocket, setHasSocket] = useState(false)
+  // Starts false so the disconnected banner never flashes on a normal load;
+  // it appears only once a connection has actually dropped or failed.
+  const [offline, setOffline] = useState(false)
   const [device, setDevice] = useState({ id: null, name: null })
   const [session, setSession] = useState(null)
   const [lockWarning, setLockWarning] = useState('')
@@ -95,14 +97,17 @@ export default function Counter() {
 
   const fetchState = useCallback(async () => {
     try {
-      const res = await rawApi.get('/get_state')
+      // In parallel: these two do not depend on each other, and on the panel
+      // three chained round-trips every poll is what made the screen feel slow.
+      const [res, r2] = await Promise.all([
+        rawApi.get('/get_state'),
+        rawApi.get('/get_count'),
+      ])
       const d = res.data || {}
       setActive(!!d.active)
       setDevice({ id: d.device_id || null, name: d.device_name || null })
       setSession(d.session || null)
       setLoadError('')
-
-      const r2 = await rawApi.get('/get_count')
       setCount(r2.data.count || 0)
 
       if (d.device_id) {
@@ -121,25 +126,22 @@ export default function Counter() {
 
   useEffect(() => {
     fetchState()
-    if (typeof window !== 'undefined' && window.io) {
-      setHasSocket(true)
-      const socket = window.io()
-      socket.on('connect', () => { setSocketConnected(true); fetchState() })
-      socket.on('disconnect', () => setSocketConnected(false))
-      socket.on('reading', data => {
-        if (data && typeof data.count !== 'undefined') setCount(data.count)
-      })
-      socket.on('counting_state', d => {
-        setActive(!!d.active)
-        if (!d.active) setLockWarning('')
-        fetchState()
-      })
-      const poll = setInterval(fetchState, 5000)
-      return () => { clearInterval(poll); socket.off('reading'); socket.off('counting_state'); socket.disconnect() }
-    }
-    // No socket transport: fall back to polling so the count still advances.
-    const poll = setInterval(fetchState, 2000)
-    return () => clearInterval(poll)
+    const socket = io()
+    socket.on('connect', () => { setOffline(false); fetchState() })
+    socket.on('disconnect', () => setOffline(true))
+    socket.on('connect_error', () => setOffline(true))
+    socket.on('reading', data => {
+      if (data && typeof data.count !== 'undefined') setCount(data.count)
+    })
+    socket.on('counting_state', d => {
+      setActive(!!d.active)
+      if (!d.active) setLockWarning('')
+      fetchState()
+    })
+    // Belt and braces behind the live feed: the panel must keep advancing even
+    // if the socket is wedged.
+    const poll = setInterval(fetchState, 5000)
+    return () => { clearInterval(poll); socket.disconnect() }
   }, [fetchState])
 
   // Ticks the elapsed clock while a run is open.
@@ -182,10 +184,18 @@ export default function Counter() {
   async function start() {
     try {
       if (device.id) {
-        const lockRes = await api.post(`/devices/${device.id}/lock`)
-        if (lockRes?.data?.status !== 'ok') {
-          showToast('Could not reserve the counter', 'error')
-          return
+        // Advisory, exactly as in fetchState. Only a real conflict — someone
+        // else mid-run (423) — stops the operator. Any other reservation
+        // failure is bookkeeping, and bookkeeping must never leave a dead
+        // Start button in front of someone with fish to count.
+        try {
+          await api.post(`/devices/${device.id}/lock`)
+        } catch (e) {
+          if (e.response?.status === 423) {
+            showToast('Another user is counting right now', 'error')
+            setLockWarning('In use by another user')
+            return
+          }
         }
       }
       await rawApi.get(`/start?variant=${encodeURIComponent(VARIANT)}`)
@@ -193,13 +203,7 @@ export default function Counter() {
       showToast('Counting started')
       fetchState()
     } catch (e) {
-      const err = e.response?.data
-      if (err?.status === 'locked') {
-        showToast('Another user is counting right now', 'error')
-        setLockWarning('In use by another user')
-      } else {
-        showToast(err?.message || 'Could not start counting', 'error')
-      }
+      showToast(e.response?.data?.message || 'Could not start counting', 'error')
     }
   }
 
@@ -209,6 +213,22 @@ export default function Counter() {
     if (device.id) {
       try { await api.post(`/devices/${device.id}/unlock`) }
       catch { /* advisory */ }
+    }
+  }
+
+  /* Ending a run must never depend on having something worth saving. Stop was
+     previously only reachable through "Stop & Save", which is disabled until
+     the count passes zero — so a run started by mistake could not be ended at
+     all until a fish happened to cross the line. Stopping keeps the count
+     (the backend clears it on the next start, not on stop), so this discards
+     nothing and Save stays available afterwards. */
+  async function handleStop() {
+    try {
+      await stopCounting()
+      showToast(count > 0 ? 'Stopped — the count is kept until you save it' : 'Stopped')
+      fetchState()
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Could not stop counting', 'error')
     }
   }
 
@@ -252,7 +272,6 @@ export default function Counter() {
     }
   }
 
-  const offline = hasSocket && !socketConnected
   const canSave = count > 0 && !isSaving
 
   return (
@@ -323,13 +342,15 @@ export default function Counter() {
 
       {/* ── The count fills the frame. It is the only thing on this screen
              anyone reads from across a room. ── */}
-      <div className="glass-card flex-1 min-h-0 flex flex-col items-center justify-center gap-2 p-4">
-        <p className="text-xs font-bold text-text-muted uppercase tracking-wider">Fish counted</p>
-        <p className="font-bold tabular-nums leading-none text-accent-green"
-          style={{ fontSize: 'clamp(3.5rem, 16vh, 8rem)' }}>
+      <div className="glass-card flex-1 min-h-0 overflow-hidden
+        flex flex-col items-center justify-center gap-2 p-4">
+        <p className="text-xs font-bold text-text-muted uppercase tracking-[0.14em]">Fish counted</p>
+        {/* Sizing lives in .count-value. Leading is tightened so the glyph
+            fills the space rather than its line box. */}
+        <p className="count-value font-bold tabular-nums leading-[0.85] text-accent-green">
           {count.toLocaleString()}
         </p>
-        <p className="text-sm text-text-muted tabular-nums h-5">
+        <p className="text-sm text-text-secondary tabular-nums h-5">
           {active
             ? (rate != null ? `${rate.toLocaleString()} fish/min` : 'measuring rate…')
             : count > 0 ? 'Stopped — ready to save' : 'Press Start to begin'}
@@ -340,12 +361,11 @@ export default function Counter() {
       <div className="grid grid-cols-2 gap-3 shrink-0">
         <Button
           variant={active ? 'secondary' : 'primary'}
-          icon={Play}
-          disabled={active}
-          onClick={start}
+          icon={active ? Square : Play}
+          onClick={active ? handleStop : start}
           className="!py-0 h-16 text-base font-bold"
         >
-          {active ? 'Counting…' : 'Start'}
+          {active ? 'Stop' : 'Start'}
         </Button>
         <Button
           variant={canSave ? 'primary' : 'secondary'}

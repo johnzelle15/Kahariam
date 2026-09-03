@@ -1,16 +1,22 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
-import Dashboard from './components/Dashboard'
 import Counter from './components/Counter'
-import Inventory from './components/Inventory'
-import Adjustments from './components/Adjustments'
-import Settings from './components/Settings/index'
+import { LoadingState } from './components/ui'
 import Sidebar from './components/Sidebar'
 import WelcomeScreen from './components/WelcomeScreen'
 import LoginScreen from './components/LoginScreen'
 import ResetPassword from './components/ResetPassword'
 import useThemeStore from './store/themeStore'
 import useAuthStore from './store/authStore'
+
+/* Counter is loaded eagerly: it is the kiosk screen and the default tab for
+   staff, so it must paint immediately. The rest are split out — between them
+   they pull in the charting, spreadsheet and image-export libraries, which is
+   most of the bundle the Pi panel used to parse before showing anything. */
+const Dashboard = lazy(() => import('./components/Dashboard'))
+const Inventory = lazy(() => import('./components/Inventory'))
+const Adjustments = lazy(() => import('./components/Adjustments'))
+const Settings = lazy(() => import('./components/Settings/index'))
 
 const ADMIN_TABS = new Set(['dashboard', 'counter', 'inventory', 'adjustments', 'settings'])
 const STAFF_TABS = new Set(['counter', 'settings'])
@@ -78,6 +84,18 @@ export default function App() {
   useEffect(() => {
     if (!allowedTabs.has(tab)) setTabState(getDefaultTab(role))
   }, [role, tab, allowedTabs])
+
+  /* The initial tab is resolved on the very first render — before anyone has
+     logged in — so `role` is still the 'staff' fallback and the tab lands on
+     the staff default, Counter. The guard above only rescues a tab that is
+     *disallowed*, and Counter is allowed for admins too, so nothing ever
+     corrected it: an admin signed in and landed on Counter every single time.
+     Re-resolve once the real role arrives. `setTab` writes the hash on every
+     manual navigation and getInitialTab reads the hash first, so this cannot
+     stomp a tab the operator picked while the profile was still loading. */
+  useEffect(() => {
+    if (user?.role) setTabState(getInitialTab(user.role))
+  }, [user?.role])
 
   // Keep hash in sync on popstate (back/forward)
   useEffect(() => {
@@ -179,11 +197,13 @@ export default function App() {
         <div className="p-4 pt-16 md:pt-6 md:px-6 lg:p-8 max-w-[1760px] mx-auto">
           <AnimatePresence mode="wait">
             <motion.div key={tab} variants={pageVariants} initial="initial" animate="animate" exit="exit">
-              {tab === 'dashboard' && allowedTabs.has('dashboard') && <Dashboard />}
-              {tab === 'counter' && <Counter />}
-              {tab === 'inventory' && allowedTabs.has('inventory') && <Inventory />}
-              {tab === 'adjustments' && allowedTabs.has('adjustments') && <Adjustments />}
-              {tab === 'settings' && allowedTabs.has('settings') && <Settings />}
+              <Suspense fallback={<LoadingState rows={4} />}>
+                {tab === 'dashboard' && allowedTabs.has('dashboard') && <Dashboard />}
+                {tab === 'counter' && <Counter />}
+                {tab === 'inventory' && allowedTabs.has('inventory') && <Inventory />}
+                {tab === 'adjustments' && allowedTabs.has('adjustments') && <Adjustments />}
+                {tab === 'settings' && allowedTabs.has('settings') && <Settings />}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </div>

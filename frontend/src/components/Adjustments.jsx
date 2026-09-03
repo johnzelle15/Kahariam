@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
 import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
+import { Button } from './ui'
 
 const REASONS_WHOLESALE = ['Sold', 'Died']
 const VARIANTS = ['SPIN_20']
@@ -340,7 +341,10 @@ export default function Adjustments() {
             const stock = source === 'wholesale' && reason === 'Sold' ? (wholesaleStock[item.variant] ?? null) : null
             return (
               <div key={idx} className="flex flex-wrap items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                <div className="flex-1 min-w-0 sm:min-w-[130px]">
+                {/* Capped so the variant picker stops sprawling to ~1000px on a
+                    desktop screen while its quantity stepper hugs the far right
+                    edge — they read as one control at any width this way. */}
+                <div className="flex-1 min-w-0 sm:min-w-[130px] sm:max-w-md">
                   <select value={item.variant}
                     onChange={e => updateBatchItem(idx, 'variant', e.target.value)}
                     className="neu-input w-full text-sm">
@@ -436,11 +440,16 @@ export default function Adjustments() {
         )}
 
         <div className="flex justify-center">
-          <button onClick={submitAdjustment} disabled={submitting || wholesaleMinNotMet}
-            className={`glow-btn flex items-center gap-2 ${(submitting || wholesaleMinNotMet) ? 'opacity-50 cursor-not-allowed' : ''}`}
-            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}>
-            <Send className="w-4 h-4" /> {submitting ? 'Submitting...' : 'Submit Adjustment'}
-          </button>
+          <Button
+            size="lg"
+            icon={Send}
+            loading={submitting}
+            disabled={wholesaleMinNotMet}
+            onClick={submitAdjustment}
+            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}
+          >
+            {submitting ? 'Submitting...' : 'Submit Adjustment'}
+          </Button>
         </div>
       </motion.div>
 
@@ -692,16 +701,17 @@ export default function Adjustments() {
               )}
 
               <div className="flex items-center justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmSubmit(null)}
-                  className="glow-btn glow-btn-secondary text-xs py-2 px-4">
+                <Button variant="secondary" size="sm" onClick={() => setConfirmSubmit(null)}>
                   Cancel
-                </button>
-                <button onClick={executeSubmit}
-                  className={`glow-btn text-xs py-2 px-4 flex items-center gap-1.5 ${
-                    confirmSubmit.reason === 'Died' ? 'glow-btn-red' : 'glow-btn'
-                  }`}>
-                  <Send className="w-3.5 h-3.5" /> Confirm
-                </button>
+                </Button>
+                <Button
+                  variant={confirmSubmit.reason === 'Died' ? 'danger' : 'primary'}
+                  size="sm"
+                  icon={Send}
+                  onClick={executeSubmit}
+                >
+                  Confirm
+                </Button>
               </div>
             </motion.div>
           </div>

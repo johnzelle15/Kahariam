@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { io } from 'socket.io-client'
 import { rawApi } from '../utils/api'
 import {
   TrendingUp, Fish, ScanLine, DollarSign, Package,
@@ -665,14 +666,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     reload()
-    if (typeof window !== 'undefined' && window.io) {
-      const socket = window.io()
-      socket.on('connect', () => setSocketConnected(true))
-      socket.on('disconnect', () => setSocketConnected(false))
-      socket.on('reading', () => reload())
-      socket.on('counting_state', () => reload())
-      return () => { socket.disconnect?.() }
-    }
+    const socket = io()
+    socket.on('connect', () => setSocketConnected(true))
+    socket.on('disconnect', () => setSocketConnected(false))
+    socket.on('reading', () => reload())
+    socket.on('counting_state', () => reload())
+    return () => { socket.disconnect() }
   }, [])
 
   function reload() { loadStats(); loadLowStock(); loadSessions() }
@@ -872,8 +871,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* ── KPI Cards ──
+             Four across from 1024px, not 1280px: on the Pi panel the 2x2 grid
+             was 380px of a 600px screen, so the chart and the activity feed
+             both started below the fold. StatCard steps its figure down in the
+             same window so nothing truncates at the narrower card width. ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
         ) : kpiCards.map(card => (

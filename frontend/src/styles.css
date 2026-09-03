@@ -65,9 +65,12 @@
   --table-border: rgba(255, 255, 255, 0.05);
   --table-row-hover: rgba(255, 255, 255, 0.025);
 
-  --btn-secondary-bg: rgba(255, 255, 255, 0.04);
-  --btn-secondary-border: rgba(255, 255, 255, 0.07);
-  --btn-secondary-hover: rgba(255, 255, 255, 0.08);
+  /* A secondary button has to look like a button. At 0.04/0.07 the border was
+     below the point where the eye reads an edge on this dark ground, so an
+     enabled secondary control and a disabled one were the same grey rectangle. */
+  --btn-secondary-bg: rgba(255, 255, 255, 0.07);
+  --btn-secondary-border: rgba(255, 255, 255, 0.18);
+  --btn-secondary-hover: rgba(255, 255, 255, 0.12);
 }
 
 /* ── Light Theme ── */
@@ -118,9 +121,9 @@
   --table-border: rgba(42, 46, 39, 0.07);
   --table-row-hover: rgba(76, 122, 61, 0.04);
 
-  --btn-secondary-bg: rgba(42, 46, 39, 0.04);
-  --btn-secondary-border: rgba(42, 46, 39, 0.08);
-  --btn-secondary-hover: rgba(42, 46, 39, 0.07);
+  --btn-secondary-bg: rgba(42, 46, 39, 0.05);
+  --btn-secondary-border: rgba(42, 46, 39, 0.22);
+  --btn-secondary-hover: rgba(42, 46, 39, 0.09);
 }
 
 /* ═══════════════════════════════════════════
@@ -151,6 +154,15 @@ body {
   border-radius: 0.75rem;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
+
+/* ── The count ──
+   Sized to the viewport, not to its card. Container units would track the card
+   more precisely, but the card's height comes from `flex-1` inside a parent
+   sized by min-height — an indefinite height, which makes `container-type:
+   size` a no-op (cqh resolves to 0). The viewport clamp is what actually
+   works here: ~a third of the screen, so the number carries the frame on the
+   600px panel and stays readable from across the room. */
+.count-value { font-size: clamp(3.5rem, 34vh, 18rem); }
 
 /* Raised surface — reserved for P0 content, so elevation means priority. */
 .glass-card-raised {
@@ -319,76 +331,6 @@ body {
 .neu-input::placeholder {
   color: var(--text-muted);
   opacity: 0.6;
-}
-
-/* ═══════════════════════════════════════════
-   GLOW BUTTON
-   ═══════════════════════════════════════════ */
-.glow-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.625rem 1.5rem;
-  border: none;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: var(--on-accent);
-  cursor: pointer;
-  background: var(--accent-green);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Modal buttons override padding with text-xs/py-2, which lands under the 44px
-   touch minimum. */
-@media (pointer: coarse) {
-  .glow-btn {
-    min-height: 44px;
-  }
-}
-
-.glow-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.glow-btn:active { transform: translateY(0); }
-
-.glow-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.glow-btn-green {
-  background: linear-gradient(135deg, var(--accent-green), #059669);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-.glow-btn-green:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.glow-btn-red {
-  background: linear-gradient(135deg, var(--accent-red), #dc2626);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-.glow-btn-red:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.glow-btn-secondary {
-  background: var(--btn-secondary-bg);
-  border: 1px solid var(--btn-secondary-border);
-  box-shadow: none;
-  color: var(--text-secondary);
-}
-.glow-btn-secondary:hover {
-  background: var(--btn-secondary-hover);
-  box-shadow: none;
-  color: var(--text-primary);
 }
 
 /* ═══════════════════════════════════════════
@@ -608,10 +550,6 @@ body {
     border-radius: 0.75rem;
   }
 
-  .glow-btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.8125rem;
-  }
 
   .neu-input {
     padding-block: 0.5rem;
@@ -621,9 +559,6 @@ body {
 }
 
 @media (pointer: coarse) {
-  .glow-btn {
-    min-height: 44px;
-  }
   .neu-input {
     min-height: 44px;
   }
@@ -656,7 +591,7 @@ html {
     min-width: 44px;
   }
 
-  button, select, input, .neu-input, .glow-btn {
+  button, select, input, .neu-input {
     min-height: 44px;
   }
 
@@ -780,11 +715,6 @@ html {
     font-size: 0.6875rem;
   }
 
-  .glow-btn {
-    padding: 0.5rem 0.875rem;
-    font-size: 0.75rem;
-    border-radius: 0.625rem;
-  }
 
   .neu-input {
     padding: 0.5rem 0.625rem;

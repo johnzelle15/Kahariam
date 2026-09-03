@@ -57,10 +57,16 @@ export default function StatCard({
         {Icon && <Icon size={18} className="text-accent-green shrink-0" />}
       </div>
 
+      {/* Steps back down at lg: that is the window where the dashboard puts
+          four of these across a 1024px panel, and a seven-figure stock count
+          at text-4xl truncates in a card that narrow. It goes back up at xl,
+          where four across is genuinely wide. */}
       <span
         className={clsx(
           'font-semibold tabular-nums text-text-primary truncate',
-          emphasis ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'
+          emphasis
+            ? 'text-3xl sm:text-4xl lg:text-3xl xl:text-4xl'
+            : 'text-2xl sm:text-3xl lg:text-2xl xl:text-3xl'
         )}
       >
         {value}
