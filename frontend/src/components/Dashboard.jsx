@@ -920,7 +920,12 @@ export default function Dashboard() {
           ) : activityFeed.length === 0 ? (
             <EmptyState icon={Fish} title="No recent entries" message="Counting sessions and sales will show up here." />
           ) : (
-            <div className="space-y-0.5 max-h-[26rem] overflow-y-auto">
+            /* The list scrolls internally, so the cap costs no content — and
+               below 2xl it is what sets the height of this whole row, since it
+               runs taller than the Sales Trend card beside it. Matching them
+               squares up the two columns and takes ~120px off the page on a
+               laptop screen. */
+            <div className="space-y-0.5 max-h-[18rem] 2xl:max-h-[26rem] overflow-y-auto">
               {activityFeed.map(item => (
                 <div key={item.key} className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-white/[0.02]">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.kind.dot}`} />

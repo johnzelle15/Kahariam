@@ -8,7 +8,7 @@ export default function EmptyState({ icon: Icon, title, message, actionLabel, on
   return (
     <div className={clsx(
       'flex flex-col items-center justify-center text-center px-6',
-      compact ? 'py-10' : 'py-16'
+      compact ? 'py-6' : 'py-16'
     )}>
       {Icon && (
         <div className="h-12 w-12 rounded-full bg-[var(--btn-secondary-bg)] flex items-center justify-center mb-4">

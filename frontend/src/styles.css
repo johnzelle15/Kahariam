@@ -156,13 +156,30 @@ body {
 }
 
 /* ── The count ──
-   Sized to the viewport, not to its card. Container units would track the card
-   more precisely, but the card's height comes from `flex-1` inside a parent
-   sized by min-height — an indefinite height, which makes `container-type:
-   size` a no-op (cqh resolves to 0). The viewport clamp is what actually
-   works here: ~a third of the screen, so the number carries the frame on the
-   600px panel and stays readable from across the room. */
-.count-value { font-size: clamp(3.5rem, 34vh, 18rem); }
+   Two constraints, whichever binds first.
+
+   Height: ~a third of the screen, so the number carries the frame on the 600px
+   panel and reads from across the room.
+
+   Width: the card's own width divided by how many characters are in the number
+   — which React feeds in as --count-chars. Height alone is not enough. A single
+   "0" and a full "300,000" were being set at the same size, so once a real
+   count passed five figures the number ran wider than its card and the
+   overflow-hidden on the frame simply cut the digits off.
+
+   `container-type: inline-size` (not `size`) is what makes cqi work here: the
+   frame's height comes from `flex-1` and is indefinite, but its width is not,
+   and inline-size only needs the width. 0.62 approximates the advance width of
+   a tabular Inter digit at 1em, and the 92 leaves a margin either side. */
+.count-frame { container-type: inline-size; }
+
+.count-value {
+  font-size: clamp(
+    2.5rem,
+    min(34vh, calc(92cqi / (var(--count-chars, 1) * 0.62))),
+    18rem
+  );
+}
 
 /* Raised surface — reserved for P0 content, so elevation means priority. */
 .glass-card-raised {

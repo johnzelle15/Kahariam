@@ -276,8 +276,10 @@ export default function Counter() {
 
   return (
     /* Sized to the shortest screen this runs on — a 1024x600 Pi panel — so the
-       count and both controls are reachable without scrolling. */
-    <div className="flex flex-col gap-3" style={{ minHeight: 'calc(100vh - 4rem)' }}>
+       count and both controls are reachable without scrolling. dvh, not vh: on
+       a phone vh counts the space behind the browser's own address bar, so the
+       Start/Save row sat below the fold until the bar collapsed. */
+    <div className="flex flex-col gap-3" style={{ minHeight: 'calc(100dvh - 4rem)' }}>
 
       <Modal
         open={confirmSave}
@@ -342,12 +344,23 @@ export default function Counter() {
 
       {/* ── The count fills the frame. It is the only thing on this screen
              anyone reads from across a room. ── */}
-      <div className="glass-card flex-1 min-h-0 overflow-hidden
+      <div className="glass-card count-frame flex-1 min-h-0 overflow-hidden
         flex flex-col items-center justify-center gap-2 p-4">
         <p className="text-xs font-bold text-text-muted uppercase tracking-[0.14em]">Fish counted</p>
-        {/* Sizing lives in .count-value. Leading is tightened so the glyph
-            fills the space rather than its line box. */}
-        <p className="count-value font-bold tabular-nums leading-[0.85] text-accent-green">
+        {/* Sizing lives in .count-value, which needs to know how wide the
+            number is: a six-figure count has to step down or it runs past the
+            edge of the frame. Leading is tightened so the glyph fills the
+            space rather than its line box. */}
+        {/* pb reserves the comma's descender. leading-[0.85] deliberately makes
+            the line box shorter than the glyphs so the digits fill the frame,
+            which means anything below the baseline spills out of the box — at
+            181px the comma in "300,000" was landing on top of the status line
+            underneath it. Padding in em keeps that reservation proportional at
+            every size the clamp produces. */}
+        <p
+          className="count-value font-bold tabular-nums leading-[0.85] pb-[0.14em] text-accent-green"
+          style={{ '--count-chars': count.toLocaleString().length }}
+        >
           {count.toLocaleString()}
         </p>
         <p className="text-sm text-text-secondary tabular-nums h-5">
@@ -363,7 +376,7 @@ export default function Counter() {
           variant={active ? 'secondary' : 'primary'}
           icon={active ? Square : Play}
           onClick={active ? handleStop : start}
-          className="!py-0 h-16 text-base font-bold"
+          className="!py-0 h-16 text-sm sm:text-base font-bold"
         >
           {active ? 'Stop' : 'Start'}
         </Button>
@@ -373,7 +386,7 @@ export default function Counter() {
           loading={isSaving}
           disabled={!canSave}
           onClick={() => setConfirmSave(true)}
-          className="!py-0 h-16 text-base font-bold"
+          className="!py-0 h-16 text-sm sm:text-base font-bold"
         >
           {active ? 'Stop & Save' : 'Save'}
         </Button>

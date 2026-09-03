@@ -161,7 +161,11 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
         border: '1px solid var(--glass-border)',
       }}>
 
-      {/* ── Header ─── */}
+      {/* ── Header ──
+             Title and exports share the first row, the range filter gets the
+             second. Merging all three into one wrapping row was measurably
+             worse: below ~1400px the controls wrap as a block and the card
+             grows taller than these two tidy rows. ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
         <div>
           <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
@@ -183,13 +187,13 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
         {/* Export */}
         <div className="flex items-center gap-1.5">
           <button onClick={exportExcel} disabled={exporting || data.length === 0}
-            className="flex items-center gap-1.5 text-xs sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
             title="Export to Excel">
             <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
           </button>
           <button onClick={exportPng} disabled={exporting || data.length === 0}
-            className="flex items-center gap-1.5 text-xs sm:text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
             title="Export as PNG">
             <Image className="w-3.5 h-3.5" /> PNG
@@ -264,10 +268,10 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
 
       {/* ── Chart ─── */}
       {loading ? <ChartSkeleton /> : isEmpty ? (
-        /* Sits on the same tinted panel the chart uses, so an empty range
-           still reads as "the chart, with nothing in it" rather than a gap
-           where a card should be — which is how it looked on a wide screen,
-           beside a Recent Activity column full of rows. */
+        /* Sits on the same tinted panel the chart uses, so an empty range reads
+           as "the chart, with nothing in it" rather than a hole in the page.
+           Left to size itself — pinning it to the chart's height only made the
+           card taller, since the message is shorter than the chart. */
         <div className="rounded-2xl" style={{ background: 'var(--glass-bg)' }}>
           <EmptyState
             compact
@@ -277,7 +281,11 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
           />
         </div>
       ) : (
-        <div className="h-[220px] sm:h-[260px] rounded-2xl overflow-hidden p-2"
+        /* Grows with the screen instead of sitting at one tall fixed height:
+           on a 720px-tall laptop the 260px chart pushed the analytics panel
+           fully below the fold, and it only has room to be that tall on a
+           large monitor. */
+        <div className="h-[190px] sm:h-[210px] 2xl:h-[240px] rounded-2xl overflow-hidden p-2"
           style={{ background: 'var(--glass-bg)' }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
