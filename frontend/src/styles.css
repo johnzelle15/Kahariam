@@ -221,6 +221,20 @@ body {
   }
 }
 
+/* On a short screen these cards are the panel's densest reading, and the
+   desk-sized padding was costing more height than the text inside them. */
+@media (max-height: 620px) {
+  .insight-card {
+    padding: 0.5rem 0.75rem 0.625rem;
+    border-radius: 0.625rem;
+  }
+
+  .insight-row {
+    gap: 0.5rem;
+    padding: 0.25rem 0.25rem;
+  }
+}
+
 /* Hover lift only where a pointer exists — on touch it sticks after a tap. */
 @media (hover: hover) {
   .insight-card:hover {

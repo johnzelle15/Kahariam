@@ -500,17 +500,17 @@ function InsightCard({ cat, items }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-      className="insight-card group/card"
+      className="insight-card group/card break-inside-avoid mb-3 sm:mb-4"
     >
       {/* Card header accent line */}
       <div className={`insight-card-accent ${cat.accentClass}`} />
 
       {/* Section label */}
-      <div className="flex items-center gap-2 mb-3 pt-1">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${cat.iconBg}`}>
-          <CatIcon className={`w-3.5 h-3.5 ${cat.color}`} />
+      <div className="flex items-center gap-2 mb-3 pt-1 [@media(max-height:620px)]:mb-1.5 [@media(max-height:620px)]:pt-0">
+        <div className={`w-7 h-7 [@media(max-height:620px)]:w-5 [@media(max-height:620px)]:h-5 rounded-lg flex items-center justify-center ${cat.iconBg}`}>
+          <CatIcon className={`w-3.5 h-3.5 [@media(max-height:620px)]:w-3 [@media(max-height:620px)]:h-3 ${cat.color}`} />
         </div>
-        <span className={`text-xs font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
+        <span className={`text-xs [@media(max-height:620px)]:text-[11px] font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
       </div>
 
       {/* Insight rows */}
@@ -527,7 +527,7 @@ function InsightCard({ cat, items }) {
             <div className="min-w-0 flex-1">
               {/* Value and label are separate spans so a wrap breaks between them
                   rather than mid-phrase, and only the number carries the colour. */}
-              <span className="text-[13px] leading-snug block">
+              <span className="text-[13px] [@media(max-height:620px)]:text-[11.5px] leading-snug block">
                 {insight.value && (
                   <span className={`font-bold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
                 )}
@@ -539,7 +539,7 @@ function InsightCard({ cat, items }) {
               {/* Always visible: hover-reveal reserved the same height anyway and
                   was unreachable on touch, where :hover and title= never fire. */}
               {insight.detail && (
-                <span className="text-xs text-text-muted leading-snug block mt-0.5">
+                <span className="text-xs [@media(max-height:620px)]:text-[10.5px] text-text-muted leading-snug block mt-0.5 [@media(max-height:620px)]:mt-0">
                   {insight.detail}
                 </span>
               )}
@@ -560,7 +560,7 @@ function InsightCard({ cat, items }) {
 
 function InsightSkeleton() {
   return (
-    <div className="insight-card">
+    <div className="insight-card break-inside-avoid mb-3 sm:mb-4">
       <div className="insight-card-accent bg-white/5" />
       <div className="flex items-center gap-2 mb-3 pt-1">
         <Skeleton width={28} height={28} className="!rounded-lg" />
@@ -585,7 +585,7 @@ function InsightSkeleton() {
 function AnalyticsBody({ insights, hasAny, trendLoading }) {
   if (trendLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+      <div className="columns-1 sm:columns-2 xl:columns-4 gap-3 sm:gap-4">
         {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
       </div>
     )
@@ -594,7 +594,7 @@ function AnalyticsBody({ insights, hasAny, trendLoading }) {
     return <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
   }
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+    <div className="columns-1 sm:columns-2 xl:columns-4 gap-3 sm:gap-4">
       {INSIGHT_CATEGORIES.map(cat => (
         <InsightCard key={cat.key} cat={cat} items={insights ? insights[cat.key] : []} />
       ))}
