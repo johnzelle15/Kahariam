@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   AreaChart, Area,
@@ -72,6 +72,80 @@ function SalesTooltip({ active, payload }) {
   )
 }
 
+/* ─── The plot itself ───
+   One definition, two callers: the live card sizes it with a ResponsiveContainer,
+   the PNG export renders it at a fixed size with animation off. Duplicating the
+   markup for the export is how an export drifts out of sync with the chart it is
+   supposed to be a picture of. */
+function TrendChart({ data, width, height, animate = true }) {
+  const chart = (
+    <AreaChart data={data} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
+      <defs>
+        <linearGradient id="gradSoldWave" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={SOLD_COLOR} stopOpacity={0.25} />
+          <stop offset="50%" stopColor={SOLD_COLOR} stopOpacity={0.06} />
+          <stop offset="100%" stopColor={SOLD_COLOR} stopOpacity={0} />
+        </linearGradient>
+        <filter id="glowGreen" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feFlood floodColor={SOLD_COLOR} floodOpacity="0.15" />
+          <feComposite in2="blur" operator="in" />
+          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+      <XAxis
+        dataKey="label"
+        stroke="var(--chart-text)"
+        fontSize={12}
+        tickLine={false}
+        axisLine={false}
+        interval="preserveStartEnd"
+        minTickGap={24}
+        dy={8}
+      />
+      <YAxis
+        stroke="var(--chart-text)"
+        fontSize={12}
+        tickLine={false}
+        axisLine={false}
+        tickFormatter={fmt}
+        domain={[0, 'auto']}
+        allowDecimals={false}
+        width={54}
+      />
+      {animate && <Tooltip content={<SalesTooltip />} cursor={{ stroke: 'var(--glass-border)', strokeWidth: 1 }} />}
+
+      {/* Units sold. Revenue is units × flat price, so plotting it as a
+          second series would just redraw this line on a second axis —
+          it lives in the KPI card and the tooltip instead. */}
+      <Area
+        type="monotone"
+        dataKey="sold_total"
+        name="Units Sold"
+        stroke={SOLD_COLOR}
+        fill="url(#gradSoldWave)"
+        strokeWidth={2}
+        dot={false}
+        activeDot={{
+          r: 4, fill: SOLD_COLOR, stroke: '#064e3b', strokeWidth: 2,
+          filter: 'url(#glowGreen)',
+        }}
+        isAnimationActive={animate}
+        animationDuration={1200}
+        animationEasing="ease-in-out"
+      />
+    </AreaChart>
+  )
+
+  /* A fixed size is what the export needs: off-screen there is nothing for a
+     ResponsiveContainer to measure, so it renders at zero and the capture comes
+     back blank. */
+  if (width) return React.cloneElement(chart, { width, height })
+  return <ResponsiveContainer width="100%" height="100%">{chart}</ResponsiveContainer>
+}
+
 /* ─── Skeleton — matches the rendered chart geometry so nothing reflows on load ─── */
 function ChartSkeleton() {
   return (
@@ -88,7 +162,9 @@ function ChartSkeleton() {
    ════════════════════════════════════════════════════ */
 export default function SalesTrend({ data = [], loading, range, setRange }) {
   const chartRef = useRef(null)
+  const exportRef = useRef(null)
   const [exporting, setExporting] = useState(false)
+  const [pngPending, setPngPending] = useState(false)
 
   /* ── Computed Stats ─── */
   const totalSold = data.reduce((s, d) => s + d.sold_total, 0)
@@ -123,26 +199,50 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
     }
   }
 
-  /* ── Export: PNG ─── */
-  async function exportPng() {
-    if (!chartRef.current) return
+  /* ── Export: PNG ───
+     Renders a sheet built for the purpose rather than photographing the live
+     card. Screenshotting the card dragged in whatever the card happened to be
+     showing — the Excel and PNG buttons, the range pills, a half-scrolled Daily
+     Breakdown table and its scrollbars — and inherited the panel's cramped
+     layout, so the chart came out letterboxed with its axis labels sliced off.
+     The background was hardcoded to a navy the app has not used since the olive
+     palette landed, which is why the title read as grey-on-grey. */
+  function exportPng() {
+    if (data.length === 0) return
     setExporting(true)
-    try {
-      const dataUrl = await toPng(chartRef.current, {
-        backgroundColor: '#0b0f1a',
-        pixelRatio: 2,
-        style: { padding: '24px' }
-      })
-      const link = document.createElement('a')
-      link.download = `sales-trend-${data[0]?.date || 'chart'}.png`
-      link.href = dataUrl
-      link.click()
-    } catch (e) {
-      console.error('PNG export failed', e)
-    } finally {
-      setExporting(false)
-    }
+    setPngPending(true)
   }
+
+  /* The sheet has to be mounted and painted before it can be captured, so the
+     capture waits a frame rather than running inside the click handler. */
+  useEffect(() => {
+    if (!pngPending) return
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+        await new Promise(r => setTimeout(r, 80))
+        if (cancelled || !exportRef.current) return
+
+        const dataUrl = await toPng(exportRef.current, {
+          // The app's own ground, whichever theme is on — not a fixed colour.
+          backgroundColor: getComputedStyle(document.body).backgroundColor,
+          pixelRatio: 2,
+        })
+        const link = document.createElement('a')
+        link.download = `sales-trend-${data[0]?.date || 'chart'}.png`
+        link.href = dataUrl
+        link.click()
+      } catch (e) {
+        console.error('PNG export failed', e)
+      } finally {
+        if (!cancelled) { setPngPending(false); setExporting(false) }
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [pngPending]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Chart data ─── */
   const chartData = data.map(d => ({
@@ -313,65 +413,75 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
            screen. */
         <div className="flex-1 min-h-[130px] [@media(max-height:620px)]:min-h-[96px] [@media(max-height:520px)]:min-h-[80px] rounded-2xl overflow-hidden p-2"
           style={{ background: 'var(--glass-bg)' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
-              <defs>
-                <linearGradient id="gradSoldWave" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={SOLD_COLOR} stopOpacity={0.25} />
-                  <stop offset="50%" stopColor={SOLD_COLOR} stopOpacity={0.06} />
-                  <stop offset="100%" stopColor={SOLD_COLOR} stopOpacity={0} />
-                </linearGradient>
-                <filter id="glowGreen" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feFlood floodColor={SOLD_COLOR} floodOpacity="0.15" />
-                  <feComposite in2="blur" operator="in" />
-                  <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-              </defs>
+          <TrendChart data={chartData} />
+        </div>
+      )}
 
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis
-                dataKey="label"
-                stroke="var(--chart-text)"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                interval="preserveStartEnd"
-                minTickGap={24}
-                dy={8}
-              />
-              <YAxis
-                stroke="var(--chart-text)"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={fmt}
-                domain={[0, 'auto']}
-                allowDecimals={false}
-                width={54}
-              />
-              <Tooltip content={<SalesTooltip />} cursor={{ stroke: 'var(--glass-border)', strokeWidth: 1 }} />
+      {/* ── PNG export sheet ──
+             Off-screen and only while exporting. Fixed 1200px wide so the image
+             is the same shape whether it was taken from the 7" panel or a
+             desktop, and laid out for reading as a document: what it is, the
+             period it covers, the four figures, then the plot. ── */}
+      {pngPending && (
+        /* The off-screen positioning belongs on this wrapper, never on the node
+           being captured: html-to-image copies the captured node's own computed
+           style into its clone, so a `position: fixed; left: -10000px` on it
+           travels into the image and shoves the content off the canvas — the
+           export comes back as a blank rectangle of background. */
+        <div aria-hidden style={{ position: 'fixed', left: '-10000px', top: 0, pointerEvents: 'none' }}>
+        <div ref={exportRef}
+          style={{
+            width: 1200, padding: 32, borderRadius: 20,
+            background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+          }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+                Sales Trend
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6 }}>
+                {data.length > 0
+                  ? `${fmtDateFull(data[0].date)} — ${fmtDateFull(data[data.length - 1].date)}`
+                  : ''}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-green)' }}>Kahariam Farms</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                {data.length} day{data.length === 1 ? '' : 's'} · exported {new Date().toLocaleDateString()}
+              </div>
+            </div>
+          </div>
 
-              {/* Units sold. Revenue is units × flat price, so plotting it as a
-                  second series would just redraw this line on a second axis —
-                  it lives in the KPI card and the tooltip instead. */}
-              <Area
-                type="monotone"
-                dataKey="sold_total"
-                name="Units Sold"
-                stroke={SOLD_COLOR}
-                fill="url(#gradSoldWave)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{
-                  r: 4, fill: SOLD_COLOR, stroke: '#064e3b', strokeWidth: 2,
-                  filter: 'url(#glowGreen)',
-                }}
-                animationDuration={1200}
-                animationEasing="ease-in-out"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div style={{
+            display: 'flex', gap: 48, margin: '24px 0 8px', paddingTop: 20,
+            borderTop: '1px solid var(--glass-border)',
+          }}>
+            {[
+              ['Total sold', `${totalSold.toLocaleString()} fish`],
+              ['Revenue', fmtCurrency(totalRevenue)],
+              ['Average per day', `${avgDaily.toLocaleString()} fish`],
+              ['Peak', peakDay && peakDay.sold_total > 0
+                ? `${peakDay.sold_total.toLocaleString()} on ${fmtDate(peakDay.date)}`
+                : '—'],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', color: 'var(--text-muted)',
+                }}>{label}</div>
+                <div style={{
+                  fontSize: 22, fontWeight: 700, marginTop: 4,
+                  color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
+                }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 20, borderRadius: 14, padding: 8, background: 'var(--glass-bg)' }}>
+            <TrendChart data={chartData} width={1120} height={400} animate={false} />
+          </div>
+        </div>
         </div>
       )}
 
