@@ -106,16 +106,16 @@ export default function Settings() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-6"
+          className="mb-6 [@media(max-height:620px)]:mb-2"
         >
-          <div className="flex items-center gap-2 mb-1 text-xs"
+          <div className="flex items-center gap-2 mb-1 text-xs [@media(max-height:620px)]:hidden"
             style={{ color: 'var(--text-muted)' }}>
             <span>Kahariam Farms</span>
             <ChevronRight className="w-3 h-3" />
             <span style={{ color: 'var(--text-secondary)' }}>Settings</span>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="text-2xl [@media(max-height:620px)]:text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
               Settings
             </h1>
             {/* Role badge */}
@@ -155,7 +155,7 @@ export default function Settings() {
         </motion.div>
 
         {/* Layout: tab list + content */}
-        <div className="flex flex-col lg:flex-row gap-5">
+        <div className="flex flex-col lg:flex-row gap-5 [@media(max-height:620px)]:gap-2">
 
           {/* ── Tab list (sidebar on lg+, horizontal scroll on mobile) ─── */}
           <motion.nav

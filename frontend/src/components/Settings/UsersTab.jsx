@@ -475,10 +475,11 @@ export default function UsersTab({ toast }) {
 
   return (
     <>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5 [@media(max-height:620px)]:gap-2.5">
 
         {/* ── Staff Accounts ── */}
         <SettingsCard
+          count={staff.length || undefined}
           title="Staff Accounts"
           description="Create and manage user access"
           action={
@@ -511,9 +512,9 @@ export default function UsersTab({ toast }) {
                       style={{ borderBottom: '1px solid var(--table-border)' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--table-row-hover)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 [@media(max-height:620px)]:py-1.5 px-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          <div className="w-8 h-8 [@media(max-height:620px)]:w-6 [@media(max-height:620px)]:h-6 rounded-lg flex items-center justify-center text-xs [@media(max-height:620px)]:text-[10px] font-bold flex-shrink-0"
                             style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(96,165,250,0.15))', color: 'var(--accent-purple)' }}>
                             {(member.fullname || member.username)?.[0]?.toUpperCase()}
                           </div>
@@ -525,7 +526,7 @@ export default function UsersTab({ toast }) {
                           </div>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 [@media(max-height:620px)]:py-1.5 px-3">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
                           style={{
                             background: member.role === 'admin' ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
@@ -534,7 +535,7 @@ export default function UsersTab({ toast }) {
                           <Shield className="w-2.5 h-2.5" />{member.role}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 [@media(max-height:620px)]:py-1.5 px-3">
                         <span className="flex items-center gap-1 text-xs"
                           style={{ color: member.active ? 'var(--accent-green)' : 'var(--text-muted)' }}>
                           {member.active
@@ -545,7 +546,7 @@ export default function UsersTab({ toast }) {
                       <td className="py-2.5 px-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                         {formatDate(member.last_login, 'Never logged in')}
                       </td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 [@media(max-height:620px)]:py-1.5 px-3">
                         <div className="flex items-center gap-1.5 justify-end">
                           <button onClick={() => setStaffModal({ mode: 'edit', staff: member })}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
@@ -572,7 +573,7 @@ export default function UsersTab({ toast }) {
         </SettingsCard>
 
         {/* ── Audit Logs ── */}
-        <SettingsCard title="Audit Logs" description="System-wide action history">
+        <SettingsCard collapsible count={logsTotal || undefined} title="Audit Logs" description="System-wide action history">
           {logsLoading ? (
             <div className="flex flex-col gap-2">{[...Array(5)].map((_, i) => <Skeleton key={i} height={40} />)}</div>
           ) : logs.length === 0 ? (
@@ -604,7 +605,7 @@ export default function UsersTab({ toast }) {
                         <td className="py-2.5 px-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
                           @{log.username}
                         </td>
-                        <td className="py-2.5 px-3">
+                        <td className="py-2.5 [@media(max-height:620px)]:py-1.5 px-3">
                           <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
                             style={{ background: 'rgba(139,92,246,0.10)', color: 'var(--accent-purple)' }}>
                             {log.action}

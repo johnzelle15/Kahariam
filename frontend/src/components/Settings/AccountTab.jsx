@@ -179,7 +179,7 @@ export default function AccountTab({ toast }) {
     : (profile.username?.[0] || '?').toUpperCase()
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 [@media(max-height:620px)]:gap-2.5">
 
       {/* ── Profile Image + Identity ─────────────────────────────────── */}
       <SettingsCard title="Profile" description="Your public identity in the system">
@@ -192,11 +192,11 @@ export default function AccountTab({ toast }) {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 [@media(max-height:620px)]:gap-3">
             {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div
-                className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center text-2xl font-bold select-none"
+                className="w-20 h-20 [@media(max-height:620px)]:w-12 [@media(max-height:620px)]:h-12 rounded-2xl overflow-hidden flex items-center justify-center text-2xl [@media(max-height:620px)]:text-base font-bold select-none"
                 style={{
                   background: profile.profile_image
                     ? 'transparent'

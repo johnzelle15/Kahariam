@@ -331,7 +331,7 @@ export default function SecurityTab({ toast }) {
 
   return (
     <>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5 [@media(max-height:620px)]:gap-2.5">
 
         {/* ── Change Password ──────────────────────────────────────── */}
         <SettingsCard
@@ -339,7 +339,7 @@ export default function SecurityTab({ toast }) {
           description="Secure your account with a strong password"
         >
           <form onSubmit={handleSubmit} noValidate>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 [@media(max-height:620px)]:gap-2.5">
               <div>
                 <PasswordInput
                   id="current"
@@ -353,6 +353,7 @@ export default function SecurityTab({ toast }) {
                 )}
               </div>
 
+              <div className="grid sm:grid-cols-2 gap-4 [@media(max-height:620px)]:gap-2.5">
               <div>
                 <PasswordInput
                   id="newpw"
@@ -379,6 +380,7 @@ export default function SecurityTab({ toast }) {
                   <p className="mt-1 text-xs" style={{ color: 'var(--accent-red)' }}>{fieldErrors.confirm}</p>
                 )}
               </div>
+              </div>
 
               {/* Validation rules */}
               {form.newPw && (
@@ -401,6 +403,8 @@ export default function SecurityTab({ toast }) {
 
         {/* ── Login History ─────────────────────────────────────────── */}
         <SettingsCard
+          collapsible
+          count={historyTotal || history.length || undefined}
           title="Login History"
           description="Recent sign-in events for your account"
         >
@@ -503,6 +507,8 @@ export default function SecurityTab({ toast }) {
 
         {/* ── Recent Security Activity ─────────────────────────────── */}
         <SettingsCard
+          collapsible
+          count={activity.length || undefined}
           title="Recent Security Activity"
           description="Audit trail of account-related actions"
         >
@@ -562,6 +568,8 @@ export default function SecurityTab({ toast }) {
 
         {/* ── Active Sessions ───────────────────────────────────── */}
         <SettingsCard
+          collapsible
+          count={sessions.length || undefined}
           title="Active Sessions"
           description="Devices currently signed in to your account"
         >
