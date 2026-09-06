@@ -597,6 +597,20 @@ body {
 html {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+
+  /* The page itself never scrolls sideways. Wide data already lives in its own
+     overflow-x-auto boxes (Inventory, Settings tables), so anything that spills
+     past the viewport here is an accident, not content the user needs to reach.
+     `clip` rather than `hidden`: hidden would make <html> a scroll container and
+     break the sidebar's position: sticky. */
+  overflow-x: clip;
+
+  /* clip stops the page *scrolling* sideways, but on the touch panel a sideways
+     swipe still dragged the whole screen left and right — that is overscroll
+     (and the browser's swipe-to-navigate), which happens precisely because
+     there is nowhere to scroll. Only the root is pinned: the tables that
+     legitimately scroll sideways are nested scrollers and keep their own. */
+  overscroll-behavior-x: none;
 }
 
 /* ═══════════════════════════════════════════

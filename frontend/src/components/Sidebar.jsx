@@ -128,7 +128,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
   const navContent = (isMobile) => (
     <>
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-5 py-6 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
+      <div className={`flex items-center gap-3 px-5 py-6 [@media(max-height:620px)]:py-2 shrink-0 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
         {/* object-contain, not cover: the mark is wider than it is tall, so
             cover was cropping its sides off inside the square. The SVG is
@@ -160,7 +160,15 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 flex flex-col gap-1" role="navigation" aria-label="Main navigation">
+      {/* min-h-0 + overflow-y-auto is what keeps the rail inside its own h-screen
+          box. Without it `flex-1` cannot shrink below the buttons' intrinsic
+          height, so on the 800x480 panel — where the browser leaves ~390px of
+          page — the rail's ~530px of content spilled past the bottom of the
+          screen and dragged the whole document to 530px with it. Every screen
+          in the app then scrolled, no matter how short its own content was. */}
+      <nav className="flex-1 min-h-0 overflow-y-auto py-4 [@media(max-height:620px)]:py-0 px-3
+        flex flex-col gap-1 [@media(max-height:620px)]:gap-0.5"
+        role="navigation" aria-label="Main navigation">
         {NAV_ITEMS.map(item => {
           const Icon = item.icon
           const isActive = tab === item.id
@@ -217,20 +225,21 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       </nav>
 
       {/* Theme switcher */}
-      <div className="px-3 pb-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
-        <div className="pt-3">
+      <div className="px-3 pb-2 [@media(max-height:620px)]:pb-1 shrink-0" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <div className="pt-3 [@media(max-height:620px)]:pt-1.5">
           <ThemeSwitcher collapsed={!isMobile && collapsed} />
         </div>
       </div>
 
       {/* Logout */}
-      <div className="px-3 pb-1">
+      <div className="px-3 pb-1 shrink-0">
         <LogoutButton collapsed={!isMobile && collapsed} />
       </div>
 
-      {/* Collapse toggle (desktop only) */}
+      {/* Collapse toggle (desktop only) — the one control here that is pure
+          chrome, so it is what goes when the rail has no room to spare. */}
       {!isMobile && (
-        <div className="p-3">
+        <div className="p-3 [@media(max-height:620px)_and_(max-width:1279px)]:hidden">
           <button
             onClick={onToggle}
             className="nav-action w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer"
@@ -249,7 +258,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       {/* Desktop sidebar */}
       <aside
         className={`
-          hidden md:flex sticky top-0 h-screen flex-shrink-0 flex-col
+          hidden md:flex h-full flex-shrink-0 flex-col
           transition-all duration-300 ease-in-out z-50
           ${collapsed ? 'w-[72px]' : 'w-[240px]'}
         `}

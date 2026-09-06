@@ -15,10 +15,10 @@ import useAuthStore from '../store/authStore'
 /* ─── Helpers ─── */
 function KpiSkeleton() {
   return (
-    <div className="glass-card stat-glow p-5">
-      <Skeleton width="60%" height={12} className="mb-3" />
-      <Skeleton width="50%" height={32} className="mb-2" />
-      <Skeleton width="80%" height={14} />
+    <div className="glass-card stat-glow p-4">
+      <Skeleton width="60%" height={12} className="mb-2" />
+      <Skeleton width="50%" height={26} className="mb-2" />
+      <Skeleton width="80%" height={12} />
     </div>
   )
 }
@@ -581,7 +581,33 @@ function InsightSkeleton() {
   )
 }
 
-// Range and daily-trend data come from Dashboard, shared with SalesTrend above.
+/* The panel's contents, without the container that opens it. */
+function AnalyticsBody({ insights, hasAny, trendLoading }) {
+  if (trendLoading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+        {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
+      </div>
+    )
+  }
+  if (!hasAny) {
+    return <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+      {INSIGHT_CATEGORIES.map(cat => (
+        <InsightCard key={cat.key} cat={cat} items={insights ? insights[cat.key] : []} />
+      ))}
+    </div>
+  )
+}
+
+/* Range and daily-trend data come from Dashboard, shared with SalesTrend above.
+   A collapsible panel on the page, not a dialog: this is the dashboard's own
+   reading, and it belongs in the flow of the page with everything else. It sits
+   directly under the KPI row so it is reachable on the 7" panel without
+   scrolling; opening it does push the chart down, which is the honest trade on
+   a screen that cannot show both at once. */
 function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoading }) {
   if (loading || !stats) return null
 
@@ -593,13 +619,9 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
-      className="space-y-3 sm:space-y-4"
     >
-      {/* Collapsed by default: this is analyst reading, not the operational view the
-          dashboard exists for. Same native <details> pattern as Daily Breakdown.
-          When a dedicated Reports screen exists, this block moves there wholesale. */}
       <details className="group">
-        <summary className="cursor-pointer list-none flex items-baseline gap-2 text-sm font-bold text-text-primary tracking-tight py-1 hover:text-accent-green transition-colors">
+        <summary className="cursor-pointer list-none flex items-baseline gap-2 text-sm font-bold text-text-primary tracking-tight py-1 [@media(max-height:620px)]:py-0 hover:text-accent-green transition-colors">
           <ChevronDown className="w-3.5 h-3.5 self-center transition-transform duration-200 group-open:rotate-180" />
           Analytics Overview
           {dailyData.length > 0 && !trendLoading && (
@@ -609,27 +631,8 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
           )}
         </summary>
 
-        <div className="mt-3">
-          {/* ── Insight cards grid ── */}
-          {trendLoading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-              {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
-            </div>
-          )}
-
-          {!trendLoading && hasAny && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-              {INSIGHT_CATEGORIES.map(cat => {
-                const items = insights ? insights[cat.key] : []
-                return <InsightCard key={cat.key} cat={cat} items={items} />
-              })}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!trendLoading && !hasAny && (
-            <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
-          )}
+        <div className="mt-3 [@media(max-height:620px)]:mt-2">
+          <AnalyticsBody insights={insights} hasAny={hasAny} trendLoading={trendLoading} />
         </div>
       </details>
     </motion.div>
@@ -682,7 +685,7 @@ export default function Dashboard() {
   }
 
   async function loadSessions() {
-    try { setSessions((await rawApi.get('/api/sessions?limit=6')).data.sessions || []) }
+    try { setSessions((await rawApi.get('/api/sessions?limit=15')).data.sessions || []) }
     catch { /* sessions are supplementary; the activity list falls back to movements */ }
   }
 
@@ -761,7 +764,9 @@ export default function Dashboard() {
           noteFallback: note.isFallback,
         }
       }),
-  ].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 6)
+  /* Beside a full-height Sales Trend card this column has room for a dozen rows;
+     six left it half empty. The list scrolls, so the extra rows cost no height. */
+  ].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 15)
 
   // Today's outflow in units — the trend series' last row is always today.
   const soldToday = dailyData.length > 0 ? Number(dailyData[dailyData.length - 1].sold_total || 0) : 0
@@ -854,7 +859,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    /* Short screens (the 7" panel is 480px tall) get the tighter rhythm: the
+       gaps between five stacked blocks were ~100px of the 480 on their own. */
+    <div className="space-y-5 [@media(max-height:620px)]:space-y-2.5 [@media(max-height:520px)]:space-y-2 grow flex flex-col">
       <PageHeader
         title={`Welcome back${user?.username ? `, ${user.username}` : ''}`}
         subtitle="Here's what's happening on the farm today."
@@ -872,11 +879,12 @@ export default function Dashboard() {
       )}
 
       {/* ── KPI Cards ──
-             Four across from 1024px, not 1280px: on the Pi panel the 2x2 grid
-             was 380px of a 600px screen, so the chart and the activity feed
-             both started below the fold. StatCard steps its figure down in the
-             same window so nothing truncates at the narrower card width. ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+             Four across from 768px, not 1024px or 1280px: the 7" panel is 800px
+             wide, and there the 2x2 grid was ~190px of a 480px screen, so the
+             chart and the activity feed both started below the fold. StatCard
+             steps its figure down in the same window so nothing truncates at
+             the narrower card width. ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 [@media(max-height:620px)]:gap-2">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
         ) : kpiCards.map(card => (
@@ -895,22 +903,34 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* ── Analytics Insights — collapsed, directly under the KPIs ── */}
+      <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading}
+        dailyData={dailyData} trendLoading={trendLoading} />
+
       {/* ── Chart beside recent activity: uses the page width instead of stacking,
-             which is what kept the dashboard two viewports tall. ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-        <div className="xl:col-span-2 min-w-0">
+             which is what kept the dashboard two viewports tall.
+             The columns stretch rather than sitting at their natural heights —
+             opening Daily Breakdown doubles the left card, and with items-start
+             that left a card-sized hole of empty page beside it. ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 xl:gap-4 flex-1">
+        <div className="xl:col-span-2 min-w-0 flex">
         {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
         <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
         </div>
-        <div className="min-w-0">
+        {/* Side by side, the activity card is taken out of flow and pinned to the
+            row: the row height then comes from the Sales Trend card alone, and
+            the feed fills it exactly however tall that card gets. Left in flow
+            the two cards fight — whichever is taller sets the row and the other
+            column ends in a card-sized hole of empty page. */}
+        <div className="min-w-0 flex md:block md:relative">
         {/* ── Recent Sessions ── */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.15 }}
-          className="glass-card p-4 sm:p-6"
+          className="glass-card p-4 sm:p-5 w-full flex flex-col md:absolute md:inset-0"
         >
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Recent Activity</h3>
+          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2.5">Recent Activity</h3>
           {statsLoading ? (
             <div className="space-y-2">
               <Skeleton width="100%" height={18} />
@@ -920,12 +940,12 @@ export default function Dashboard() {
           ) : activityFeed.length === 0 ? (
             <EmptyState icon={Fish} title="No recent entries" message="Counting sessions and sales will show up here." />
           ) : (
-            /* The list scrolls internally, so the cap costs no content — and
-               below 2xl it is what sets the height of this whole row, since it
-               runs taller than the Sales Trend card beside it. Matching them
-               squares up the two columns and takes ~120px off the page on a
-               laptop screen. */
-            <div className="space-y-0.5 max-h-[18rem] 2xl:max-h-[26rem] overflow-y-auto">
+            /* Stacked (below md) the list keeps its own cap so it can't run the
+               page long. Side by side it instead fills whatever height the
+               column has — the card is stretched to the Sales Trend card beside
+               it, and a fixed cap there just moved the empty space inside the
+               card. It scrolls if the feed outgrows the room. */
+            <div className="space-y-0.5 max-h-[18rem] overflow-y-auto md:max-h-none md:flex-1 md:min-h-0">
               {activityFeed.map(item => (
                 <div key={item.key} className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-white/[0.02]">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.kind.dot}`} />
@@ -947,10 +967,6 @@ export default function Dashboard() {
         </motion.div>
         </div>
       </div>
-
-      {/* ── Analytics Insights ── */}
-      <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading}
-        dailyData={dailyData} trendLoading={trendLoading} />
 
       {/* ── KPI Detail Modal ── */}
       <Modal

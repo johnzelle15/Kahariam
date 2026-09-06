@@ -155,7 +155,12 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
-      className="rounded-2xl p-4 sm:p-6"
+      /* No min-h-0 and no overflow clipping here on purpose. Letting this card
+         shrink below its own content made it "fit" the pane on paper while
+         quietly cutting the chart and the Daily Breakdown row off inside it.
+         The chart flexes down to its floor; past that the card keeps its
+         natural height and the pane scrolls the last few pixels instead. */
+      className="rounded-2xl p-4 sm:p-5 [@media(max-height:620px)]:p-2.5 w-full flex flex-col"
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
@@ -165,17 +170,26 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
              Title and exports share the first row, the range filter gets the
              second. Merging all three into one wrapping row was measurably
              worse: below ~1400px the controls wrap as a block and the card
-             grows taller than these two tidy rows. ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-        <div>
+             grows taller than these two tidy rows.
+             It wraps on its own width, not the viewport's: at 1024px this card
+             is only ~430px wide, so a sm:flex-row that the viewport had already
+             switched on ran the date range straight into the export buttons. ── */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-2.5
+        [@media(max-height:620px)]:mb-1.5">
+        <div className="min-w-0">
           <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center"
               style={{ background: 'rgba(76,122,61,0.1)' }}>
               <Activity className="w-3.5 h-3.5 text-accent-green" />
             </div>
             Sales Trend
           </h3>
-          <p className="text-xs text-text-muted mt-1 ml-9">
+          {/* Hidden on a short screen, and it buys two rows rather than one:
+              spelled out in full this line is ~300px wide, which is what pushed
+              the export buttons onto a wrapped row of their own. The range
+              buttons below and the chart's own X axis both already say which
+              days are on screen. */}
+          <p className="text-xs text-text-muted mt-0.5 ml-8 [@media(max-height:620px)]:hidden">
             {loading
               ? 'Loading…'
               : data.length > 0
@@ -184,8 +198,10 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
           </p>
         </div>
 
-        {/* Export */}
-        <div className="flex items-center gap-1.5">
+        {/* Export — off on the shortest screens. Saving a spreadsheet or a PNG
+            is desk work, and on the panel these two 44px touch targets cost more
+            page than the chart they export. They return above 520px. */}
+        <div className="flex items-center gap-1.5 shrink-0 [@media(max-height:520px)]:hidden">
           <button onClick={exportExcel} disabled={exporting || data.length === 0}
             className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
@@ -202,7 +218,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       </div>
 
       {/* ── Range filter — governs this card AND the analytics panel below ─── */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-2.5 [@media(max-height:620px)]:mb-1.5">
         {/* Period Presets */}
         <div className="flex items-center gap-0.5 p-1 rounded-xl"
           style={{ background: 'var(--btn-secondary-bg)', border: '1px solid var(--glass-border)' }}>
@@ -249,16 +265,19 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       {/* ── KPI Stats ─── */}
       {/* Period summary as one line — three tiles restated what the chart already plots. */}
       {!loading && !isEmpty && (
-        <p className="text-xs text-text-secondary mb-3 flex flex-wrap gap-x-1.5 gap-y-1">
+        <p className="text-xs text-text-secondary mb-2.5 [@media(max-height:620px)]:mb-1.5 flex flex-wrap gap-x-1.5 gap-y-1">
           <span><b className="font-semibold text-text-primary tabular-nums">{totalSold.toLocaleString()}</b> sold</span>
           <span className="text-text-muted">·</span>
           <span><b className="font-semibold text-text-primary tabular-nums">{fmtCurrency(totalRevenue)}</b></span>
           <span className="text-text-muted">·</span>
           <span className="text-text-muted tabular-nums">avg {avgDaily.toLocaleString()}/day</span>
+          {/* Dropped on the shortest screens: it is the clause that wraps this
+              summary onto a second line, and the peak is both plotted on the
+              chart and called out in Analytics Overview. */}
           {peakDay && peakDay.sold_total > 0 && (
             <>
-              <span className="text-text-muted">·</span>
-              <span className="text-text-muted tabular-nums">
+              <span className="text-text-muted [@media(max-height:520px)]:hidden">·</span>
+              <span className="text-text-muted tabular-nums [@media(max-height:520px)]:hidden">
                 peak {peakDay.sold_total.toLocaleString()} on {fmtDate(peakDay.date)}
               </span>
             </>
@@ -272,7 +291,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
            as "the chart, with nothing in it" rather than a hole in the page.
            Left to size itself — pinning it to the chart's height only made the
            card taller, since the message is shorter than the chart. */
-        <div className="rounded-2xl" style={{ background: 'var(--glass-bg)' }}>
+        <div className="rounded-2xl flex-1 min-h-0 flex flex-col justify-center overflow-hidden" style={{ background: 'var(--glass-bg)' }}>
           <EmptyState
             compact
             icon={Activity}
@@ -284,8 +303,15 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
         /* Grows with the screen instead of sitting at one tall fixed height:
            on a 720px-tall laptop the 260px chart pushed the analytics panel
            fully below the fold, and it only has room to be that tall on a
-           large monitor. */
-        <div className="h-[190px] sm:h-[210px] 2xl:h-[240px] rounded-2xl overflow-hidden p-2"
+           large monitor. And it keys off viewport *height*, not just width: the
+           7" panel is 480px tall, where a 190px chart is 40% of the screen
+           before the analytics panel gets a single pixel. */
+        /* A floor, not a height: flex-1 lets the plot take every pixel the card
+           has spare, so on a big screen it is large. The floor only binds when
+           the pane is cramped, and it is deliberately low there — a short chart
+           the operator can see all of beats a tall one whose bottom is off the
+           screen. */
+        <div className="flex-1 min-h-[130px] [@media(max-height:620px)]:min-h-[96px] [@media(max-height:520px)]:min-h-[80px] rounded-2xl overflow-hidden p-2"
           style={{ background: 'var(--glass-bg)' }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
@@ -351,7 +377,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
 
       {/* ── Daily Breakdown Table ─── */}
       {!loading && data.length > 0 && (
-        <details className="mt-3 group">
+        <details className="mt-3 [@media(max-height:620px)]:mt-1.5 group">
           <summary className="cursor-pointer text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-2 hover:text-text-secondary transition-colors py-1">
             <ChevronDown className="w-3.5 h-3.5 transition-transform duration-300 group-open:rotate-180" />
             Daily Breakdown

@@ -3,7 +3,7 @@ import clsx from 'clsx'
 export default function Card({ title, actions, className, padded = true, children, ...rest }) {
   return (
     <div
-      className={clsx('glass-card', padded && 'p-5', className)}
+      className={clsx('glass-card', padded && 'p-4', className)}
       {...rest}
     >
       {(title || actions) && (

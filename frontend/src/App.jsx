@@ -167,8 +167,16 @@ export default function App() {
         {showWelcome && <WelcomeScreen onEnter={handleEnter} />}
       </AnimatePresence>
 
+      {/* App shell owns the height; <main> is the only scroller.
+          Letting the document scroll meant that whenever the dashboard came out
+          a hair taller than the screen — 742px against 740 at the operator's
+          browser zoom — a touch drag had two pixels of travel to work with and
+          the whole page bounced back against the finger, which reads as the
+          screen shaking. With the document pinned to the viewport there is no
+          page-level scroll to rubber-band, sideways or vertically, and content
+          that genuinely overflows scrolls inside the pane instead. */}
       <motion.div
-        className="flex min-h-screen bg-dark-900"
+        className="flex h-dvh overflow-hidden bg-dark-900"
         initial={false}
         animate={{ opacity: showWelcome ? 0 : 1 }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
@@ -193,10 +201,20 @@ export default function App() {
         </button>
         <span className="text-sm font-bold text-text-primary">Kahariam Farms</span>
       </div>
-      <main className="flex-1 min-w-0 transition-all duration-300">
-        <div className="p-4 pt-16 md:pt-6 md:px-6 lg:p-8 max-w-[1760px] mx-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain transition-all duration-300">
+        {/* h-full (not min-h-full) is what lets a screen size itself to the pane
+            fill a tall window instead of leaving the bottom third empty. No
+            min-h-0 anywhere in this chain on purpose: a flex item's default
+            min-height:auto is what stops a card being squeezed below its own
+            content, which is the difference between the chart getting smaller
+            and the chart getting cut off. */}
+        <div className="p-4 pt-16 md:pt-6 md:px-6 lg:px-8 lg:py-6 max-w-[1760px] mx-auto
+          [@media(max-height:620px)]:md:py-2 [@media(max-height:620px)]:md:px-4
+          [@media(max-height:620px)]:md:pb-4
+          min-h-full flex flex-col">
           <AnimatePresence mode="wait">
-            <motion.div key={tab} variants={pageVariants} initial="initial" animate="animate" exit="exit">
+            <motion.div key={tab} variants={pageVariants} initial="initial" animate="animate" exit="exit"
+              className="grow flex flex-col">
               <Suspense fallback={<LoadingState rows={4} />}>
                 {tab === 'dashboard' && allowedTabs.has('dashboard') && <Dashboard />}
                 {tab === 'counter' && <Counter />}
