@@ -3,48 +3,40 @@ import { motion } from 'framer-motion'
 import { io } from 'socket.io-client'
 import { rawApi } from '../utils/api'
 import {
-  TrendingUp, Fish, ScanLine, DollarSign, Package,
-  Lightbulb, Zap, Target, ShieldAlert, ChevronDown
+  TrendingUp, Fish, Lightbulb, Zap, Target, ShieldAlert, ChevronDown, AlertTriangle
 } from 'lucide-react'
 import SalesTrend from './SalesTrend'
 import { getNoteDisplay, getRecordType } from '../utils/notes'
 import { avgDailyOutflow, daysOfCover, stockStatus, coverLabel } from '../utils/stock'
-import { Button, EmptyState, Modal, PageHeader, StatCard, StatusIndicator, Skeleton } from './ui'
-import useAuthStore from '../store/authStore'
+import {
+  isoDay, revenueWindow, periodRevenue, averageSale,
+  formatPeso, formatPesoShort,
+  /* aliased: the insight engine below has its own rangeLabel, which names a
+     duration ("7 days") rather than a span of dates ("7–10 Sep"). */
+  rangeLabel as dateSpan,
+} from '../utils/revenue'
+import { Button, EmptyState, Metric, Modal, PageHeader, SectionHeader, StatusIndicator, Skeleton } from './ui'
 
 /* ─── Helpers ─── */
-function KpiSkeleton() {
+function MetricSkeleton() {
   return (
-    <div className="glass-card stat-glow p-4">
-      <Skeleton width="60%" height={12} className="mb-2" />
-      <Skeleton width="50%" height={26} className="mb-2" />
-      <Skeleton width="80%" height={12} />
+    <div className="strip-cell">
+      <Skeleton width="60%" height={9} className="mb-1.5" />
+      <Skeleton width="70%" height={18} />
     </div>
   )
 }
 
 /* Movement types, shown as a word and a colour rather than a signed number. */
 const ACTIVITY = {
-  WHOLESALE_IN: { label: 'Counted', dot: 'bg-accent-green', text: 'text-accent-green' },
-  SOLD:         { label: 'Sold',    dot: 'bg-accent-blue',  text: 'text-accent-blue' },
-  DIED:         { label: 'Died',    dot: 'bg-accent-red',   text: 'text-accent-red' },
-  UNKNOWN:      { label: 'Moved',   dot: 'bg-text-muted',   text: 'text-text-muted' },
-  ABORTED:      { label: 'Stopped', dot: 'bg-text-muted',   text: 'text-text-muted' },
+  WHOLESALE_IN: { label: 'Counted', text: 'text-positive' },
+  SOLD:         { label: 'Sold',    text: 'text-info' },
+  DIED:         { label: 'Died',    text: 'text-negative' },
+  UNKNOWN:      { label: 'Moved',   text: 'text-text-muted' },
+  ABORTED:      { label: 'Stopped', text: 'text-text-muted' },
 }
 
-const formatCurrency = v => {
-  try { return '₱' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
-  catch { return '₱0.00' }
-}
-
-/* ─── Trend percentage (used by StatCard) ─── */
-function trendPercent(current, yesterday) {
-  const cur = Number(current || 0)
-  const yday = Number(yesterday || 0)
-  const diff = cur - yday
-  if (yday !== 0) return (diff / Math.abs(yday)) * 100
-  return diff !== 0 ? 100 : 0
-}
+const formatCurrency = formatPeso
 
 /* ═══════════════════════════════════════════════════
    RANGE-ADAPTIVE ANALYTICS INSIGHT ENGINE
@@ -229,7 +221,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (todayRev > 0 && ydayRev > 0) {
     const dir = revChange >= 0
     insights.performance.push({
-      value: `${dir ? '+' : ''}${revChange.toFixed(1)}%`,
+      value: `${dir ? '+' : '−'}${Math.abs(revChange).toFixed(1)}%`,
       label: 'revenue vs yesterday',
       detail: `${formatCurrency(todayRev)} · previous ${formatCurrency(ydayRev)}`,
       type: dir ? 'positive' : 'negative',
@@ -272,7 +264,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Period-over-period direction
   if (split && split.firstSold > 0) {
     insights.trends.push({
-      value: `${splitTrend >= 0 ? '+' : ''}${splitTrend.toFixed(1)}%`,
+      value: `${splitTrend >= 0 ? '+' : '−'}${Math.abs(splitTrend).toFixed(1)}%`,
       label: `sales · ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
       detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} → ${split.secondLabel}: ${fmtNum(split.secondSold)}`,
       type: splitTrend >= 5 ? 'positive' : splitTrend <= -5 ? 'negative' : 'neutral',
@@ -284,7 +276,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const dir = momentumPct >= 0
     const windowLabel = windowSize === 1 ? 'day' : `${windowSize} days`
     insights.trends.push({
-      value: `${dir ? '+' : ''}${momentumPct.toFixed(1)}%`,
+      value: `${dir ? '+' : '−'}${Math.abs(momentumPct).toFixed(1)}%`,
       label: `last ${windowLabel} · ${dir ? 'accelerating' : 'decelerating'}`,
       detail: `recent ${fmtNum(recentWindow)} vs prior ${fmtNum(priorWindow)}`,
       type: momentumPct >= 10 ? 'positive' : momentumPct <= -10 ? 'negative' : 'neutral',
@@ -471,17 +463,20 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   return insights
 }
 
-/* ─── Category config ─── */
+/* ─── Category config ───
+   The colour is passed as a CSS variable rather than a class per element: the
+   card needs it for its left rule and the dots need it as a background, and one
+   variable does both without three parallel class tables drifting apart. */
 const INSIGHT_CATEGORIES = [
-  { key: 'performance',   label: 'Performance',   icon: Zap,          color: 'text-accent-amber',  dot: 'bg-accent-amber',  accentClass: 'accent-amber',  iconBg: 'bg-accent-amber/10' },
-  { key: 'trends',        label: 'Trends',        icon: TrendingUp,   color: 'text-accent-blue',   dot: 'bg-accent-blue',   accentClass: 'accent-blue',   iconBg: 'bg-accent-blue/10' },
-  { key: 'risks',         label: 'Risks',         icon: ShieldAlert,  color: 'text-accent-red',    dot: 'bg-accent-red',    accentClass: 'accent-red',    iconBg: 'bg-accent-red/10' },
-  { key: 'opportunities', label: 'Opportunities', icon: Target,       color: 'text-accent-green',  dot: 'bg-accent-green',  accentClass: 'accent-green',  iconBg: 'bg-accent-green/10' },
+  { key: 'performance',   label: 'Performance',   icon: Zap,         color: 'var(--attention)' },
+  { key: 'trends',        label: 'Trends',        icon: TrendingUp,  color: 'var(--info)' },
+  { key: 'risks',         label: 'Risks',         icon: ShieldAlert, color: 'var(--negative)' },
+  { key: 'opportunities', label: 'Opportunities', icon: Target,      color: 'var(--positive)' },
 ]
 
 const TYPE_COLORS = {
-  positive: 'text-accent-green',
-  negative: 'text-accent-red',
+  positive: 'text-positive',
+  negative: 'text-negative',
   neutral: 'text-text-secondary',
 }
 
@@ -496,55 +491,42 @@ function InsightCard({ cat, items }) {
   const overflow = items.length - MOBILE_VISIBLE
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-      className="insight-card group/card break-inside-avoid mb-3 sm:mb-4"
-    >
-      {/* Card header accent line */}
-      <div className={`insight-card-accent ${cat.accentClass}`} />
-
-      {/* Section label */}
-      <div className="flex items-center gap-2 mb-3 pt-1 [@media(max-height:620px)]:mb-1.5 [@media(max-height:620px)]:pt-0">
-        <div className={`w-7 h-7 [@media(max-height:620px)]:w-5 [@media(max-height:620px)]:h-5 rounded-lg flex items-center justify-center ${cat.iconBg}`}>
-          <CatIcon className={`w-3.5 h-3.5 [@media(max-height:620px)]:w-3 [@media(max-height:620px)]:h-3 ${cat.color}`} />
-        </div>
-        <span className={`text-xs [@media(max-height:620px)]:text-[11px] font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
+    <div className="insight-card" style={{ '--cat': cat.color }}>
+      {/* Section label. The icon sits inline at text size rather than in a
+          tinted 28px tile — four tiles across the panel were the loudest thing
+          in a block whose whole job is to be read as text. */}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <CatIcon size={12} style={{ color: cat.color }} aria-hidden="true" />
+        <span className="eyebrow" style={{ color: cat.color }}>{cat.label}</span>
       </div>
 
       {/* Insight rows */}
-      <div className="space-y-0.5">
+      <div>
         {items.map((insight, i) => (
-          <motion.div
+          <div
             key={i}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
             className={`insight-row${i >= MOBILE_VISIBLE && !expanded ? ' is-overflow' : ''}`}
           >
-            <span className={`insight-dot ${cat.dot}`} />
+            <span className="insight-dot" style={{ background: cat.color }} />
             <div className="min-w-0 flex-1">
               {/* Value and label are separate spans so a wrap breaks between them
                   rather than mid-phrase, and only the number carries the colour. */}
-              <span className="text-[13px] [@media(max-height:620px)]:text-[11.5px] leading-snug block">
+              <span className="text-xs leading-snug block">
                 {insight.value && (
-                  <span className={`font-bold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
+                  <span className={`font-semibold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
                 )}
                 {insight.value && insight.label && ' '}
                 {insight.label && (
-                  <span className="font-medium text-text-secondary">{insight.label}</span>
+                  <span className="text-text-secondary">{insight.label}</span>
                 )}
               </span>
               {/* Always visible: hover-reveal reserved the same height anyway and
                   was unreachable on touch, where :hover and title= never fire. */}
               {insight.detail && (
-                <span className="text-xs [@media(max-height:620px)]:text-[10.5px] text-text-muted leading-snug block mt-0.5 [@media(max-height:620px)]:mt-0">
-                  {insight.detail}
-                </span>
+                <span className="meta block mt-px">{insight.detail}</span>
               )}
             </div>
-          </motion.div>
+          </div>
         ))}
 
         {overflow > 0 && (
@@ -554,26 +536,22 @@ function InsightCard({ cat, items }) {
           </button>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }
 
 function InsightSkeleton() {
   return (
-    <div className="insight-card break-inside-avoid mb-3 sm:mb-4">
-      <div className="insight-card-accent bg-white/5" />
-      <div className="flex items-center gap-2 mb-3 pt-1">
-        <Skeleton width={28} height={28} className="!rounded-lg" />
-        <Skeleton width="40%" height={10} />
+    <div className="insight-card">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Skeleton width={12} height={12} />
+        <Skeleton width="45%" height={9} />
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         {[1, 2].map(i => (
-          <div key={i} className="flex items-start gap-2.5 p-2">
-            <Skeleton width={6} height={6} className="!rounded-full mt-1" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton width="90%" height={13} />
-              <Skeleton width="60%" height={10} />
-            </div>
+          <div key={i} className="space-y-1">
+            <Skeleton width="90%" height={11} />
+            <Skeleton width="60%" height={9} />
           </div>
         ))}
       </div>
@@ -583,18 +561,22 @@ function InsightSkeleton() {
 
 /* The panel's contents, without the container that opens it. */
 function AnalyticsBody({ insights, hasAny, trendLoading }) {
+  /* A grid, not CSS multi-columns. `columns-*` flows the four cards top-to-
+     bottom and then wraps, so which category landed in which column depended on
+     how many bullets each happened to generate that day — the panel reordered
+     itself as the farm's data changed. A grid keeps Performance, Trends, Risks
+     and Opportunities in that order every time, which is the point of naming
+     them. */
+  const cls = 'grid gap-grid items-start grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]'
   if (trendLoading) {
-    return (
-      <div className="columns-1 sm:columns-2 xl:columns-4 gap-3 sm:gap-4">
-        {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
-      </div>
-    )
+    return <div className={cls}>{[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}</div>
   }
   if (!hasAny) {
-    return <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
+    return <EmptyState compact icon={Lightbulb} title="No insights yet"
+      message="Insights appear once there's enough sales activity in the selected range." />
   }
   return (
-    <div className="columns-1 sm:columns-2 xl:columns-4 gap-3 sm:gap-4">
+    <div className={cls}>
       {INSIGHT_CATEGORIES.map(cat => (
         <InsightCard key={cat.key} cat={cat} items={insights ? insights[cat.key] : []} />
       ))}
@@ -621,17 +603,19 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
       transition={{ duration: 0.15 }}
     >
       <details className="group">
-        <summary className="cursor-pointer list-none flex items-baseline gap-2 text-sm font-bold text-text-primary tracking-tight py-1 [@media(max-height:620px)]:py-0 hover:text-accent-green transition-colors">
-          <ChevronDown className="w-3.5 h-3.5 self-center transition-transform duration-200 group-open:rotate-180" />
-          Analytics Overview
+        <summary className="cursor-pointer list-none flex items-baseline gap-1.5 py-0.5
+          rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green">
+          <ChevronDown size={13} className="self-center text-text-muted shrink-0
+            transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
+          <span className="section-title">Analytics Overview</span>
           {dailyData.length > 0 && !trendLoading && (
-            <span className="text-xs font-medium text-text-muted">
-              {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analyzed
+            <span className="meta">
+              {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analysed
             </span>
           )}
         </summary>
 
-        <div className="mt-3 [@media(max-height:620px)]:mt-2">
+        <div className="mt-2">
           <AnalyticsBody insights={insights} hasAny={hasAny} trendLoading={trendLoading} />
         </div>
       </details>
@@ -652,7 +636,11 @@ export default function Dashboard() {
   const [range, setRange] = useState({ days: 7, start: '', end: '', custom: false })
   const [dailyData, setDailyData] = useState([])
   const [trendLoading, setTrendLoading] = useState(true)
-  const user = useAuthStore(s => s.user)
+  /* Revenue Overview reads its own fixed window (this week / this month), which
+     must not move when the operator changes the chart's range — "This Month"
+     that silently becomes "last 90 days" is worse than no card at all. */
+  const [revRows, setRevRows] = useState(null)
+  const [pricePerFish, setPricePerFish] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -666,6 +654,23 @@ export default function Dashboard() {
       .finally(() => { if (!cancelled) setTrendLoading(false) })
     return () => { cancelled = true }
   }, [range, stats]) // stats changes on each new reading, so the trend refreshes with it
+
+  /* One fetch covers today, this week and this month — the window reaches back
+     to whichever of the two periods started earlier. Re-runs with `stats` so a
+     sale recorded while the dashboard is open lands in the cards. */
+  useEffect(() => {
+    let cancelled = false
+    const w = revenueWindow()
+    rawApi.get(`/api/daily-trend?start_date=${w.start}&end_date=${w.end}`)
+      .then(res => {
+        if (cancelled) return
+        setRevRows(res.data?.data || [])
+        const p = Number(res.data?.prices?.wholesale)
+        if (Number.isFinite(p)) setPricePerFish(p)
+      })
+      .catch(() => { if (!cancelled) setRevRows([]) })
+    return () => { cancelled = true }
+  }, [stats])
 
   useEffect(() => {
     reload()
@@ -768,30 +773,103 @@ export default function Dashboard() {
      six left it half empty. The list scrolls, so the extra rows cost no height. */
   ].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 15)
 
+  /* Day headings, so the feed reads as a log rather than as fifteen rows that
+     all open with the same "2026-09-" prefix. The stored timestamp is
+     "YYYY-MM-DD HH:MM", so the split is positional and needs no parsing. */
+  const todayIso = isoDay(new Date())
+  const yesterdayIso = isoDay(new Date(Date.now() - 86400000))
+  function dayHeading(iso) {
+    if (!iso) return 'Undated'
+    if (iso === todayIso) return 'Today'
+    if (iso === yesterdayIso) return 'Yesterday'
+    return new Date(iso + 'T00:00:00')
+      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  }
+
+  const activityDays = []
+  activityFeed.forEach(item => {
+    const iso = String(item.date || '').slice(0, 10)
+    const last = activityDays[activityDays.length - 1]
+    if (!last || last.iso !== iso) activityDays.push({ iso, heading: dayHeading(iso), items: [item] })
+    else last.items.push(item)
+  })
+
   // Today's outflow in units — the trend series' last row is always today.
   const soldToday = dailyData.length > 0 ? Number(dailyData[dailyData.length - 1].sold_total || 0) : 0
+  const countedToday = Number(stats?.today_session_total || 0)
 
-  const kpiCards = stats ? [
+  /* ── The stock band ──
+     One panel, four readings, and only the first of them is set large. These
+     were four equally-weighted cards, three of which routinely read "0" or (in
+     the case of the lifetime total) a seven-figure number that is explicitly
+     not current stock — so the loudest thing on the dashboard was whichever
+     number happened to be longest. Stock on hand is the question the farm
+     actually opens this screen to answer. */
+  const stockCells = stats ? [
     {
-      key: 'stock_on_hand', label: 'Stock on Hand', value: stockOnHand.toLocaleString(), icon: Package,
-      emphasis: true, tone: stockTone, sub: coverLabel(cover),
-      current: global.wholesale_total, yesterday: yday.wholesale_total,
+      key: 'stock_on_hand', label: 'Stock on Hand', value: stockOnHand.toLocaleString(),
+      size: 'hero', tone: stockTone, sub: coverLabel(cover),
     },
     {
-      key: 'today_session', label: 'Counted Today', value: Number(stats.today_session_total || 0).toLocaleString(), icon: ScanLine,
-      sub: Number(stats.today_session_total || 0) === 0 ? 'No session yet today' : 'fish added to inventory',
-      current: global.today_session_total, yesterday: yday.today_session_total,
+      key: 'today_session', label: 'Counted in today', value: countedToday.toLocaleString(),
+      sub: countedToday === 0 ? 'no session yet' : 'added to inventory',
     },
     {
-      key: 'sold_today', label: 'Sold Today', value: soldToday.toLocaleString(), icon: DollarSign,
-      sub: formatCurrency(stats.today_revenue),
-      current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0),
+      key: 'sold_today', label: 'Sold today', value: soldToday.toLocaleString(),
+      sub: formatCurrency(stats.today_revenue), rawValue: Number(stats.today_revenue || 0),
     },
     {
-      key: 'total_fish', label: 'Stocked All Time', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish,
-      sub: 'gross additions, never decreases',
+      key: 'total_fish', label: 'Stocked all time', value: Number(stats.additions_total || 0).toLocaleString(),
+      sub: 'gross, never decreases',
     },
   ] : []
+
+  /* ── Revenue Overview ──
+     Five figures from two existing endpoints. Today leads; the rest are
+     supporting context and are set one step down. Nothing here is computed
+     from anything the farm has not actually recorded — a period with no sales
+     shows ₱0.00, and an average with no sales at all shows a dash. */
+  const rev = periodRevenue(revRows || [], new Date())
+  const salesCount = Number(global.sales_count || 0)
+  const avgSale = averageSale(global.total_revenue, salesCount)
+  const revLoading = revRows === null || statsLoading
+
+  const revenueCells = [
+    {
+      key: 'today', label: "Today's revenue", size: 'md',
+      value: formatPeso(stats?.today_revenue), sub: dateSpan(todayIso, todayIso),
+    },
+    {
+      key: 'week', label: 'This week',
+      value: formatPesoShort(rev.week), sub: dateSpan(rev.weekStart, todayIso),
+    },
+    {
+      key: 'month', label: 'This month',
+      value: formatPesoShort(rev.month), sub: dateSpan(rev.monthStart, todayIso),
+    },
+    {
+      key: 'total', label: 'Total sales',
+      value: formatPesoShort(global.total_revenue),
+      sub: salesCount > 0 ? `${salesCount.toLocaleString()} recorded sales` : 'no sales recorded',
+    },
+    {
+      key: 'avg', label: 'Average sale',
+      value: avgSale === null ? '—' : formatPesoShort(avgSale),
+      sub: avgSale === null
+        ? 'needs a recorded sale'
+        : pricePerFish ? `at ₱${pricePerFish.toFixed(2)}/fish` : 'per recorded sale',
+    },
+  ]
+
+  const activeAlerts = (lowStockAlerts || []).filter(a => a.status && a.status !== 'ok')
+
+  /* Mirrors SalesTrend's own isEmpty. The layout has to know before it lays out
+     — a card that is about to render two lines of text must not be handed a
+     third of the page first. */
+  const trendEmpty = !trendLoading && (
+    dailyData.length === 0 ||
+    dailyData.every(d => !Number(d.sold_total) && !Number(d.revenue))
+  )
 
   function openKpiModal(card) {
     let details = null
@@ -803,10 +881,10 @@ export default function Dashboard() {
         title: 'Stock on Hand',
         subtitle: `${stockOnHand.toLocaleString()} SPIN_20 available for sale right now`,
         rows: [
-          { label: 'Available now', color: '#4C7A3D', value: `${stockOnHand.toLocaleString()} fish` },
-          { label: 'As of yesterday', color: '#5E9B94', value: `${ydayStock.toLocaleString()} fish` },
-          { label: 'Selling at', color: '#D98E3B', value: `${Math.round(outflowRate).toLocaleString()} fish/day (7-day avg)` },
-          { label: 'Cover remaining', color: '#B5533F', value: coverLabel(cover) },
+          { label: 'Available now', color: 'var(--positive)', value: `${stockOnHand.toLocaleString()} fish` },
+          { label: 'As of yesterday', color: 'var(--info)', value: `${ydayStock.toLocaleString()} fish` },
+          { label: 'Selling at', color: 'var(--attention)', value: `${Math.round(outflowRate).toLocaleString()} fish/day (7-day avg)` },
+          { label: 'Cover remaining', color: 'var(--negative)', value: coverLabel(cover) },
         ],
         extra: diff === 0
           ? 'No change from yesterday'
@@ -820,9 +898,9 @@ export default function Dashboard() {
         title: 'Stocked All Time',
         subtitle: `${total.toLocaleString()} fish added since records began`,
         rows: [
-          { label: 'Gross additions (all time)', color: '#4C7A3D', value: `${total.toLocaleString()} fish` },
-          { label: 'As of yesterday', color: '#5E9B94', value: `${ydayTotal.toLocaleString()} fish` },
-          { label: 'Still on hand', color: '#D98E3B', value: `${stockOnHand.toLocaleString()} fish` },
+          { label: 'Gross additions (all time)', color: 'var(--positive)', value: `${total.toLocaleString()} fish` },
+          { label: 'As of yesterday', color: 'var(--info)', value: `${ydayTotal.toLocaleString()} fish` },
+          { label: 'Still on hand', color: 'var(--attention)', value: `${stockOnHand.toLocaleString()} fish` },
         ],
         extra: 'This is a lifetime running total of fish added — it never decreases and is not current stock.'
           + (diff === 0 ? '' : ` ${diff > 0 ? '+' : ''}${diff.toLocaleString()} added since yesterday.`)
@@ -835,22 +913,21 @@ export default function Dashboard() {
         title: 'Counted Today',
         subtitle: `Counted today: ${todayCount.toLocaleString()} fish`,
         rows: [
-          { label: 'Today', color: '#4C7A3D', value: `${todayCount.toLocaleString()} fish` },
-          { label: 'Yesterday', color: '#5E9B94', value: `${ydayCount.toLocaleString()} fish` },
+          { label: 'Today', color: 'var(--positive)', value: `${todayCount.toLocaleString()} fish` },
+          { label: 'Yesterday', color: 'var(--info)', value: `${ydayCount.toLocaleString()} fish` },
         ],
         extra: diff === 0
           ? 'No change from yesterday'
           : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish vs. yesterday`
       }
     } else if (card.key === 'sold_today') {
-      const pricePerFish = 0.40
       details = {
         title: 'Sold Today',
         subtitle: `${soldToday.toLocaleString()} fish · ${formatCurrency(card.rawValue)}`,
         rows: [
-          { label: 'Units sold today', color: '#4C7A3D', value: `${soldToday.toLocaleString()} fish` },
-          { label: 'Price per fish', color: '#5E9B94', value: `₱${pricePerFish.toFixed(2)} (wholesale)` },
-          { label: 'Revenue today', color: '#D98E3B', value: formatCurrency(card.rawValue) },
+          { label: 'Units sold today', color: 'var(--positive)', value: `${soldToday.toLocaleString()} fish` },
+          ...(pricePerFish ? [{ label: 'Price per fish', color: 'var(--info)', value: `₱${pricePerFish.toFixed(2)} (wholesale)` }] : []),
+          { label: 'Revenue today', color: 'var(--attention)', value: formatCurrency(card.rawValue) },
         ],
         extra: `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`
       }
@@ -859,18 +936,26 @@ export default function Dashboard() {
   }
 
   return (
-    /* Short screens (the 7" panel is 480px tall) get the tighter rhythm: the
-       gaps between five stacked blocks were ~100px of the 480 on their own. */
-    <div className="space-y-5 [@media(max-height:620px)]:space-y-2.5 [@media(max-height:520px)]:space-y-2 grow flex flex-col">
+    /* The gap between sections comes from the scale, so the panel's rhythm is
+       decided once in styles.css instead of at every block on this page. */
+    <div className="flex flex-col gap-section grow">
+      {/* ── Identity line ──
+             Which screen, which stock item, whether the reading is live. The
+             greeting that used to sit here reported nothing about the farm. ── */}
       <PageHeader
-        title={`Welcome back${user?.username ? `, ${user.username}` : ''}`}
-        subtitle="Here's what's happening on the farm today."
-        actions={socketConnected && <StatusIndicator status="active" label="Live" />}
+        title="Farm Overview"
+        meta={new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+        actions={
+          <StatusIndicator
+            status={socketConnected ? 'active' : 'idle'}
+            label={socketConnected ? 'Live' : 'Reconnecting'}
+          />
+        }
       />
 
       {loadError && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent-red/25
-          bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red">
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-negative/25
+          bg-negative/10 px-3 py-2 text-xs font-medium text-negative">
           {loadError}
           <button onClick={reload} className="underline underline-offset-2 hover:no-underline">
             Retry
@@ -878,32 +963,88 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── KPI Cards ──
-             Four across from 768px, not 1024px or 1280px: the 7" panel is 800px
-             wide, and there the 2x2 grid was ~190px of a 480px screen, so the
-             chart and the activity feed both started below the fold. StatCard
-             steps its figure down in the same window so nothing truncates at
-             the narrower card width. ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 [@media(max-height:620px)]:gap-2">
-        {statsLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
-        ) : kpiCards.map(card => (
-          <StatCard
-            key={card.key}
-            label={card.label}
-            value={card.value}
-            icon={card.icon}
-            tone={card.tone}
-            sub={card.sub}
-            emphasis={card.emphasis}
-            trend={Math.round(trendPercent(card.current, card.yesterday) * 10) / 10}
-            trendLabel="vs yesterday"
-            onClick={() => openKpiModal(card)}
-          />
-        ))}
-      </div>
+      {/* ── Needs attention ──
+             Low-stock alerts used to exist only as a bullet inside the
+             *collapsed* Analytics Overview, which is the one place an
+             operational warning must never live. It surfaces here, above
+             everything but the stock itself, and renders nothing at all when
+             the farm is fine — so it costs no page on a good day. ── */}
+      {activeAlerts.length > 0 && (
+        <div role="status" className={`flex items-start gap-2 rounded-lg border px-3 py-2
+          ${activeAlerts.some(a => a.status === 'critical')
+            ? 'border-negative/30 bg-negative/10 text-negative'
+            : 'border-attention/30 bg-attention/10 text-attention'}`}>
+          <AlertTriangle size={14} className="shrink-0 mt-px" aria-hidden="true" />
+          <p className="text-xs font-medium leading-snug">
+            {activeAlerts.map(a =>
+              `${a.variant} at ${Number(a.stock || 0).toLocaleString()}`).join(' · ')}
+            <span className="font-normal opacity-80">
+              {' — '}{activeAlerts.some(a => a.status === 'critical') ? 'restock now' : 'approaching low levels'}
+            </span>
+          </p>
+        </div>
+      )}
 
-      {/* ── Analytics Insights — collapsed, directly under the KPIs ── */}
+      {/* ── Stock band ──
+             One panel with four readings in it, not four cards. Stock on hand
+             takes the wide cell and the hero figure; what moved today and the
+             lifetime total are supporting context beside it, at a third the
+             size. Each cell still opens its own detail dialog on tap, exactly
+             as the cards did. ── */}
+      <section aria-label="Stock">
+        <div className="strip grid-cols-2 md:[grid-template-columns:1.6fr_1fr_1fr_1fr]">
+          {statsLoading
+            ? Array.from({ length: 4 }).map((_, i) => <MetricSkeleton key={i} />)
+            : stockCells.map(cell => (
+              <Metric
+                key={cell.key}
+                label={cell.label}
+                value={cell.value}
+                sub={cell.sub}
+                tone={cell.tone}
+                size={cell.size || 'sm'}
+                /* Two columns below md: the hero takes a full row, then the two
+                   "today" figures pair off, then the lifetime total takes the
+                   last row on its own — spanning it too, so the strip doesn't
+                   end with an empty half-cell. */
+                className={cell.size === 'hero' || cell.key === 'total_fish'
+                  ? 'col-span-2 md:col-span-1' : undefined}
+                onClick={() => openKpiModal(cell)}
+              />
+            ))}
+        </div>
+      </section>
+
+      {/* ── Revenue Overview ──
+             Five figures in one strip. Today leads at the middle figure size;
+             the four behind it are context and stay quiet. On the 7" panel the
+             per-card date ranges drop out (`strip-compact`) — the label above
+             each figure already names the period, so the range beneath it is a
+             restatement costing ~30px of a 390px screen. ── */}
+      <section aria-labelledby="revenue-heading">
+        <SectionHeader
+          id="revenue-heading"
+          title="Revenue"
+          meta={pricePerFish ? `wholesale · ₱${pricePerFish.toFixed(2)} per fish` : 'wholesale'}
+          className="mb-1.5 [@media(max-height:620px)]:hidden"
+        />
+        <div className="strip strip-compact grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+          {revLoading
+            ? Array.from({ length: 5 }).map((_, i) => <MetricSkeleton key={i} />)
+            : revenueCells.map(cell => (
+              <Metric
+                key={cell.key}
+                label={cell.label}
+                value={cell.value}
+                sub={cell.sub}
+                size={cell.size || 'sm'}
+                className={cell.key === 'today' ? 'col-span-2 sm:col-span-1' : undefined}
+              />
+            ))}
+        </div>
+      </section>
+
+      {/* ── Analytics Insights — collapsed, in the flow of the page ── */}
       <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading}
         dailyData={dailyData} trendLoading={trendLoading} />
 
@@ -912,59 +1053,81 @@ export default function Dashboard() {
              The columns stretch rather than sitting at their natural heights —
              opening Daily Breakdown doubles the left card, and with items-start
              that left a card-sized hole of empty page beside it. ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 xl:gap-4 flex-1">
-        <div className="xl:col-span-2 min-w-0 flex">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-grid flex-1">
+        {/* With no sales in the range the trend card is two lines of text, so it
+            stops stretching and the row's height comes from the activity feed
+            instead — which is the content that still has something to say. */}
+        <div className={`xl:col-span-2 min-w-0 flex ${trendEmpty ? 'self-start' : ''}`}>
         {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
         <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
         </div>
-        {/* Side by side, the activity card is taken out of flow and pinned to the
-            row: the row height then comes from the Sales Trend card alone, and
-            the feed fills it exactly however tall that card gets. Left in flow
-            the two cards fight — whichever is taller sets the row and the other
-            column ends in a card-sized hole of empty page. */}
-        <div className="min-w-0 flex md:block md:relative">
-        {/* ── Recent Sessions ── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.15 }}
-          className="glass-card p-4 sm:p-5 w-full flex flex-col md:absolute md:inset-0"
-        >
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2.5">Recent Activity</h3>
+        {/* With a chart beside it the activity card is taken out of flow and
+            pinned to the row: the row height then comes from the Sales Trend
+            card alone, and the feed fills it exactly however tall that card
+            gets. Left in flow the two cards fight — whichever is taller sets the
+            row and the other column ends in a card-sized hole of empty page. */}
+        <div className={`min-w-0 flex ${trendEmpty ? 'self-start' : 'md:block md:relative'}`}>
+        {/* ── Recent Activity ── */}
+        <section aria-labelledby="activity-heading"
+          className={`glass-card card-pad w-full flex flex-col ${trendEmpty ? '' : 'md:absolute md:inset-0'}`}>
+          <SectionHeader id="activity-heading" title="Recent activity"
+            meta={activityFeed.length > 0 ? `${activityFeed.length} entries` : undefined}
+            className="mb-1.5 shrink-0" />
           {statsLoading ? (
             <div className="space-y-2">
-              <Skeleton width="100%" height={18} />
-              <Skeleton width="90%" height={18} />
-              <Skeleton width="95%" height={18} />
+              <Skeleton width="100%" height={16} />
+              <Skeleton width="90%" height={16} />
+              <Skeleton width="95%" height={16} />
             </div>
           ) : activityFeed.length === 0 ? (
-            <EmptyState icon={Fish} title="No recent entries" message="Counting sessions and sales will show up here." />
+            <EmptyState compact icon={Fish} title="No recent entries"
+              message="Counting sessions and sales appear here as they happen." />
           ) : (
             /* Stacked (below md) the list keeps its own cap so it can't run the
                page long. Side by side it instead fills whatever height the
                column has — the card is stretched to the Sales Trend card beside
                it, and a fixed cap there just moved the empty space inside the
                card. It scrolls if the feed outgrows the room. */
-            <div className="space-y-0.5 max-h-[18rem] overflow-y-auto md:max-h-none md:flex-1 md:min-h-0">
-              {activityFeed.map(item => (
-                <div key={item.key} className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-white/[0.02]">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.kind.dot}`} />
-                  <span className="text-xs text-text-muted font-medium tabular-nums min-w-[90px] sm:min-w-[110px]">{item.date}</span>
-                  {/* Magnitude, not the stored sign — "-65560" is a database detail. */}
-                  <span className="text-sm font-semibold text-text-primary">
-                    <span className={item.kind.text}>{item.kind.label}</span>
-                    {item.count != null && (
-                      <> <span className="tabular-nums">{item.count.toLocaleString()}</span> {item.variant}</>
-                    )}
-                  </span>
-                  <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${item.noteFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
-                    {item.note}
-                  </span>
-                </div>
+            <div className={`activity-scroll overflow-y-auto -mr-1 pr-1
+              ${trendEmpty ? '' : 'md:max-h-none md:flex-1 md:min-h-0'}`}>
+              {activityDays.map(day => (
+                <React.Fragment key={day.iso || day.heading}>
+                  <h4 className="activity-day">{day.heading}</h4>
+                  <ul className="list-none m-0 p-0">
+                    {day.items.map(item => (
+                      <li key={item.key} className="activity-row">
+                        {/* The clock time is the spine of the list; the date is
+                            already said once, by the heading above it. */}
+                        <time className="activity-time"
+                          dateTime={String(item.date || '').replace(' ', 'T')}>
+                          {String(item.date || '').slice(11, 16) || '—'}
+                        </time>
+                        {/* Magnitude, not the stored sign — "-65560" is a database detail. */}
+                        <span className="text-xs leading-snug min-w-0">
+                          <span className={`font-semibold ${item.kind.text}`}>{item.kind.label}</span>
+                          {item.count != null && (
+                            <>
+                              {' '}
+                              <span className="font-semibold text-text-primary tabular-nums">
+                                {item.count.toLocaleString()}
+                              </span>
+                              {item.variant && <span className="text-text-secondary"> {item.variant}</span>}
+                            </>
+                          )}
+                        </span>
+                        {item.note && (
+                          <span className={`meta col-start-2 truncate ${item.noteFallback ? 'note-fallback' : ''}`}>
+                            {item.note}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </React.Fragment>
               ))}
             </div>
           )}
-        </motion.div>
+        </section>
         </div>
       </div>
 
@@ -981,23 +1144,28 @@ export default function Dashboard() {
       >
         {kpiModal?.details && (
           <>
-            <p className="text-xs text-text-muted -mt-2 mb-4">{kpiModal.details.subtitle}</p>
-            <div className="space-y-2 mb-4">
+            <p className="text-xs text-text-secondary -mt-1 mb-3">{kpiModal.details.subtitle}</p>
+            {/* A definition list, not four bordered boxes. These are label/value
+                pairs about one figure, so hairlines between them say what a
+                border around each one was trying to. */}
+            <dl className="m-0">
               {kpiModal.details.rows.map((row, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between p-3 rounded-xl border"
-                  style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: row.color }} />
-                    <span className="text-sm text-text-secondary font-medium">{row.label}</span>
-                  </span>
-                  <span className="text-sm font-bold text-text-primary">{row.value}</span>
+                <div key={i}
+                  className="flex items-baseline justify-between gap-4 py-2 border-t border-rule first:border-t-0">
+                  <dt className="flex items-baseline gap-2 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 translate-y-[-1px]"
+                      style={{ background: row.color }} />
+                    <span className="text-xs text-text-secondary">{row.label}</span>
+                  </dt>
+                  <dd className="m-0 text-xs font-semibold text-text-primary tabular-nums text-right">
+                    {row.value}
+                  </dd>
                 </div>
               ))}
-            </div>
-            {kpiModal.details.extra && <p className="text-xs text-text-muted px-1">{kpiModal.details.extra}</p>}
+            </dl>
+            {kpiModal.details.extra && (
+              <p className="meta mt-3 leading-relaxed">{kpiModal.details.extra}</p>
+            )}
           </>
         )}
       </Modal>

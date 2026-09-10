@@ -19,13 +19,28 @@ import useAuthStore from '../store/authStore'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 
+/* Grouped by what the operator is doing, not by an alphabet. Counting and
+   selling are the daily jobs; the records behind them are consulted, not
+   worked; Settings is neither. Five flat items gave no clue that Counter is
+   used hourly and Settings monthly. */
 const ALL_NAV_ITEMS = [
-  { id: 'dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'View analytics & KPIs',      adminOnly: true },
-  { id: 'counter',     label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',          adminOnly: false },
-  { id: 'inventory',   label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',        adminOnly: true },
-  { id: 'adjustments', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments',  adminOnly: true },
-  { id: 'settings',    label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',   adminOnly: false },
+  { id: 'dashboard',   group: 'Daily',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'Stock, revenue & activity',  adminOnly: true },
+  { id: 'counter',     group: 'Daily',   label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',         adminOnly: false },
+  { id: 'inventory',   group: 'Records', label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',       adminOnly: true },
+  { id: 'adjustments', group: 'Records', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments', adminOnly: true },
+  { id: 'settings',    group: 'System',  label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',  adminOnly: false },
 ]
+
+/** [{ group, items }] in declaration order, skipping groups the role can't see. */
+function groupNav(items) {
+  const out = []
+  items.forEach(item => {
+    const last = out[out.length - 1]
+    if (last && last.group === item.group) last.items.push(item)
+    else out.push({ group: item.group, items: [item] })
+  })
+  return out
+}
 
 const THEME_ICONS = { dark: Moon, light: Sun }
 
@@ -166,62 +181,60 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
           page — the rail's ~530px of content spilled past the bottom of the
           screen and dragged the whole document to 530px with it. Every screen
           in the app then scrolled, no matter how short its own content was. */}
-      <nav className="flex-1 min-h-0 overflow-y-auto py-4 [@media(max-height:620px)]:py-0 px-3
-        flex flex-col gap-1 [@media(max-height:620px)]:gap-0.5"
-        role="navigation" aria-label="Main navigation">
-        {NAV_ITEMS.map(item => {
-          const Icon = item.icon
-          const isActive = tab === item.id
-          return (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              title={!isMobile && collapsed ? item.tooltip : undefined}
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
-              className={`
-                nav-item group relative flex items-center gap-3 rounded-lg
-                border-none cursor-pointer tap-feedback
-                ${!isMobile && collapsed ? 'justify-center p-3' : 'px-4 py-3'}
-              `}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
-                  style={{ background: 'var(--accent-green)' }}
-                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                />
-              )}
+      <nav className="flex-1 min-h-0 overflow-y-auto py-3 [@media(max-height:620px)]:py-1 px-1.5"
+        aria-label="Main navigation">
+        {groupNav(NAV_ITEMS).map(({ group, items }) => (
+          <div key={group} className="nav-group">
+            {/* The group label is what a collapsed rail cannot show, so there it
+                becomes a hairline separator instead of vanishing silently. */}
+            {(isMobile || !collapsed)
+              ? <p className="nav-group-label">{group}</p>
+              : <hr className="nav-group-rule" />}
+            <ul className="list-none m-0 p-0 flex flex-col gap-0.5">
+              {items.map(item => {
+                const Icon = item.icon
+                const isActive = tab === item.id
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => setTab(item.id)}
+                      title={!isMobile && collapsed ? item.tooltip : undefined}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`
+                        nav-item group relative flex w-full items-center gap-2.5 rounded-lg
+                        border-none cursor-pointer tap-feedback
+                        ${!isMobile && collapsed ? 'justify-center p-2.5' : 'px-3 py-2'}
+                      `}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId="nav-indicator"
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r"
+                          style={{ background: 'var(--accent-green)' }}
+                          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                          aria-hidden="true"
+                        />
+                      )}
 
-              <Icon className={`w-5 h-5 flex-shrink-0 transition-all duration-200
-                ${isActive ? '' : 'group-hover:scale-105'}
-              `} />
+                      {/* No hover scale on the icon: a nav item is a destination,
+                          not a thing that reacts. The colour and ground already
+                          say it is under the pointer. */}
+                      <Icon size={17} className="flex-shrink-0" aria-hidden="true" />
 
-              {(isMobile || !collapsed) && (
-                <span className="text-sm font-semibold truncate">{item.label}</span>
-              )}
+                      {(isMobile || !collapsed)
+                        ? <span className="text-[13px] font-medium truncate">{item.label}</span>
+                        : <span className="sr-only">{item.label}</span>}
 
-              {!isMobile && collapsed && (
-                <div className="
-                  absolute left-full ml-3 top-1/2 -translate-y-1/2
-                  px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap
-                  opacity-0 pointer-events-none group-hover:opacity-100
-                  transition-opacity duration-150 z-[100]
-                "
-                  style={{
-                    background: 'var(--tooltip-bg)',
-                    border: '1px solid var(--tooltip-border)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {item.label}
-                </div>
-              )}
-            </button>
-          )
-        })}
+                      {!isMobile && collapsed && (
+                        <span className="nav-tooltip" aria-hidden="true">{item.label}</span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* Theme switcher */}

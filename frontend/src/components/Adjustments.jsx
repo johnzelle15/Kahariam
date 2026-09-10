@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
-import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
-import { Button } from './ui'
+import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
+import { Badge, Button, PageHeader, SectionHeader } from './ui'
 
 const REASONS_WHOLESALE = ['Sold', 'Died']
 const VARIANTS = ['SPIN_20']
@@ -322,21 +322,23 @@ export default function Adjustments() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+    <div className="flex flex-col gap-section grow">
+      <PageHeader title="Adjustments" meta="record sales and losses against stock" />
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] gap-grid items-start">
       {/* Adjust Stock Form */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
+      <motion.section
+        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.35 }}
-        className="glass-card p-4 sm:p-6"
+        transition={{ duration: 0.15 }}
+        aria-labelledby="adjust-heading"
+        className="glass-card card-pad xl:sticky xl:top-0"
       >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-6 flex items-center gap-2">
-          <Package className="w-4 h-4 text-accent-blue" /> Adjust Stock (Sold / Died)
-        </h3>
+        <SectionHeader id="adjust-heading" title="Adjust stock" meta="sold or died" className="mb-3" />
 
         {/* Batch Items */}
         <div className="space-y-3 mb-4">
-          <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variants &amp; Counts</label>
+          <label className="eyebrow">Variants &amp; Counts</label>
           {batchItems.map((item, idx) => {
             const stock = source === 'wholesale' && reason === 'Sold' ? (wholesaleStock[item.variant] ?? null) : null
             return (
@@ -414,13 +416,13 @@ export default function Adjustments() {
         {/* Reason + Notes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Reason</label>
+            <label className="eyebrow">Reason</label>
             <select value={reason} onChange={e => setReason(e.target.value)} className="neu-input">
               {REASONS_WHOLESALE.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-2 sm:col-span-1">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Notes (optional)</label>
+            <label className="eyebrow">Notes (optional)</label>
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Add notes here..."
               className="neu-input min-h-[60px] resize-y py-3" />
@@ -451,18 +453,19 @@ export default function Adjustments() {
             {submitting ? 'Submitting...' : 'Submit Adjustment'}
           </Button>
         </div>
-      </motion.div>
+      </motion.section>
 
       {/* History */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
+      <motion.section
+        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.15 }}
-        className="glass-card p-4 sm:p-6"
+        aria-labelledby="history-heading"
+        className="glass-card card-pad"
       >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">
-          Adjustment History {displayTotalRecords > 0 && <span className="text-text-muted/60">({displayTotalRecords})</span>}
-        </h3>
+        <SectionHeader id="history-heading" title="Adjustment history"
+          meta={displayTotalRecords > 0 ? `${displayTotalRecords} records` : undefined}
+          className="mb-2.5" />
 
         {/* Filter Bar */}
         <div className="mb-4 rounded-xl p-2.5"
@@ -558,64 +561,50 @@ export default function Adjustments() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          /* A ledger, not a stack of cards. Each row was a tinted, bordered box
+             with a 32px coloured icon tile, so a page of them read as fifteen
+             separate panels rather than one history — and three tints (amber,
+             red, green) competing down the page made none of them mean much.
+             The arrow and the sign carry the direction now; the rule carries the
+             separation. */
+          <ul className="list-none m-0 p-0 divide-y divide-rule">
             {displayRecords.map(r => {
               const dir = getDirection(r)
               const displayCount = Math.abs(Number(r.count) || 0)
               const isOut = dir === 'OUT'
               const reasonTag = getReason(r)
               const isDied = reasonTag === 'Died'
+              const Icon = isDied ? Skull : isOut ? ArrowDownRight : ArrowUpRight
+              const tone = isDied ? 'text-attention' : isOut ? 'text-negative' : 'text-positive'
               return (
-                <div key={r.id}
-                  className={`p-3 rounded-xl border transition-colors hover:bg-white/[0.02]
-                    ${isDied ? 'border-accent-amber/20 bg-accent-amber/[0.03]'
-                      : isOut ? 'border-accent-red/20 bg-accent-red/[0.03]'
-                      : 'border-accent-green/20 bg-accent-green/[0.03]'}
-                  `}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0
-                      ${isDied ? 'bg-accent-amber/20'
-                        : isOut ? 'bg-accent-red/20'
-                        : 'bg-accent-green/20'}`}>
-                      {isDied
-                        ? <Skull className="w-4 h-4 text-accent-amber" />
-                        : isOut
-                          ? <ArrowDownRight className="w-4 h-4 text-accent-red" />
-                          : <ArrowUpRight className="w-4 h-4 text-accent-green" />
-                      }
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-text-primary truncate">
-                          {isOut ? '−' : '+'}{displayCount.toLocaleString()} {r.variant}
-                        </p>
-                        {/* One badge only — the reason implies the direction, and the
-                            tint plus arrow already carry it. Falls back to IN/OUT
-                            when a row has no Sold/Died reason. */}
-                        <span className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider
-                          ${isDied ? 'bg-accent-amber/20 text-accent-amber'
-                            : reasonTag ? 'bg-accent-blue/20 text-accent-blue'
-                            : isOut ? 'bg-accent-red/20 text-accent-red'
-                            : 'bg-accent-green/20 text-accent-green'}`}>
-                          {isDied ? <Skull className="w-2.5 h-2.5" />
-                            : reasonTag ? <ShoppingCart className="w-2.5 h-2.5" /> : null}
-                          {reasonTag || (isOut ? 'OUT' : 'IN')}
-                        </span>
-                      </div>
-                      <p className="text-xs text-text-muted truncate">
-                        {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
+                <li key={r.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5 py-2 px-1
+                  rounded-sm [@media(hover:hover)]:hover:bg-[var(--table-row-hover)]">
+                  <Icon size={14} className={`${tone} shrink-0 mt-0.5`} aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className="text-[13px] font-semibold text-text-primary truncate m-0 tabular-nums">
+                        {isOut ? '−' : '+'}{displayCount.toLocaleString()}
+                        <span className="font-normal text-text-secondary"> {r.variant}</span>
                       </p>
+                      {/* One badge only — the reason implies the direction, and
+                          the arrow already carries it. Falls back to IN/OUT when
+                          a row has no Sold/Died reason. */}
+                      <Badge variant={isDied ? 'warning' : reasonTag ? 'info' : isOut ? 'error' : 'success'}
+                        className="shrink-0 uppercase tracking-wider">
+                        {reasonTag || (isOut ? 'Out' : 'In')}
+                      </Badge>
                     </div>
-                  </div>
-                  {r.notes && (
-                    <p className="text-xs text-text-muted mt-2 pl-11">
-                      {highlightMatch(r.notes, searchQuery)}
+                    <p className="meta truncate m-0">
+                      {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
                     </p>
-                  )}
-                </div>
+                    {r.notes && (
+                      <p className="meta truncate m-0">{highlightMatch(r.notes, searchQuery)}</p>
+                    )}
+                  </div>
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
 
         {/* Pagination Controls */}
@@ -641,7 +630,8 @@ export default function Adjustments() {
             </button>
           </div>
         )}
-      </motion.div>
+      </motion.section>
+      </div>
 
       {/* Confirmation Modal */}
       <AnimatePresence>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
 import { getRecordType } from '../utils/notes'
@@ -399,7 +399,7 @@ export default function Inventory() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-accent-blue" />
-            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
+            <h3 className="eyebrow">
               Inventory Records {displayTotalRecords > 0 && <span className="text-text-muted/60">({displayTotalRecords})</span>}
             </h3>
           </div>
@@ -421,15 +421,20 @@ export default function Inventory() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            {/* min-w must exceed the sum of the fixed cols below (550px), or
+            {/* min-w must exceed the sum of the fixed cols below (590px), or
                 table-fixed collapses the unsized Type column to 0 and its badge
                 renders on top of the Archive column. Archive is sized for its
-                own header text, not just the 36px button. */}
-            <table className="dark-table table-fixed w-full min-w-[680px]">
+                own header text, not just the 36px button.
+
+                Date and Count are sized for their widest real value, not for a
+                guess: at 150px and 80px, minus 2rem of cell padding, a
+                timestamp rendered as "2026-08-24 14:…" and a six-figure count
+                as "65,5…" — the two columns an inventory table exists to show. */}
+            <table className="dark-table table-fixed w-full min-w-[700px]">
               <colgroup>
-                <col className="w-[150px]" />
+                <col className="w-[172px]" />
                 <col className="w-[110px]" />
-                <col className="w-[80px]" />
+                <col className="w-[104px]" />
                 <col className="w-[120px]" />
                 <col />
                 <col className="w-[90px]" />
@@ -512,7 +517,7 @@ export default function Inventory() {
         className="glass-card p-3 sm:p-6"
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-2">
+          <h3 className="eyebrow flex items-center gap-2">
             <Archive className="w-4 h-4 text-accent-amber" /> Archived Records
           </h3>
           <button onClick={() => setShowArchive(!showArchive)}
@@ -530,7 +535,7 @@ export default function Inventory() {
             {/* Archive Filter */}
             <div className="flex flex-wrap items-end gap-3 sm:gap-4 mb-4">
               <div className="flex flex-col gap-2 min-w-0 flex-1 sm:flex-none sm:min-w-[160px]">
-                <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Filter by Variant</label>
+                <label className="eyebrow">Filter by Variant</label>
                 <select value={archiveVariant} onChange={e => setArchiveVariant(e.target.value)} className="neu-input">
                   <option value="">All</option>
                   <option>SPIN_20</option>

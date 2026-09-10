@@ -697,20 +697,27 @@ def get_statistics():
         c.execute("SELECT SUM(count) as total FROM inventory WHERE deleted = 0 AND (action='WHOLESALE' OR action='INVENTORY')")
         global_wholesale_total = _row_scalar(c.fetchone(), 'total') or 0
 
+        # sales_count rides along in the same query and on the same predicate
+        # that defines a sale for revenue. Deriving it separately — or in the
+        # browser — is how the numerator and denominator of "average sale" end
+        # up disagreeing about what counts as a sale.
         global_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total, "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN 1 ELSE 0 END) as sales_count "
             "FROM inventory WHERE deleted = 0"
         )
         c.execute(global_total_rev_query)
         global_rev_row = c.fetchone()
         global_sold_total = float(_row_scalar(global_rev_row, 'sold_total') or 0)
         global_total_revenue = round(global_sold_total * PRICE_PER_FISH, 2)
+        global_sales_count = int(_row_value(global_rev_row, 'sales_count', 1, 0) or 0)
     except Exception:
         global_additions_total = additions_total
         global_tank_total = tank_total
         global_wholesale_total = wholesale_total
         global_total_revenue = total_revenue
+        global_sales_count = 0
 
     conn.close()
     
@@ -740,7 +747,11 @@ def get_statistics():
             "wholesale_total": global_wholesale_total,
             "today_revenue": today_revenue,
             "total_revenue": global_total_revenue,
-            "today_session_total": today_session_total
+            "today_session_total": today_session_total,
+            # Number of recorded sale movements all-time. Additive: existing
+            # consumers are unaffected, and it is what makes the dashboard's
+            # average-sale figure a measurement rather than an estimate.
+            "sales_count": global_sales_count
         }
     })
 

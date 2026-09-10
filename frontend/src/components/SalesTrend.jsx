@@ -7,7 +7,8 @@ import {
 import { Calendar, Image, FileSpreadsheet, ChevronDown, Activity } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { toPng } from 'html-to-image'
-import { EmptyState } from './ui'
+import { EmptyState, SectionHeader } from './ui'
+import { formatPeso as fmtCurrency } from '../utils/revenue'
 
 /* ─── Helpers ─── */
 const fmt = (n) => {
@@ -15,8 +16,6 @@ const fmt = (n) => {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
   return String(n)
 }
-
-const fmtCurrency = (v) => '₱' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const fmtDate = (dateStr) => {
   const d = new Date(dateStr + 'T00:00:00')
@@ -35,7 +34,11 @@ const PRESETS = [
   { label: '3 Months', days: 90 },
 ]
 
-const SOLD_COLOR = '#4C7A3D'
+/* Read off the theme at render rather than hardcoded: the series was pinned to
+   the light palette's olive, so on the dark panel the line sat several steps
+   darker than every other green on screen. */
+const soldColor = () =>
+  getComputedStyle(document.documentElement).getPropertyValue('--positive').trim() || '#4c7a3d'
 
 /* ─── Custom Tooltip ─── */
 function SalesTooltip({ active, payload }) {
@@ -43,28 +46,33 @@ function SalesTooltip({ active, payload }) {
   const row = payload[0]?.payload
   if (!row) return null
   const rows = [
-    { label: 'Units Sold', color: SOLD_COLOR, value: Number(row.sold_total).toLocaleString() },
-    { label: 'Revenue', color: '#5E9B94', value: fmtCurrency(row.revenue) },
+    { label: 'Units Sold', color: 'var(--positive)', value: Number(row.sold_total).toLocaleString() },
+    { label: 'Revenue', color: 'var(--info)', value: fmtCurrency(row.revenue) },
   ]
+  /* No green bloom behind the panel and no glow on the swatches — the second of
+     those was `${r.color}30`, which since the colours became CSS variables
+     produced the invalid `var(--positive)30` and drew nothing anyway. */
   return (
-    <div className="rounded-2xl text-sm overflow-hidden"
+    <div className="rounded-lg overflow-hidden"
       style={{
         background: 'var(--tooltip-bg)',
         border: '1px solid var(--tooltip-border)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 0 24px rgba(76,122,61,0.04)',
+        boxShadow: '0 6px 20px rgba(0,0,0,0.28)',
       }}>
-      <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid var(--glass-border)' }}>
-        <p className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{fmtDateFull(row.date)}</p>
-      </div>
-      <div className="px-4 py-2.5 space-y-2">
+      <p className="px-3 py-1.5 text-[11px] font-semibold"
+        style={{ color: 'var(--text-primary)', borderBottom: '1px solid var(--rule)' }}>
+        {fmtDateFull(row.date)}
+      </p>
+      <div className="px-3 py-2 space-y-1">
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between gap-6">
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full"
-                style={{ background: r.color, boxShadow: `0 0 6px ${r.color}30` }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{r.label}</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: r.color }} />
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{r.label}</span>
             </span>
-            <span className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{r.value}</span>
+            <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {r.value}
+            </span>
           </div>
         ))}
       </div>
@@ -78,63 +86,57 @@ function SalesTooltip({ active, payload }) {
    markup for the export is how an export drifts out of sync with the chart it is
    supposed to be a picture of. */
 function TrendChart({ data, width, height, animate = true }) {
+  const color = soldColor()
   const chart = (
-    <AreaChart data={data} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
+    <AreaChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 4 }}>
       <defs>
         <linearGradient id="gradSoldWave" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={SOLD_COLOR} stopOpacity={0.25} />
-          <stop offset="50%" stopColor={SOLD_COLOR} stopOpacity={0.06} />
-          <stop offset="100%" stopColor={SOLD_COLOR} stopOpacity={0} />
+          <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
-        <filter id="glowGreen" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feFlood floodColor={SOLD_COLOR} floodOpacity="0.15" />
-          <feComposite in2="blur" operator="in" />
-          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
       </defs>
 
       <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
       <XAxis
         dataKey="label"
         stroke="var(--chart-text)"
-        fontSize={12}
+        fontSize={10}
         tickLine={false}
         axisLine={false}
         interval="preserveStartEnd"
         minTickGap={24}
-        dy={8}
+        dy={6}
       />
       <YAxis
         stroke="var(--chart-text)"
-        fontSize={12}
+        fontSize={10}
         tickLine={false}
         axisLine={false}
         tickFormatter={fmt}
         domain={[0, 'auto']}
         allowDecimals={false}
-        width={54}
+        width={40}
       />
       {animate && <Tooltip content={<SalesTooltip />} cursor={{ stroke: 'var(--glass-border)', strokeWidth: 1 }} />}
 
       {/* Units sold. Revenue is units × flat price, so plotting it as a
           second series would just redraw this line on a second axis —
-          it lives in the KPI card and the tooltip instead. */}
+          it lives in the revenue strip and the tooltip instead. */}
       <Area
         type="monotone"
         dataKey="sold_total"
         name="Units Sold"
-        stroke={SOLD_COLOR}
+        stroke={color}
         fill="url(#gradSoldWave)"
-        strokeWidth={2}
+        strokeWidth={1.75}
         dot={false}
-        activeDot={{
-          r: 4, fill: SOLD_COLOR, stroke: '#064e3b', strokeWidth: 2,
-          filter: 'url(#glowGreen)',
-        }}
+        /* A plain filled dot. The one it replaces carried a Gaussian-blur glow
+           filter, which is a decorative effect on the single most precise mark
+           in the chart — the point whose exact value the operator is reading. */
+        activeDot={{ r: 3.5, fill: color, stroke: 'var(--glass-bg)', strokeWidth: 2 }}
         isAnimationActive={animate}
-        animationDuration={1200}
-        animationEasing="ease-in-out"
+        animationDuration={450}
+        animationEasing="ease-out"
       />
     </AreaChart>
   )
@@ -260,11 +262,7 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
          quietly cutting the chart and the Daily Breakdown row off inside it.
          The chart flexes down to its floor; past that the card keeps its
          natural height and the pane scrolls the last few pixels instead. */
-      className="rounded-2xl p-4 sm:p-5 [@media(max-height:620px)]:p-2.5 w-full flex flex-col"
-      style={{
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
-      }}>
+      className="glass-card card-pad w-full flex flex-col">
 
       {/* ── Header ──
              Title and exports share the first row, the range filter gets the
@@ -274,98 +272,74 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
              It wraps on its own width, not the viewport's: at 1024px this card
              is only ~430px wide, so a sm:flex-row that the viewport had already
              switched on ran the date range straight into the export buttons. ── */}
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-2.5
-        [@media(max-height:620px)]:mb-1.5">
-        <div className="min-w-0">
-          <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(76,122,61,0.1)' }}>
-              <Activity className="w-3.5 h-3.5 text-accent-green" />
-            </div>
-            Sales Trend
-          </h3>
-          {/* Hidden on a short screen, and it buys two rows rather than one:
-              spelled out in full this line is ~300px wide, which is what pushed
-              the export buttons onto a wrapped row of their own. The range
-              buttons below and the chart's own X axis both already say which
-              days are on screen. */}
-          <p className="text-xs text-text-muted mt-0.5 ml-8 [@media(max-height:620px)]:hidden">
-            {loading
-              ? 'Loading…'
-              : data.length > 0
-                ? `${fmtDateFull(data[0].date)} — ${fmtDateFull(data[data.length - 1].date)}`
-                : 'No data'}
-          </p>
-        </div>
-
-        {/* Export — off on the shortest screens. Saving a spreadsheet or a PNG
-            is desk work, and on the panel these two 44px touch targets cost more
-            page than the chart they export. They return above 520px. */}
-        <div className="flex items-center gap-1.5 shrink-0 [@media(max-height:520px)]:hidden">
-          <button onClick={exportExcel} disabled={exporting || data.length === 0}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
-            title="Export to Excel">
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
-          </button>
-          <button onClick={exportPng} disabled={exporting || data.length === 0}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
-            title="Export as PNG">
-            <Image className="w-3.5 h-3.5" /> PNG
-          </button>
-        </div>
-      </div>
+      <SectionHeader
+        className="mb-2"
+        title="Sales trend"
+        /* The span sits on the title's baseline instead of on a line of its own
+            under an icon tile. Spelled out in full it was ~300px wide, which is
+            what pushed the export buttons onto a wrapped row. */
+        meta={loading ? 'loading…' : data.length > 0
+          ? `${fmtDate(data[0].date)} – ${fmtDate(data[data.length - 1].date)}`
+          : 'no data'}
+        /* Export — off on the shortest screens. Saving a spreadsheet or a PNG is
+            desk work, and on the panel these two 44px touch targets cost more
+            page than the chart they export. They return above 520px. */
+        actions={
+          <span className="flex items-center gap-1 [@media(max-height:520px)]:hidden">
+            <button onClick={exportExcel} disabled={exporting || data.length === 0}
+              className="chart-btn" title="Export to Excel">
+              <FileSpreadsheet size={12} aria-hidden="true" /> Excel
+            </button>
+            <button onClick={exportPng} disabled={exporting || data.length === 0}
+              className="chart-btn" title="Export as PNG">
+              <Image size={12} aria-hidden="true" /> PNG
+            </button>
+          </span>
+        }
+      />
 
       {/* ── Range filter — governs this card AND the analytics panel below ─── */}
-      <div className="flex flex-wrap items-center gap-2 mb-2.5 [@media(max-height:620px)]:mb-1.5">
-        {/* Period Presets */}
-        <div className="flex items-center gap-0.5 p-1 rounded-xl"
-          style={{ background: 'var(--btn-secondary-bg)', border: '1px solid var(--glass-border)' }}>
+      {/* A segmented control, not four independently styled buttons. The active
+          preset used to be a 135° two-colour gradient with a drop shadow, which
+          made the loudest element on the dashboard a date filter. */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-2" role="group" aria-label="Date range">
+        <div className="segmented">
           {PRESETS.map(p => {
             const active = !range.custom && range.days === p.days
             return (
               <button key={p.days}
                 onClick={() => setRange({ days: p.days, start: '', end: '', custom: false })}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-                  active ? 'text-white shadow-lg' : 'text-text-muted hover:text-text-primary hover:bg-glass-hover'
-                }`}
-                style={active ? {
-                  background: 'linear-gradient(135deg, #4C7A3D, #5E9B94)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                } : {}}>
+                aria-pressed={active}
+                data-active={active}>
                 {p.label}
               </button>
             )
           })}
+          <button onClick={() => setRange(r => ({ ...r, custom: !r.custom }))}
+            aria-pressed={range.custom}
+            data-active={range.custom}>
+            <Calendar size={12} className="inline-block -mt-px mr-1" aria-hidden="true" />Custom
+          </button>
         </div>
 
-        {/* Custom Range */}
-        <button onClick={() => setRange(r => ({ ...r, custom: !r.custom }))}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-            range.custom
-              ? 'bg-accent-green/15 text-accent-green border border-accent-green/25'
-              : 'text-text-muted hover:text-text-primary border border-glass-border'
-          }`}
-          style={!range.custom ? { background: 'var(--btn-secondary-bg)' } : {}}>
-          <Calendar className="w-3.5 h-3.5" /> Custom
-        </button>
-
         {range.custom && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={range.start} onChange={e => setRange(r => ({ ...r, start: e.target.value }))}
-              className="neu-input text-xs py-1.5 px-2" />
-            <span className="text-xs text-text-muted font-medium">to</span>
-            <input type="date" value={range.end} onChange={e => setRange(r => ({ ...r, end: e.target.value }))}
-              className="neu-input text-xs py-1.5 px-2" />
+          <div className="flex items-center gap-1.5">
+            <input type="date" aria-label="Range start" value={range.start}
+              onChange={e => setRange(r => ({ ...r, start: e.target.value }))}
+              className="neu-input text-xs py-1 px-2" />
+            <span className="meta">to</span>
+            <input type="date" aria-label="Range end" value={range.end}
+              onChange={e => setRange(r => ({ ...r, end: e.target.value }))}
+              className="neu-input text-xs py-1 px-2" />
           </div>
         )}
       </div>
 
-      {/* ── KPI Stats ─── */}
-      {/* Period summary as one line — three tiles restated what the chart already plots. */}
+      {/* ── Period summary ─── */}
+      {/* One line — three stat tiles restated what the chart already plots. */}
       {!loading && !isEmpty && (
-        <p className="text-xs text-text-secondary mb-2.5 [@media(max-height:620px)]:mb-1.5 flex flex-wrap gap-x-1.5 gap-y-1">
+        <p className="text-xs text-text-secondary mb-2 flex flex-wrap gap-x-1.5 gap-y-0.5
+          [@media(max-height:520px)]:hidden">
           <span><b className="font-semibold text-text-primary tabular-nums">{totalSold.toLocaleString()}</b> sold</span>
           <span className="text-text-muted">·</span>
           <span><b className="font-semibold text-text-primary tabular-nums">{fmtCurrency(totalRevenue)}</b></span>
@@ -387,18 +361,18 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
 
       {/* ── Chart ─── */}
       {loading ? <ChartSkeleton /> : isEmpty ? (
-        /* Sits on the same tinted panel the chart uses, so an empty range reads
-           as "the chart, with nothing in it" rather than a hole in the page.
-           Left to size itself — pinning it to the chart's height only made the
-           card taller, since the message is shorter than the chart. */
-        <div className="rounded-2xl flex-1 min-h-0 flex flex-col justify-center overflow-hidden" style={{ background: 'var(--glass-bg)' }}>
-          <EmptyState
-            compact
-            icon={Activity}
-            title="No sales in this period"
-            message="Sales recorded against this range will plot here."
-          />
-        </div>
+        /* Takes the height of its own two lines and no more.
+           It used to be `flex-1` inside a stretched card, so on a desktop an
+           empty week rendered a ~650px panel containing one grey circle and a
+           sentence — the single largest thing on the dashboard was the absence
+           of data. Dashboard stops stretching this card when the range is
+           empty, and the message sits at the top of it where the chart begins. */
+        <EmptyState
+          compact
+          icon={Activity}
+          title="No sales in this period"
+          message="Sales recorded against this range will plot here."
+        />
       ) : (
         /* Grows with the screen instead of sitting at one tall fixed height:
            on a 720px-tall laptop the 260px chart pushed the analytics panel
@@ -410,9 +384,9 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
            has spare, so on a big screen it is large. The floor only binds when
            the pane is cramped, and it is deliberately low there — a short chart
            the operator can see all of beats a tall one whose bottom is off the
-           screen. */
-        <div className="flex-1 min-h-[130px] [@media(max-height:620px)]:min-h-[96px] [@media(max-height:520px)]:min-h-[80px] rounded-2xl overflow-hidden p-2"
-          style={{ background: 'var(--glass-bg)' }}>
+           screen. No tinted well behind it: the card it sits in is already
+           --glass-bg, so the inner panel was an invisible box costing 16px. */
+        <div className="chart-plot">
           <TrendChart data={chartData} />
         </div>
       )}
@@ -486,11 +460,16 @@ export default function SalesTrend({ data = [], loading, range, setRange }) {
       )}
 
       {/* ── Daily Breakdown Table ─── */}
-      {!loading && data.length > 0 && (
-        <details className="mt-3 [@media(max-height:620px)]:mt-1.5 group">
-          <summary className="cursor-pointer text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-2 hover:text-text-secondary transition-colors py-1">
-            <ChevronDown className="w-3.5 h-3.5 transition-transform duration-300 group-open:rotate-180" />
-            Daily Breakdown
+      {/* `!isEmpty`, not `data.length > 0`: a range with no sales still returns
+          a row per day, so the toggle used to open a table of seven zeros. An
+          empty period has no breakdown, and saying so by not offering one costs
+          ~30px of a 394px panel. */}
+      {!loading && !isEmpty && (
+        <details className="mt-2 group [@media(max-height:520px)]:hidden">
+          <summary className="cursor-pointer list-none flex items-center gap-1.5 py-0.5 rounded-sm
+            focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green">
+            <ChevronDown size={13} className="text-text-muted shrink-0 transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
+            <span className="section-title">Daily breakdown</span>
           </summary>
           <div className="mt-3 max-h-[320px] overflow-auto rounded-xl -mx-1 sm:mx-0"
             style={{ border: '1px solid var(--glass-border)' }}>

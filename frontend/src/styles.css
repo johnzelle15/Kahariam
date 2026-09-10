@@ -7,6 +7,63 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════
+   SCALE — spacing, radius, figure sizes
+
+   One place decides how tight the interface is. Before this block the answer
+   lived in ~40 inline `[@media(max-height:620px)]:` overrides spread across
+   eight components, which is why no two panels agreed on their padding: every
+   new block re-guessed the number. The panel is 800x480 with ~90px of browser
+   chrome on top of it, so "tight" is not an edge case here — it is the primary
+   device, and it deserves a switch rather than a per-component patch.
+   ═══════════════════════════════════════════ */
+:root {
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+
+  /* Card padding, the gap between page sections, and the gap between cards in
+     a grid. Three values, because those are the three distances that actually
+     recur; everything else is a one-off and stays a utility class. */
+  --pad-card: 0.875rem;
+  --gap-section: 1.125rem;
+  --gap-grid: 0.75rem;
+
+  /* Figures. --fig-hero is the one number on the page that carries the screen. */
+  --fig-hero: 2.25rem;
+  --fig: 1.375rem;
+  --fig-sm: 1.0625rem;
+
+  /* Three radii, not seven. Controls, cards, dialogs. */
+  --r-sm: 0.375rem;
+  --r-md: 0.5rem;
+  --r-lg: 0.75rem;
+}
+
+/* The 7" panel and short laptops. */
+@media (max-height: 620px) {
+  :root {
+    --pad-card: 0.625rem;
+    --gap-section: 0.5rem;
+    --gap-grid: 0.5rem;
+    --fig-hero: 1.625rem;
+    --fig: 1.125rem;
+    --fig-sm: 0.9375rem;
+  }
+}
+
+@media (max-height: 520px) {
+  :root {
+    --pad-card: 0.5rem;
+    --gap-section: 0.375rem;
+    --gap-grid: 0.375rem;
+    --fig-hero: 1.375rem;
+    --fig: 1rem;
+    --fig-sm: 0.875rem;
+  }
+}
+
+/* ═══════════════════════════════════════════
    THEME SYSTEM — CSS Custom Properties
    ═══════════════════════════════════════════ */
 
@@ -39,6 +96,20 @@
   --accent-red: #d97862;
   --accent-purple: #9a8fc4;
   --on-accent: #16200f;
+
+  /* Semantic aliases. Components ask for the *meaning*, never the hue — which
+     is what stopped four light-theme hexes from being hardcoded into the KPI
+     dialog and the chart, where they stayed pale olive on the dark ground. */
+  --positive: var(--accent-green);
+  --negative: var(--accent-red);
+  --attention: var(--accent-amber);
+  --info: var(--accent-blue);
+
+  /* Hairline between rows and between cells of a strip. Deliberately weaker
+     than --glass-border: a divider inside a panel should read as one panel
+     subdivided, not as several panels butted together. */
+  --rule: rgba(255, 255, 255, 0.07);
+  --nav-active-bg: rgba(124, 179, 66, 0.14);
 
   --input-bg: #1f281f;
   --input-border: rgba(255, 255, 255, 0.06);
@@ -96,6 +167,14 @@
   --accent-purple: #6b5fa8;
   --on-accent: #ffffff;
 
+  --positive: var(--accent-green);
+  --negative: var(--accent-red);
+  --attention: var(--accent-amber);
+  --info: var(--accent-blue);
+
+  --rule: rgba(42, 46, 39, 0.10);
+  --nav-active-bg: rgba(76, 122, 61, 0.11);
+
   --input-bg: #ffffff;
   --input-border: rgba(42, 46, 39, 0.10);
   --input-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(255, 255, 255, 0.9);
@@ -151,8 +230,125 @@ body {
 .glass-card {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 0.75rem;
+  border-radius: var(--r-lg);
   transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* Card padding from the scale, so a card is as tight as the screen requires
+   without every caller restating the breakpoint. */
+.card-pad { padding: var(--pad-card); }
+
+/* ═══════════════════════════════════════════
+   TYPE ROLES
+   Four roles, so a heading means the same thing wherever it appears. The
+   dashboard previously used three different treatments for what was
+   structurally the same thing — `text-lg font-medium` on Card, `text-sm
+   font-bold` on Sales Trend, `text-xs font-bold uppercase` on Recent Activity
+   — which is a large part of why the page read as assembled rather than
+   designed.
+   ═══════════════════════════════════════════ */
+
+/* Panel title: the name of a block of content. */
+.section-title {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+/* Field label above a number, and column headings. Small caps, never bold
+   enough to compete with the figure it labels. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* A number the operator reads. tabular-nums so a changing figure does not
+   shuffle its own digits sideways on every socket update. */
+.figure {
+  font-size: var(--fig);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.figure-hero { font-size: var(--fig-hero); }
+.figure-sm { font-size: var(--fig-sm); }
+
+/* Supporting line under a figure or beside a row. */
+.meta {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   METRIC STRIP
+   A row of related figures reading as one panel subdivided by hairlines,
+   rather than as N separate floating cards. This is the shape that lets the
+   dashboard show stock movement and five revenue figures without turning into
+   the card grid the redesign is trying to get away from.
+   ═══════════════════════════════════════════ */
+.strip {
+  display: grid;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.strip > * + * {
+  border-left: 1px solid var(--rule);
+}
+
+/* Once the strip wraps to more than one row the left rules alone leave the
+   rows welded together, so each cell carries its own top rule and the first
+   row's is masked by the panel edge. Grid line detection is not available in
+   CSS, so the rule is drawn as an inset shadow that the container clips. */
+.strip > * {
+  padding: var(--pad-card);
+  min-width: 0;
+  box-shadow: 0 -1px 0 var(--rule);
+}
+
+.strip-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  text-align: left;
+}
+
+/* Tappable cells: the whole cell is the target, and it must not look like a
+   button until it is under a finger or a pointer. */
+button.strip-cell {
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+@media (hover: hover) {
+  button.strip-cell:hover { background: var(--glass-bg-hover); }
+}
+button.strip-cell:active { background: var(--glass-bg-hover); }
+button.strip-cell:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: -2px;
+}
+
+/* On a short screen the supporting line under each figure is the first thing to
+   go. In the revenue strip the eyebrow already names the period — "THIS WEEK"
+   over "7–10 Sep" — so the second line is a restatement costing five rows'
+   worth of a 390px-tall page. */
+@media (max-height: 620px) {
+  .strip-compact .meta { display: none; }
 }
 
 /* ── The count ──
@@ -194,106 +390,30 @@ body {
 }
 
 /* ═══════════════════════════════════════════
-   ANALYTICS OVERVIEW — Premium Cards
-   ═══════════════════════════════════════════ */
-.analytics-header {
-  padding: 1rem 1.25rem;
-}
-@media (min-width: 640px) {
-  .analytics-header {
-    padding: 1.25rem 1.5rem;
-  }
-}
+   ANALYTICS OVERVIEW
 
+   Four groups of readings. What used to sit here — a gradient bar fading out
+   across the top of each card, a hover lift with a 32px drop shadow, a per-row
+   hover tint — was decoration on top of an already dense block of text, and it
+   is the single strongest "generated dashboard" tell on the page. The category
+   is now carried by a plain 2px rule down the left edge in the category's
+   colour, which is the cheapest possible way to say the same thing.
+   ═══════════════════════════════════════════ */
 .insight-card {
   position: relative;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 0.75rem;
-  padding: 0.75rem 0.875rem 0.875rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  border-left: 2px solid var(--cat, var(--glass-border));
+  border-radius: var(--r-md);
+  padding: var(--pad-card);
 }
-
-@media (min-width: 640px) {
-  .insight-card {
-    padding: 1rem 1.25rem 1.25rem;
-  }
-}
-
-/* On a short screen these cards are the panel's densest reading, and the
-   desk-sized padding was costing more height than the text inside them. */
-@media (max-height: 620px) {
-  .insight-card {
-    padding: 0.5rem 0.75rem 0.625rem;
-    border-radius: 0.625rem;
-  }
-
-  .insight-row {
-    gap: 0.5rem;
-    padding: 0.25rem 0.25rem;
-  }
-}
-
-/* Hover lift only where a pointer exists — on touch it sticks after a tap. */
-@media (hover: hover) {
-  .insight-card:hover {
-    background: var(--glass-bg-hover);
-    border-color: var(--glass-border-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  }
-
-  .insight-card:hover .insight-card-accent {
-    opacity: 1;
-  }
-}
-
-/* Top accent bar */
-.insight-card-accent {
-  position: absolute;
-  top: 0;
-  left: 0.875rem;
-  right: 0.875rem;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
-  opacity: 0.6;
-  transition: opacity 0.3s ease;
-}
-
-@media (min-width: 640px) {
-  .insight-card-accent {
-    left: 1.25rem;
-    right: 1.25rem;
-  }
-}
-
-.insight-card-accent.accent-amber  { background: linear-gradient(90deg, var(--accent-amber), transparent); }
-.insight-card-accent.accent-blue   { background: linear-gradient(90deg, var(--accent-blue), transparent); }
-.insight-card-accent.accent-red    { background: linear-gradient(90deg, var(--accent-red), transparent); }
-.insight-card-accent.accent-green  { background: linear-gradient(90deg, var(--accent-green), transparent); }
 
 /* Individual insight row */
 .insight-row {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  padding: 0.375rem 0.25rem;
-  border-radius: 0.5rem;
-  transition: background 0.2s ease;
-}
-
-@media (min-width: 640px) {
-  .insight-row {
-    gap: 0.625rem;
-    padding: 0.5rem;
-  }
-}
-
-@media (hover: hover) {
-  .insight-row:hover {
-    background: rgba(255, 255, 255, 0.02);
-  }
+  padding: 0.1875rem 0;
 }
 
 /* Rows past MOBILE_VISIBLE collapse on phones so the panel fits without a long
@@ -304,18 +424,22 @@ body {
 
 .insight-more-btn {
   display: block;
-  width: 100%;
   margin-top: 0.25rem;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  background: var(--btn-secondary-bg);
-  border: 1px solid var(--glass-border);
+  padding: 0.25rem 0;
+  background: transparent;
+  border: none;
   color: var(--text-muted);
   font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 600;
   cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.insight-more-btn:hover { color: var(--text-secondary); }
+.insight-more-btn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
 }
 
 /* From 640px there is room for everything: show all rows, drop the toggle. */
@@ -330,11 +454,150 @@ body {
 }
 
 .insight-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 9999px;
-  margin-top: 0.45rem;
+  margin-top: 0.4rem;
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   ACTIVITY LIST
+   A log, not a stack of cards. The time is the spine of the list and is set in
+   tabular figures so the column stays a column; the action carries the weight;
+   who did it and how long it took are the quietest thing in the row.
+   ═══════════════════════════════════════════ */
+.activity-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 0.625rem;
+  padding: 0.3125rem 0.25rem;
+  border-radius: var(--r-sm);
+}
+@media (hover: hover) {
+  .activity-row:hover { background: var(--table-row-hover); }
+}
+
+.activity-time {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding-top: 0.0625rem;
+}
+
+/* Day separator inside the feed. A date the operator can scan for, not another
+   row that looks like the entries under it. */
+.activity-day {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.activity-day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.activity-day:first-child { padding-top: 0; }
+
+/* The feed is unbounded data, so it scrolls inside its own box rather than
+   lengthening the page — the house rule here is that controls wrap and data
+   scrolls in a bounded container. When a chart sits beside it the grid row
+   supplies the bound and this cap is overridden; when the range is empty and
+   the card falls back into normal flow, this is the only thing stopping eleven
+   entries from running the page past the bottom of the screen. */
+/* A share of the screen rather than a fixed number of rows: a 16rem list fits a
+   1080px monitor with room to spare and runs a 768px laptop 12px past the
+   bottom of the pane. The rem term keeps it from becoming absurdly long on a
+   very tall display. */
+.activity-scroll { max-height: min(26rem, 34dvh); }
+@media (max-height: 620px) { .activity-scroll { max-height: 7.5rem; } }
+@media (max-height: 520px) { .activity-scroll { max-height: 5.5rem; } }
+
+/* The plot area. A floor, not a height: flex-1 lets it take every spare pixel
+   of the card, and the floor only binds when the pane is cramped — where a
+   short chart the operator can see all of beats a tall one running off screen. */
+.chart-plot { flex: 1 1 0%; min-height: 130px; overflow: hidden; }
+@media (max-height: 620px) { .chart-plot { min-height: 96px; } }
+@media (max-height: 520px) { .chart-plot { min-height: 80px; } }
+
+/* ═══════════════════════════════════════════
+   SEGMENTED CONTROL
+   One control with N options, which is what a date-range filter is. As four
+   separately styled buttons — the selected one a 135° two-colour gradient with
+   a 12px drop shadow — the loudest element on the dashboard was the thing that
+   picks which week you are looking at.
+   ═══════════════════════════════════════════ */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--r-md);
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.segmented button {
+  padding: 0.25rem 0.625rem;
+  border: none;
+  border-radius: calc(var(--r-md) - 2px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.segmented button:hover { color: var(--text-primary); }
+.segmented button[data-active="true"] {
+  background: var(--accent-green);
+  color: var(--on-accent);
+}
+.segmented button:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+
+/* Each option is its own target on touch. Adjacency makes a mis-tap land on a
+   neighbouring range rather than on nothing, but 34px is still under the floor. */
+@media (pointer: coarse) {
+  .segmented button { min-width: 44px; }
+}
+
+/* Quiet secondary action inside a panel header. */
+.chart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.chart-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--glass-border-hover);
+}
+.chart-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chart-btn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
 }
 
 /* ═══════════════════════════════════════════
@@ -344,7 +607,7 @@ body {
   .neu-input {
     background: var(--input-bg);
     border: 1px solid var(--input-border);
-    border-radius: 0.75rem;
+    border-radius: var(--r-md);
     padding: 0.625rem 1rem;
     color: var(--text-primary);
     font-size: 0.875rem;
@@ -365,62 +628,16 @@ body {
 }
 
 /* ═══════════════════════════════════════════
-   STAT CARD GLOW BORDER
-   ═══════════════════════════════════════════ */
-.stat-glow {
-  position: relative;
-  overflow: hidden;
-}
-.stat-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: var(--accent-green);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.2;
-  transition: opacity 0.25s;
-}
-.stat-glow:hover::before {
-  opacity: 0.35;
-}
-
-/* ═══════════════════════════════════════════
    ANIMATIONS
+   Only the skeleton shimmer survives here: it is the one animation on the page
+   that reports something (data is on its way). The stat-card glow border, the
+   float and the purple pulse-glow were decoration, and the purple they glowed
+   was a colour the app stopped using when the olive palette landed.
    ═══════════════════════════════════════════ */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 12px rgba(167, 139, 250, 0.1); }
-  50% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.18); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-4px); }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.5s ease-out forwards;
-}
-
-.animate-delay-1 { animation-delay: 0.1s; opacity: 0; }
-.animate-delay-2 { animation-delay: 0.2s; opacity: 0; }
-.animate-delay-3 { animation-delay: 0.3s; opacity: 0; }
-.animate-delay-4 { animation-delay: 0.4s; opacity: 0; }
-.animate-delay-5 { animation-delay: 0.5s; opacity: 0; }
 
 /* ═══════════════════════════════════════════
    SKELETON
@@ -429,7 +646,7 @@ body {
   background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-via) 50%, var(--skeleton-from) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 0.5rem;
+  border-radius: var(--r-md);
 }
 
 /* ═══════════════════════════════════════════
@@ -451,7 +668,7 @@ body {
 .recharts-default-tooltip {
   background: var(--tooltip-bg) !important;
   border: 1px solid var(--tooltip-border) !important;
-  border-radius: 0.75rem !important;
+  border-radius: var(--r-lg) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
@@ -577,11 +794,6 @@ body {
     font-size: 0.75rem;
   }
 
-  .glass-card {
-    border-radius: 0.75rem;
-  }
-
-
   .neu-input {
     padding-block: 0.5rem;
     padding-right: 0.75rem;
@@ -593,16 +805,6 @@ body {
   .neu-input {
     min-height: 44px;
   }
-}
-
-.modal-panel {
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1.25rem;
-  padding: 2rem;
-  min-width: 320px;
-  max-width: 480px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
 }
 
 /* ═══════════════════════════════════════════
@@ -631,11 +833,6 @@ html {
    TOUCH FEEDBACK & INTERACTIONS
    ═══════════════════════════════════════════ */
 @media (pointer: coarse) {
-  .touch-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
   button, select, input, .neu-input {
     min-height: 44px;
   }
@@ -665,7 +862,7 @@ html {
   align-items: center;
   justify-content: center;
   padding: 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-md);
   background: var(--btn-secondary-bg);
   color: var(--text-muted);
   border: 1px solid var(--btn-secondary-border);
@@ -711,7 +908,7 @@ html {
   align-items: center;
   gap: 0.75rem;
   padding: 0.875rem 1.25rem;
-  border-radius: 1rem;
+  border-radius: var(--r-lg);
   background: var(--tooltip-bg);
   border: 1px solid var(--tooltip-border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
@@ -721,7 +918,7 @@ html {
 
 .snackbar-undo {
   padding: 0.375rem 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-md);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -749,11 +946,6 @@ html {
    7-INCH TOUCH DISPLAY OPTIMIZATIONS
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
-  .glass-card {
-    border-radius: 0.625rem;
-    padding: 0.75rem;
-  }
-
   .dark-table thead th,
   .dark-table tbody td {
     padding: 0.625rem 0.5rem;
@@ -764,7 +956,6 @@ html {
   .neu-input {
     padding: 0.5rem 0.625rem;
     font-size: 0.75rem;
-    border-radius: 0.625rem;
   }
 
   .theme-pill button {
@@ -793,22 +984,92 @@ html {
    which meant no theming, no override, and no keyboard focus state at all.
    ═══════════════════════════════════════════ */
 .nav-item {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   background: transparent;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .nav-item:hover {
   color: var(--text-primary);
-  background: var(--glass-bg-hover);
+  background: var(--btn-secondary-bg);
 }
 .nav-item:focus-visible {
   outline: 2px solid var(--accent-green);
   outline-offset: -2px;
   color: var(--text-primary);
 }
+
+/* The active item is the one thing in the rail that must be unmistakable from
+   across a room. --glass-bg-hover alone was #f7f5ef against #ffffff on the
+   light theme — a two-percent difference doing the work of "you are here". */
 .nav-item[aria-current="page"] {
+  color: var(--accent-green);
+  background: var(--nav-active-bg);
+  font-weight: 600;
+}
+
+.nav-group + .nav-group { margin-top: 0.5rem; }
+
+.nav-group-label {
+  margin: 0 0 0.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.nav-group-rule {
+  height: 1px;
+  margin: 0.5rem 0.5rem 0.375rem;
+  border: 0;
+  background: var(--rule);
+}
+.nav-group:first-child > .nav-group-rule { display: none; }
+
+/* Short screens: the group labels are the rail's chrome, so they go before any
+   destination does. */
+@media (max-height: 620px) {
+  .nav-group-label { display: none; }
+  .nav-group + .nav-group { margin-top: 0.25rem; }
+}
+
+.nav-tooltip {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0.625rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-sm);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   color: var(--text-primary);
-  background: var(--glass-bg-hover);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 100;
+}
+.nav-item:hover .nav-tooltip,
+.nav-item:focus-visible .nav-tooltip { opacity: 1; }
+
+/* Visually hidden, still announced. The collapsed rail is icon-only, and an
+   icon-only button with no accessible name is unusable with a screen reader. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .nav-action {

@@ -5,9 +5,8 @@
  */
 import React, { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  User, Shield, Users, ChevronRight, Lock,
-} from 'lucide-react'
+import { User, Shield, Users, Lock } from 'lucide-react'
+import { Badge, PageHeader } from '../ui'
 import useAuthStore from '../../store/authStore'
 import AccountTab  from './AccountTab'
 import SecurityTab from './SecurityTab'
@@ -34,22 +33,11 @@ function ToastContainer({ toasts, dismiss }) {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 60, scale: 0.9 }}
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium min-w-[260px] max-w-[380px]"
-            style={{
-              background: t.type === 'success'
-                ? 'rgba(16,185,129,0.12)'
-                : t.type === 'error'
-                  ? 'rgba(239,68,68,0.12)'
-                  : 'rgba(96,165,250,0.12)',
-              border: `1px solid ${
-                t.type === 'success' ? 'rgba(16,185,129,0.3)'
-                : t.type === 'error'  ? 'rgba(239,68,68,0.3)'
-                : 'rgba(96,165,250,0.3)'
-              }`,
-              color: t.type === 'success' ? '#34d399'
-                   : t.type === 'error'   ? '#f87171'
-                   : '#60a5fa',
-            }}
+            className={`pointer-events-auto flex items-center gap-3 px-3.5 py-2.5 rounded-lg
+              border text-xs font-medium min-w-[240px] max-w-[380px] shadow-lg ${
+              t.type === 'success' ? 'bg-positive/10 border-positive/30 text-positive'
+              : t.type === 'error' ? 'bg-negative/10 border-negative/30 text-negative'
+              : 'bg-info/10 border-info/30 text-info'}`}
             onClick={() => dismiss(t.id)}
           >
             <span className="flex-1">{t.message}</span>
@@ -108,29 +96,15 @@ export default function Settings() {
           transition={{ duration: 0.3 }}
           className="mb-6 [@media(max-height:620px)]:mb-2"
         >
-          <div className="flex items-center gap-2 mb-1 text-xs [@media(max-height:620px)]:hidden"
-            style={{ color: 'var(--text-muted)' }}>
-            <span>Kahariam Farms</span>
-            <ChevronRight className="w-3 h-3" />
-            <span style={{ color: 'var(--text-secondary)' }}>Settings</span>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl [@media(max-height:620px)]:text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              Settings
-            </h1>
-            {/* Role badge */}
-            <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider"
-              style={{
-                background: isAdmin ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
-                color:      isAdmin ? 'var(--accent-purple)'   : 'var(--accent-blue)',
-                border:     `1px solid ${isAdmin ? 'rgba(167,139,250,0.25)' : 'rgba(96,165,250,0.2)'}`,
-              }}
-            >
-              <Shield className="w-3 h-3" />
-              {isAdmin ? 'Admin' : 'Staff'}
-            </span>
-          </div>
+          <PageHeader
+            title="Settings"
+            actions={
+              <Badge variant={isAdmin ? 'info' : 'neutral'} className="gap-1 uppercase tracking-wider">
+                <Shield size={11} aria-hidden="true" />
+                {isAdmin ? 'Admin' : 'Staff'}
+              </Badge>
+            }
+          />
 
           {/* Staff access-level notice */}
           {!isAdmin && (
