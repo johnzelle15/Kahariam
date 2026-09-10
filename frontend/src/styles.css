@@ -367,13 +367,36 @@ button.strip-cell:focus-visible {
    frame's height comes from `flex-1` and is indefinite, but its width is not,
    and inline-size only needs the width. 0.62 approximates the advance width of
    a tabular Inter digit at 1em, and the 92 leaves a margin either side. */
-.count-frame { container-type: inline-size; }
+.count-frame {
+  container-type: inline-size;
+
+  /* How much of the screen's height the figure may claim. On the 7" panel the
+     frame is only ~230px tall once the context strip and the buttons have taken
+     their share, so 34vh is as large as the number can be without pushing the
+     label or the rate line out of the card. A desktop has no such squeeze: the
+     frame stretches to ~760px there, and at 34vh the figure sat in the middle
+     of it with 400px of empty card around it — the screen read as unfinished
+     rather than calm. */
+  --count-vh: 34vh;
+  --count-max: 18rem;
+}
+
+/* Both steps have to move together. Raising only --count-vh changed nothing on
+   a desktop, because 46vh of a 994px viewport is 457px and the 18rem ceiling
+   was already clamping the figure to 288px — the cap was the binding
+   constraint, not the height term. */
+@media (min-height: 640px) {
+  .count-frame {
+    --count-vh: 46vh;
+    --count-max: 26rem;
+  }
+}
 
 .count-value {
   font-size: clamp(
     2.5rem,
-    min(34vh, calc(92cqi / (var(--count-chars, 1) * 0.62))),
-    18rem
+    min(var(--count-vh), calc(92cqi / (var(--count-chars, 1) * 0.62))),
+    var(--count-max)
   );
 }
 
@@ -574,6 +597,88 @@ button.strip-cell:focus-visible {
    neighbouring range rather than on nothing, but 34px is still under the floor. */
 @media (pointer: coarse) {
   .segmented button { min-width: 44px; }
+}
+
+/* ═══════════════════════════════════════════
+   TABS
+   An underlined tab bar, which is what a set of three sibling views is. Settings
+   ran them as a 208px vertical rail immediately beside the app's own 208px
+   navigation rail — two stacked column navigations for a page with three
+   destinations — and marked the active one with a purple bar, a colour this
+   palette reserves for the admin-role chip. The active tab is green, like every
+   other "you are here" in the app.
+   ═══════════════════════════════════════════ */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.4375rem 0.625rem;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.tab:hover { color: var(--text-primary); }
+.tab[aria-selected="true"] {
+  color: var(--accent-green);
+  border-bottom-color: var(--accent-green);
+  font-weight: 600;
+}
+.tab:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: -2px;
+  border-radius: var(--r-sm);
+}
+
+/* ═══════════════════════════════════════════
+   ICON BUTTON
+   A square action inside a table row. The two in the staff table were built
+   from inline styles with hardcoded rgba(239,68,68) and rgba(16,185,129) —
+   Tailwind's red-500 and emerald-500, neither of which is in this palette — and
+   neither had a focus ring or an accessible name.
+   ═══════════════════════════════════════════ */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: var(--btn-secondary-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.icon-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--glass-border);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+.icon-btn-danger:hover { color: var(--negative); border-color: var(--negative); }
+.icon-btn-positive:hover { color: var(--positive); border-color: var(--positive); }
+
+@media (pointer: coarse) {
+  .icon-btn { width: 44px; height: 44px; }
 }
 
 /* Quiet secondary action inside a panel header. */

@@ -3,66 +3,16 @@
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { User, Camera, Save, Loader2, Mail, AtSign, Clock, Shield, Lock } from 'lucide-react'
+import { User, Camera, Save, Loader2, Mail, AtSign, Clock } from 'lucide-react'
 import api from '../../utils/api'
 import useAuthStore from '../../store/authStore'
-import { Button, SettingsCard, Skeleton } from '../ui'
+import { Badge, Button, Field, SettingsSection, SettingsPanel, Skeleton } from '../ui'
 
 /* ── Reusable helpers ────────────────────────────────────────────────────────── */
-function InputField({ label, id, value, onChange, type = 'text', placeholder, disabled, icon: Icon }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-        {label}
-      </label>
-      <div className="relative">
-        {Icon && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: 'var(--text-muted)' }}>
-            <Icon className="w-4 h-4" />
-          </span>
-        )}
-        <input
-          id={id}
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-150"
-          style={{
-            paddingLeft: Icon ? '2.25rem' : undefined,
-            background: 'var(--input-bg)',
-            border: '1px solid var(--input-border)',
-            color: 'var(--text-primary)',
-            boxShadow: 'var(--input-shadow)',
-            opacity: disabled ? 0.5 : 1,
-            cursor: disabled ? 'not-allowed' : 'auto',
-          }}
-          onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-purple)'; e.currentTarget.style.boxShadow = 'var(--input-focus-shadow)' }}
-          onBlur={e => { e.currentTarget.style.borderColor = 'var(--input-border)'; e.currentTarget.style.boxShadow = 'var(--input-shadow)' }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function RoleBadge({ role }) {
-  const isAdmin = role === 'admin'
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider"
-      style={{
-        background: isAdmin ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
-        color:      isAdmin ? 'var(--accent-purple)'   : 'var(--accent-blue)',
-        border:     `1px solid ${isAdmin ? 'rgba(167,139,250,0.25)' : 'rgba(96,165,250,0.2)'}`,
-      }}
-    >
-      <Shield className="w-2.5 h-2.5" />
-      {role}
-    </span>
-  )
-}
+/* InputField and RoleBadge used to be defined here: a hand-rolled input whose
+   focus ring was painted purple by an inline onFocus handler, and a role chip
+   built from rgba() literals left over from the pre-olive palette. Both are now
+   the shared <Field> and <Badge>. */
 
 /* ── AccountTab ─────────────────────────────────────────────────────────────── */
 export default function AccountTab({ toast }) {
@@ -179,52 +129,55 @@ export default function AccountTab({ toast }) {
     : (profile.username?.[0] || '?').toUpperCase()
 
   return (
-    <div className="flex flex-col gap-5 [@media(max-height:620px)]:gap-2.5">
+    <SettingsPanel>
 
-      {/* ── Profile Image + Identity ─────────────────────────────────── */}
-      <SettingsCard title="Profile" description="Your public identity in the system">
+      {/* ── Identity ──
+             A person's own account, so it opens with who you are signed in as.
+             The avatar tile carried a violet-to-blue gradient and violet
+             initials — two colours from the palette this app replaced, on the
+             one element that is meant to read as a photograph's stand-in. */}
+      <SettingsSection title="Profile" description="your identity in the system">
         {loading ? (
-          <div className="flex items-center gap-5">
-            <Skeleton width={80} height={80} className="rounded-full" />
+          <div className="flex items-center gap-4">
+            <Skeleton width={56} height={56} className="!rounded-lg" />
             <div className="flex-1 flex flex-col gap-2">
-              <Skeleton width="60%" height={20} />
-              <Skeleton width="40%" height={14} />
+              <Skeleton width="45%" height={16} />
+              <Skeleton width="30%" height={12} />
             </div>
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 [@media(max-height:620px)]:gap-3">
+          <div className="flex items-center gap-4">
             {/* Avatar */}
-            <div className="relative flex-shrink-0">
+            <div className="relative shrink-0">
               <div
-                className="w-20 h-20 [@media(max-height:620px)]:w-12 [@media(max-height:620px)]:h-12 rounded-2xl overflow-hidden flex items-center justify-center text-2xl [@media(max-height:620px)]:text-base font-bold select-none"
-                style={{
-                  background: profile.profile_image
-                    ? 'transparent'
-                    : 'linear-gradient(135deg, rgba(139,92,246,0.3), rgba(96,165,250,0.2))',
-                  border: '2px solid var(--glass-border)',
-                  color: 'var(--accent-purple)',
-                }}
+                className="w-14 h-14 [@media(max-height:620px)]:w-11 [@media(max-height:620px)]:h-11
+                  rounded-lg overflow-hidden flex items-center justify-center
+                  text-lg [@media(max-height:620px)]:text-sm font-semibold select-none
+                  bg-[var(--btn-secondary-bg)] border border-[var(--glass-border)] text-text-secondary"
               >
                 {profile.profile_image
-                  ? <img src={profile.profile_image} alt="avatar" className="w-full h-full object-cover" />
+                  ? <img src={profile.profile_image} alt="" className="w-full h-full object-cover" />
                   : initials
                 }
               </div>
-              {/* Upload overlay */}
+              {/* Upload overlay. Given a focus-visible ring: it was reachable by
+                  Tab but invisible until hovered, so a keyboard user landed on a
+                  control they could not see. */}
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={imgSaving}
                 onDragOver={e => e.preventDefault()}
                 onDrop={handleDrop}
-                className="absolute inset-0 rounded-2xl flex items-center justify-center
-                  opacity-0 hover:opacity-100 transition-opacity duration-200 cursor-pointer border-none"
-                style={{ background: 'rgba(0,0,0,0.55)' }}
+                className="absolute inset-0 rounded-lg flex items-center justify-center border-none
+                  cursor-pointer bg-black/55 opacity-0 hover:opacity-100 focus-visible:opacity-100
+                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green
+                  transition-opacity duration-150"
                 title="Change profile picture"
                 aria-label="Change profile picture"
               >
                 {imgSaving
-                  ? <Loader2 className="w-5 h-5 animate-spin text-white" />
-                  : <Camera className="w-5 h-5 text-white" />
+                  ? <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  : <Camera className="w-4 h-4 text-white" />
                 }
               </button>
               <input
@@ -237,92 +190,85 @@ export default function AccountTab({ toast }) {
             </div>
 
             {/* Identity info */}
-            <div className="flex-1 flex flex-col gap-1.5 text-center sm:text-left">
-              <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
-                <span className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <span className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-text-primary truncate">
                   {profile.fullname || profile.username}
                 </span>
-                <RoleBadge role={profile.role} />
-              </div>
-              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>@{profile.username}</span>
-              <div className="flex items-center gap-1.5 justify-center sm:justify-start mt-1"
-                style={{ color: 'var(--text-muted)' }}>
-                <Clock className="w-3.5 h-3.5" />
-                <span className="text-xs">Last login: {formatDate(profile.last_login)}</span>
-              </div>
+                <Badge variant={profile.role === 'admin' ? 'info' : 'neutral'}
+                  className="uppercase tracking-wider">
+                  {profile.role}
+                </Badge>
+              </span>
+              <span className="meta">@{profile.username}</span>
+              <span className="meta flex items-center gap-1.5">
+                <Clock size={11} aria-hidden="true" />
+                Last login {formatDate(profile.last_login)}
+              </span>
             </div>
           </div>
         )}
-      </SettingsCard>
+      </SettingsSection>
 
-      {/* ── Edit Form ─────────────────────────────────────────────────── */}
-      <SettingsCard title="Personal Information" description="Update your name and contact email">
+      {/* ── Edit Form ──
+             Two columns at most, and capped: three inputs spread across 1360px
+             put the label of one field further from its box than from the next
+             field's box. Errors now belong to their field through <Field>'s
+             aria-describedby rather than floating as loose paragraphs between
+             grid cells. */}
+      <SettingsSection title="Personal information" description="name and contact email">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex flex-col gap-1.5">
-                <Skeleton width="40%" height={12} />
-                <Skeleton height={40} />
+                <Skeleton width="40%" height={11} />
+                <Skeleton height={36} />
               </div>
             ))}
           </div>
         ) : (
-          <form onSubmit={handleSave} noValidate>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField
-                label="Full Name"
+          <form onSubmit={handleSave} noValidate className="max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field
+                label="Full name"
                 id="fullname"
                 value={profile.fullname}
                 onChange={e => setProfile(p => ({ ...p, fullname: e.target.value }))}
                 placeholder="John Doe"
                 icon={User}
+                error={errors.fullname}
               />
-              {errors.fullname && (
-                <p className="sm:col-span-2 -mt-2 text-xs" style={{ color: 'var(--accent-red)' }}>
-                  {errors.fullname}
-                </p>
-              )}
 
-              <InputField
+              <Field
                 label="Username"
                 id="username"
                 value={profile.username}
                 disabled
                 icon={AtSign}
+                hint={isAdmin ? undefined : 'Only an administrator can change this.'}
               />
-              {/* Explain why username is locked */}
-              {!isAdmin && (
-                <div className="sm:col-span-2 -mt-2 flex items-center gap-1.5 text-xs"
-                  style={{ color: 'var(--text-muted)' }}>
-                  <Lock className="w-3 h-3 flex-shrink-0" />
-                  Username can only be changed by an administrator.
-                </div>
-              )}
 
-              <div className="flex flex-col gap-1.5">
-                <InputField
-                  label="Email Address"
-                  id="email"
-                  type="email"
-                  value={profile.email}
-                  onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
-                  placeholder="you@example.com"
-                  icon={Mail}
-                />
-                {errors.email && (
-                  <p className="text-xs" style={{ color: 'var(--accent-red)' }}>{errors.email}</p>
-                )}
-              </div>
+              <Field
+                label="Email address"
+                id="email"
+                type="email"
+                value={profile.email}
+                onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
+                placeholder="you@example.com"
+                icon={Mail}
+                error={errors.email}
+                className="sm:col-span-2"
+              />
             </div>
 
-            <div className="mt-5 flex justify-end">
-              <Button type="submit" variant="primary" icon={Save} loading={saving}>
-                {saving ? 'Saving…' : 'Save Profile'}
+            <div className="mt-4 flex justify-end">
+              <Button type="submit" variant="primary" size="sm" icon={Save} loading={saving}>
+                {saving ? 'Saving…' : 'Save profile'}
               </Button>
             </div>
           </form>
         )}
-      </SettingsCard>
-    </div>
+      </SettingsSection>
+    </SettingsPanel>
   )
 }

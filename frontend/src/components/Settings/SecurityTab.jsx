@@ -10,54 +10,11 @@ import {
   Smartphone, Globe, Trash2, LogOut,
 } from 'lucide-react'
 import api from '../../utils/api'
-import { Button, SettingsCard, Skeleton } from '../ui'
+import { Badge, Button, Field, SettingsSection, SettingsPanel, Skeleton } from '../ui'
 
 /* ── Shared primitives ────────────────────────────────────────────────────────── */
-function PasswordInput({ id, label, value, onChange, disabled, placeholder }) {
-  const [show, setShow] = useState(false)
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-        {label}
-      </label>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-          style={{ color: 'var(--text-muted)' }}>
-          <Lock className="w-4 h-4" />
-        </span>
-        <input
-          id={id}
-          type={show ? 'text' : 'password'}
-          value={value}
-          onChange={onChange}
-          disabled={disabled}
-          placeholder={placeholder}
-          autoComplete="new-password"
-          className="w-full rounded-xl pl-9 pr-10 py-2.5 text-sm outline-none transition-all duration-150"
-          style={{
-            background: 'var(--input-bg)',
-            border: '1px solid var(--input-border)',
-            color: 'var(--text-primary)',
-            boxShadow: 'var(--input-shadow)',
-            opacity: disabled ? 0.5 : 1,
-          }}
-          onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-purple)'; e.currentTarget.style.boxShadow = 'var(--input-focus-shadow)' }}
-          onBlur={e => { e.currentTarget.style.borderColor = 'var(--input-border)'; e.currentTarget.style.boxShadow = 'var(--input-shadow)' }}
-        />
-        <button
-          type="button"
-          onClick={() => setShow(s => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 border-none bg-transparent cursor-pointer p-0"
-          style={{ color: 'var(--text-muted)' }}
-          tabIndex={-1}
-          aria-label={show ? 'Hide password' : 'Show password'}
-        >
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-    </div>
-  )
-}
+/* PasswordInput lived here — see <Field reveal>, which replaced it along with
+   AccountTab's InputField and the copies inside the staff modal. */
 
 /* ── Password strength meter ─────────────────────────────────────────────────── */
 function getStrength(pw) {
@@ -93,17 +50,19 @@ function StrengthMeter({ password }) {
 }
 
 /* ── Validation indicator ─────────────────────────────────────────────────────── */
+/* An unmet rule is grey, not red: the password is being typed, and marking each
+   requirement as an error before the operator has finished is the form telling
+   them off for not having got there yet. */
 function ValidationRule({ met, label }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <li className="flex items-center gap-1.5 text-xs">
       {met
-        ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--accent-green)' }} />
-        : <XCircle    className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
+        ? <CheckCircle size={12} className="shrink-0 text-positive" aria-hidden="true" />
+        : <XCircle size={12} className="shrink-0 text-text-muted opacity-60" aria-hidden="true" />
       }
-      <span className="text-xs" style={{ color: met ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-        {label}
-      </span>
-    </div>
+      <span className={met ? 'text-text-secondary' : 'text-text-muted'}>{label}</span>
+      <span className="sr-only">{met ? ' — met' : ' — not met'}</span>
+    </li>
   )
 }
 
@@ -132,10 +91,7 @@ function ConfirmModal({ open, onConfirm, onCancel, loading }) {
             }}
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--accent-red)' }}>
-                <ShieldAlert className="w-5 h-5" />
-              </div>
+              <ShieldAlert size={20} className="shrink-0 text-negative" aria-hidden="true" />
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                   Confirm Password Change
@@ -331,82 +287,79 @@ export default function SecurityTab({ toast }) {
 
   return (
     <>
-      <div className="flex flex-col gap-5 [@media(max-height:620px)]:gap-2.5">
+      <SettingsPanel>
 
-        {/* ── Change Password ──────────────────────────────────────── */}
-        <SettingsCard
-          title="Change Password"
-          description="Secure your account with a strong password"
+        {/* ── Change Password ──
+               Capped at a measure: a password box stretched to 1360px gives the
+               eye a metre of empty field to cross between the label and the
+               first character typed into it. ── */}
+        <SettingsSection
+          title="Change password"
+          description="the only credential on this account"
         >
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="flex flex-col gap-4 [@media(max-height:620px)]:gap-2.5">
-              <div>
-                <PasswordInput
-                  id="current"
-                  label="Current Password"
-                  value={form.current}
-                  onChange={e => setForm(f => ({ ...f, current: e.target.value }))}
-                  placeholder="Enter current password"
-                />
-                {fieldErrors.current && (
-                  <p className="mt-1 text-xs" style={{ color: 'var(--accent-red)' }}>{fieldErrors.current}</p>
-                )}
-              </div>
+          <form onSubmit={handleSubmit} noValidate className="max-w-xl">
+            <div className="flex flex-col gap-3">
+              <Field
+                reveal
+                id="current"
+                label="Current password"
+                autoComplete="current-password"
+                value={form.current}
+                onChange={e => setForm(f => ({ ...f, current: e.target.value }))}
+                placeholder="Enter current password"
+                error={fieldErrors.current}
+              />
 
-              <div className="grid sm:grid-cols-2 gap-4 [@media(max-height:620px)]:gap-2.5">
-              <div>
-                <PasswordInput
-                  id="newpw"
-                  label="New Password"
-                  value={form.newPw}
-                  onChange={e => setForm(f => ({ ...f, newPw: e.target.value }))}
-                  placeholder="Enter new password"
-                />
-                <StrengthMeter password={form.newPw} />
-                {fieldErrors.newPw && (
-                  <p className="mt-1 text-xs" style={{ color: 'var(--accent-red)' }}>{fieldErrors.newPw}</p>
-                )}
-              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <Field
+                    reveal
+                    id="newpw"
+                    label="New password"
+                    autoComplete="new-password"
+                    value={form.newPw}
+                    onChange={e => setForm(f => ({ ...f, newPw: e.target.value }))}
+                    placeholder="Enter new password"
+                    error={fieldErrors.newPw}
+                  />
+                  <StrengthMeter password={form.newPw} />
+                </div>
 
-              <div>
-                <PasswordInput
+                <Field
+                  reveal
                   id="confirm"
-                  label="Confirm New Password"
+                  label="Confirm new password"
+                  autoComplete="new-password"
                   value={form.confirm}
                   onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
                   placeholder="Repeat new password"
+                  error={fieldErrors.confirm}
                 />
-                {fieldErrors.confirm && (
-                  <p className="mt-1 text-xs" style={{ color: 'var(--accent-red)' }}>{fieldErrors.confirm}</p>
-                )}
-              </div>
               </div>
 
-              {/* Validation rules */}
+              {/* Validation rules — a plain checklist. Animating its height on
+                  every keystroke made the Update button walk down the page while
+                  the operator was still typing. */}
               {form.newPw && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="grid grid-cols-2 gap-x-4 gap-y-1.5 p-3 rounded-xl"
-                  style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
-                >
+                <ul className="list-none m-0 grid grid-cols-2 gap-x-4 gap-y-1 p-2.5 rounded-md
+                  bg-[var(--btn-secondary-bg)] border border-[var(--glass-border)]">
                   {rules.map(r => <ValidationRule key={r.label} met={r.met} label={r.label} />)}
-                </motion.div>
+                </ul>
               )}
 
-              <div className="flex justify-end mt-1">
-                <Button type="submit" variant="primary" icon={Lock}>Update Password</Button>
+              <div className="flex justify-end">
+                <Button type="submit" variant="primary" size="sm" icon={Lock}>Update password</Button>
               </div>
             </div>
           </form>
-        </SettingsCard>
+        </SettingsSection>
 
         {/* ── Login History ─────────────────────────────────────────── */}
-        <SettingsCard
+        <SettingsSection
           collapsible
           count={historyTotal || history.length || undefined}
-          title="Login History"
-          description="Recent sign-in events for your account"
+          title="Login history"
+          description="recent sign-in events"
         >
           {historyLoading ? (
             <div className="flex flex-col gap-2">
@@ -503,14 +456,14 @@ export default function SecurityTab({ toast }) {
               )}
             </>
           )}
-        </SettingsCard>
+        </SettingsSection>
 
         {/* ── Recent Security Activity ─────────────────────────────── */}
-        <SettingsCard
+        <SettingsSection
           collapsible
           count={activity.length || undefined}
-          title="Recent Security Activity"
-          description="Audit trail of account-related actions"
+          title="Security activity"
+          description="account-related actions"
         >
           {activityLoading ? (
             <div className="flex flex-col gap-2">
@@ -524,54 +477,49 @@ export default function SecurityTab({ toast }) {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {(showAllActivity ? activity : activity.slice(0, ACTIVITY_VISIBLE)).map(ev => (
-                <div key={ev.id}
-                  className="flex items-start gap-3 p-3 rounded-xl"
-                  style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
-                >
-                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0"
-                    style={{ color: 'var(--accent-amber)' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                      {ev.action.replace(/_/g, ' ')}
-                    </p>
-                    {ev.details && (
-                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                        {ev.details}
-                      </p>
-                    )}
-                  </div>
-                  <span className="text-xs whitespace-nowrap flex-shrink-0"
-                    style={{ color: 'var(--text-muted)' }}>
-                    {formatDate(ev.created_at)}
-                  </span>
-                </div>
-              ))}
+              {/* A log, not thirteen cards. Every entry also carried an amber
+                  warning triangle — including "UPDATE PROFILE", which is
+                  somebody editing their own name. An audit trail is a record of
+                  what happened; if everything in it is flagged as a warning,
+                  nothing in it is. */}
+              <ul className="list-none m-0 p-0 divide-y divide-rule">
+                {(showAllActivity ? activity : activity.slice(0, ACTIVITY_VISIBLE)).map(ev => (
+                  <li key={ev.id} className="flex items-baseline justify-between gap-3 py-1.5">
+                    <span className="min-w-0">
+                      <span className="block text-xs font-medium text-text-primary">
+                        {ev.action.replace(/_/g, ' ').toLowerCase().replace(/^./, c => c.toUpperCase())}
+                      </span>
+                      {ev.details && <span className="block meta truncate">{ev.details}</span>}
+                    </span>
+                    <time className="meta whitespace-nowrap shrink-0 tabular-nums">
+                      {formatDate(ev.created_at)}
+                    </time>
+                  </li>
+                ))}
+              </ul>
 
               {activity.length > ACTIVITY_VISIBLE && (
-                <button onClick={() => setShowAllActivity(v => !v)}
-                  aria-expanded={showAllActivity}
-                  className="w-full py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors"
-                  style={{
-                    background: 'var(--btn-secondary-bg)',
-                    border: '1px solid var(--glass-border)',
-                    color: 'var(--text-muted)',
-                  }}>
+                /* Not .insight-more-btn: that class exists to disappear above
+                   640px, where the dashboard's insight rows all fit. Here the
+                   toggle has to stay whatever the width. */
+                <Button variant="ghost" size="sm" className="mt-1"
+                  onClick={() => setShowAllActivity(v => !v)}
+                  aria-expanded={showAllActivity}>
                   {showAllActivity
                     ? 'Show less'
-                    : `+${activity.length - ACTIVITY_VISIBLE} more`}
-                </button>
+                    : `Show ${activity.length - ACTIVITY_VISIBLE} more`}
+                </Button>
               )}
             </div>
           )}
-        </SettingsCard>
+        </SettingsSection>
 
         {/* ── Active Sessions ───────────────────────────────────── */}
-        <SettingsCard
+        <SettingsSection
           collapsible
           count={sessions.length || undefined}
-          title="Active Sessions"
-          description="Devices currently signed in to your account"
+          title="Active sessions"
+          description="devices signed in to your account"
         >
           {sessionsLoading ? (
             <div className="flex flex-col gap-2">
@@ -585,103 +533,64 @@ export default function SecurityTab({ toast }) {
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-2 mb-4">
+              {/* Twenty sessions as twenty bordered cards is a wall of boxes.
+                  rgba(52,211,153) — Tailwind emerald-400 — marked the current
+                  one; it is now the palette's own positive, and it is carried by
+                  a badge rather than by tinting the whole row. */}
+              <ul className="list-none m-0 p-0 divide-y divide-rule mb-3">
                 {sessions.map(sess => {
                   const { name: devName, type: devType } = parseDeviceString(sess.device)
                   const DevIcon = devType === 'mobile' ? Smartphone : Monitor
                   return (
-                    <motion.div
-                      key={sess.id}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-3 p-3 rounded-xl"
-                      style={{
-                        background: sess.is_current
-                          ? 'rgba(52,211,153,0.06)'
-                          : 'var(--glass-bg)',
-                        border: `1px solid ${sess.is_current ? 'rgba(52,211,153,0.2)' : 'var(--glass-border)'}`,
-                      }}
-                    >
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background: sess.is_current ? 'rgba(52,211,153,0.12)' : 'var(--glass-bg-hover)',
-                          color: sess.is_current ? 'var(--accent-green)' : 'var(--text-muted)',
-                        }}>
-                        <DevIcon className="w-4 h-4" />
-                      </div>
+                    <li key={sess.id} className="flex items-center gap-2.5 py-2">
+                      <DevIcon size={14} aria-hidden="true"
+                        className={`shrink-0 ${sess.is_current ? 'text-positive' : 'text-text-muted'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                        <span className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-xs font-medium text-text-primary truncate">
                             {devName || 'Unknown browser'}
-                          </p>
-                          {sess.is_current && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold"
-                              style={{ background: 'rgba(52,211,153,0.12)', color: 'var(--accent-green)' }}>
-                              <CheckCircle className="w-2.5 h-2.5" /> Current
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                          <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                            {sess.ip_address}
                           </span>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            Last seen {formatDate(sess.last_seen)}
-                          </span>
-                        </div>
+                          {sess.is_current && <Badge variant="success">This device</Badge>}
+                        </span>
+                        <span className="meta flex items-center gap-2.5 flex-wrap">
+                          <span className="tabular-nums">{sess.ip_address}</span>
+                          <span>Last seen {formatDate(sess.last_seen)}</span>
+                        </span>
                       </div>
                       {!sess.is_current && (
                         <button
                           onClick={() => handleRevokeSession(sess.id)}
                           disabled={revokingId === sess.id}
-                          title="Revoke this session"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg border-none cursor-pointer
-                            disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                          style={{
-                            background: 'rgba(239,68,68,0.08)',
-                            color: 'var(--accent-red)',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+                          aria-label={`Revoke the session on ${devName || 'this device'}`}
+                          className="icon-btn icon-btn-danger shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {revokingId === sess.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Trash2 className="w-3.5 h-3.5" />
+                            ? <Loader2 size={13} className="animate-spin" />
+                            : <Trash2 size={13} />
                           }
                         </button>
                       )}
-                    </motion.div>
+                    </li>
                   )
                 })}
-              </div>
+              </ul>
 
               {/* Logout all other devices */}
               {sessions.filter(s => !s.is_current).length > 0 && (
                 <div className="flex justify-end pt-1"
                   style={{ borderTop: '1px solid var(--glass-border)' }}>
-                  <button
+                  <Button variant="danger" size="sm" icon={LogOut}
                     onClick={() => setShowLogoutAllConfirm(true)}
-                    disabled={logoutAllLoading}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold
-                      border-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
-                    style={{
-                      background: 'rgba(239,68,68,0.08)',
-                      color: 'var(--accent-red)',
-                      border: '1px solid rgba(239,68,68,0.15)',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    Logout All Other Devices
-                  </button>
+                    disabled={logoutAllLoading}>
+                    Sign out other devices
+                  </Button>
                 </div>
               )}
             </>
           )}
-        </SettingsCard>
+        </SettingsSection>
 
-      </div>
+      </SettingsPanel>
 
       <ConfirmModal
         open={showConfirm}
@@ -713,10 +622,7 @@ export default function SecurityTab({ toast }) {
               }}
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--accent-red)' }}>
-                  <LogOut className="w-5 h-5" />
-                </div>
+                <LogOut size={20} className="shrink-0 text-negative" aria-hidden="true" />
                 <div>
                   <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     Logout All Other Devices

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { io } from 'socket.io-client'
 import api, { rawApi } from '../utils/api'
 import { Play, Square, Save, Lock, CheckCircle2, XCircle, WifiOff, Undo2 } from 'lucide-react'
-import { Button, Modal } from './ui'
+import { Button, Modal, StatusIndicator } from './ui'
 import useAuthStore from '../store/authStore'
 
 const VARIANT = 'SPIN_20'
@@ -74,6 +74,7 @@ export default function Counter() {
 
   const [isSaving, setIsSaving] = useState(false)
   const [confirmSave, setConfirmSave] = useState(false)
+  const [confirmStart, setConfirmStart] = useState(false)
   const [toast, setToast] = useState(null)
   const [now, setNow] = useState(Date.now())
 
@@ -274,12 +275,23 @@ export default function Counter() {
 
   const canSave = count > 0 && !isSaving
 
+  /* A count on screen that has not been saved yet. Start zeroes the counter
+     (backend/api/counting.py sets runtime.fish_count = 0), so from here Start
+     is the destructive control and Save is the one the operator wants. */
+  const unsaved = !active && count > 0
+
+  function handleStartClick() {
+    if (unsaved) { setConfirmStart(true); return }
+    start()
+  }
+
   return (
     /* Sized to the shortest screen this runs on — a 1024x600 Pi panel — so the
        count and both controls are reachable without scrolling. dvh, not vh: on
        a phone vh counts the space behind the browser's own address bar, so the
        Start/Save row sat below the fold until the bar collapsed. */
-    <div className="flex flex-col gap-3" style={{ minHeight: 'calc(100dvh - 4rem)' }}>
+    <div className="flex flex-col gap-3 w-full max-w-4xl mx-auto"
+      style={{ minHeight: 'calc(100dvh - 4rem)' }}>
 
       <Modal
         open={confirmSave}
@@ -301,23 +313,57 @@ export default function Counter() {
         </p>
       </Modal>
 
+      <Modal
+        open={confirmStart}
+        onClose={() => setConfirmStart(false)}
+        title="Discard the counted fish?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmStart(false)}>Cancel</Button>
+            <Button variant="danger" icon={Play}
+              onClick={() => { setConfirmStart(false); start() }}>
+              Discard and start
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          {count.toLocaleString()} {VARIANT} have been counted but not saved.
+          Starting a new run resets the counter to zero.
+        </p>
+      </Modal>
+
       <Toast toast={toast} onUndo={handleUndo} />
 
-      {/* ── Context strip: everything about the run in one line ── */}
-      <div className="glass-card px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs shrink-0">
-        <span className="font-bold text-text-primary">{VARIANT}</span>
-        <span className="text-text-muted">
-          {device.name || (device.id ? `Counter ${device.id.slice(0, 8)}` : 'No counter device')}
+      {/* ── Context strip ──
+             What this run is, on what, by whom. These were three bare values
+             in a row — "SPIN_20  Fish Counter  admin" — with nothing saying
+             which was the product, which the machine and which the person, so
+             the top line of the kiosk screen read as three unrelated words.
+             Elapsed time has moved out of here and under the count, where the
+             operator is already looking. ── */}
+      <dl className="glass-card card-pad py-2 flex flex-wrap items-center gap-x-5 gap-y-1 shrink-0 m-0">
+        <div className="flex items-baseline gap-1.5">
+          <dt className="eyebrow">Variant</dt>
+          <dd className="m-0 text-xs font-semibold text-text-primary">{VARIANT}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <dt className="eyebrow">Counter</dt>
+          <dd className="m-0 text-xs text-text-secondary truncate">
+            {device.name || (device.id ? device.id.slice(0, 8) : 'none detected')}
+          </dd>
+        </div>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <dt className="eyebrow">Operator</dt>
+          <dd className="m-0 text-xs text-text-secondary truncate">
+            {session?.username || user?.username || '—'}
+          </dd>
+        </div>
+        <span className="ml-auto">
+          <StatusIndicator status={active ? 'active' : 'idle'} label={active ? 'Counting' : 'Idle'} />
         </span>
-        <span className="text-text-muted">{session?.username || user?.username || '—'}</span>
-        {active && <span className="text-text-muted tabular-nums">{formatElapsed(elapsed)} elapsed</span>}
-        <span className="ml-auto inline-flex items-center gap-2 font-semibold">
-          <span className={`h-2 w-2 rounded-full ${active ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
-          <span className={active ? 'text-accent-green' : 'text-text-muted'}>
-            {active ? 'Counting' : 'Idle'}
-          </span>
-        </span>
-      </div>
+      </dl>
 
       {offline && (
         <div className="flex items-center gap-2 rounded-lg border border-accent-amber/25 bg-accent-amber/10
@@ -346,7 +392,7 @@ export default function Counter() {
              anyone reads from across a room. ── */}
       <div className="glass-card count-frame flex-1 min-h-0 overflow-hidden
         flex flex-col items-center justify-center gap-2 p-4">
-        <p className="text-xs font-bold text-text-muted uppercase tracking-[0.14em]">Fish counted</p>
+        <p className="eyebrow">Fish counted</p>
         {/* Sizing lives in .count-value, which needs to know how wide the
             number is: a six-figure count has to step down or it runs past the
             edge of the frame. Leading is tightened so the glyph fills the
@@ -357,28 +403,49 @@ export default function Counter() {
             181px the comma in "300,000" was landing on top of the status line
             underneath it. Padding in em keeps that reservation proportional at
             every size the clamp produces. */}
+        {/* Set in the primary text colour, not the brand green. This is the one
+            glyph on the system that has to be read from the other side of a
+            wet-floored shed, and on the dark ground #7cb342 measures about
+            6.4:1 against the card while the primary off-white measures about
+            13.8:1 — more than double the contrast, for a number whose whole job
+            is to be legible at distance. Green stays where it means something:
+            the status dot, and a figure that has gone up. */}
         <p
-          className="count-value font-bold tabular-nums leading-[0.85] pb-[0.14em] text-accent-green"
+          className="count-value font-bold tabular-nums leading-[0.85] pb-[0.14em] text-text-primary"
+          aria-live="polite"
           style={{ '--count-chars': count.toLocaleString().length }}
         >
           {count.toLocaleString()}
         </p>
+        {/* Both pieces of run telemetry sit here rather than in 12px grey at the
+            top of the screen: while a run is open this line is directly under
+            the number the operator is already watching. Fixed height so the
+            count does not jump when the wording changes. */}
         <p className="text-sm text-text-secondary tabular-nums h-5">
           {active
-            ? (rate != null ? `${rate.toLocaleString()} fish/min` : 'measuring rate…')
+            ? (
+              <>
+                <span>{formatElapsed(elapsed)} elapsed</span>
+                <span className="text-text-muted"> · </span>
+                <span>{rate != null ? `${rate.toLocaleString()} fish/min` : 'measuring rate…'}</span>
+              </>
+            )
             : count > 0 ? 'Stopped — ready to save' : 'Press Start to begin'}
         </p>
       </div>
 
       {/* ── Actions pinned to the bottom, thumb height, always in the same place ── */}
       <div className="grid grid-cols-2 gap-3 shrink-0">
+        {/* Secondary whenever there is a count worth losing: two identical
+             green slabs, one of which quietly discards the run, is not a choice
+             anyone should have to read twice on a touch panel. */}
         <Button
-          variant={active ? 'secondary' : 'primary'}
+          variant={active || unsaved ? 'secondary' : 'primary'}
           icon={active ? Square : Play}
-          onClick={active ? handleStop : start}
+          onClick={active ? handleStop : handleStartClick}
           className="!py-0 h-16 text-sm sm:text-base font-bold"
         >
-          {active ? 'Stop' : 'Start'}
+          {active ? 'Stop' : unsaved ? 'Start over' : 'Start'}
         </Button>
         <Button
           variant={canSave ? 'primary' : 'secondary'}
@@ -392,7 +459,7 @@ export default function Counter() {
         </Button>
       </div>
       {!canSave && !active && count === 0 && (
-        <p className="text-xs text-text-muted text-center shrink-0 -mt-1">
+        <p className="meta text-center shrink-0 -mt-1">
           Save becomes available once fish have been counted.
         </p>
       )}
