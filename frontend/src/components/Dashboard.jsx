@@ -2,12 +2,11 @@ import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { io } from 'socket.io-client'
 import { rawApi } from '../utils/api'
-import {
-  TrendingUp, Fish, Lightbulb, Zap, Target, ShieldAlert, ChevronDown, AlertTriangle
-} from 'lucide-react'
+import { Fish, Lightbulb, ChevronDown, AlertTriangle } from 'lucide-react'
 import SalesTrend from './SalesTrend'
 import { getNoteDisplay, getRecordType } from '../utils/notes'
 import { avgDailyOutflow, daysOfCover, stockStatus, coverLabel } from '../utils/stock'
+import { dedupeInsights } from '../utils/insights'
 import {
   isoDay, revenueWindow, periodRevenue, averageSale,
   formatPeso, formatPesoShort,
@@ -97,13 +96,14 @@ function rangeTier(len) {
   return 'long'
 }
 
-/** Describe a range length in human terms */
+/** Describe a range length in human terms.
+ *
+ *  Days, not weeks, up to two months. Rounding 30 days to "4 weeks" here while
+ *  the weekly grouping below counted 5 buckets put two different lengths for
+ *  one range in the same panel — "4 weeks total" beside "5 weeks analyzed". */
 function rangeLabel(len) {
   if (len <= 1) return 'today'
-  if (len <= 7) return `${len} days`
-  if (len <= 14) return `${len} days`
-  if (len <= 35) return `${Math.round(len / 7)} weeks`
-  if (len <= 95) return `${Math.round(len / 30)} months`
+  if (len <= 60) return `${len} days`
   return `${Math.round(len / 30)} months`
 }
 
@@ -198,7 +198,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // ── Adaptive split ──
   const split = splitPeriod(days)
   const splitTrend = split ? pct(split.secondSold, split.firstSold) : 0
-  const splitRevTrend = split ? pct(split.secondRev, split.firstRev) : 0
 
   // ── Adaptive momentum (last ~20% vs prior ~20%) ──
   const windowSize = Math.max(2, Math.min(7, Math.floor(len * 0.2)))
@@ -221,6 +220,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (todayRev > 0 && ydayRev > 0) {
     const dir = revChange >= 0
     insights.performance.push({
+      key: 'today-revenue',
       value: `${dir ? '+' : '−'}${Math.abs(revChange).toFixed(1)}%`,
       label: 'revenue vs yesterday',
       detail: `${formatCurrency(todayRev)} · previous ${formatCurrency(ydayRev)}`,
@@ -228,6 +228,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   } else if (todayRev > 0) {
     insights.performance.push({
+      key: 'today-revenue',
       value: formatCurrency(todayRev),
       label: 'revenue today',
       detail: '',
@@ -236,18 +237,24 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   }
 
   if (peakDay && peakDay.sold_total > 0) {
-    const peakVsAvg = avgDaily > 0 ? ((peakDay.sold_total / avgDaily) - 1) * 100 : 0
-    const peakSuffix = peakVsAvg > 200 ? 'outlier spike' : `+${peakVsAvg.toFixed(0)}% vs avg`
+    // "3.2× the average" says what "outlier spike" was gesturing at, and it
+    // saves the detail line that used to restate the average as its own number
+    // two bullets above the bullet that already reports it.
+    const multiple = avgDaily > 0 ? peakDay.sold_total / avgDaily : 0
     insights.performance.push({
+      key: 'peak',
       value: `${fmtNum(peakDay.sold_total)} units`,
-      label: `peak on ${fmtShortDate(peakDay.date)} · ${peakSuffix}`,
-      detail: `${periodName} avg: ${fmtNum(avgDaily)} units/day`,
+      label: multiple >= 1.1
+        ? `peak on ${fmtShortDate(peakDay.date)} · ${multiple.toFixed(1)}× the daily average`
+        : `peak on ${fmtShortDate(peakDay.date)}`,
+      detail: '',
       type: 'positive',
     })
   }
 
   if (avgDaily > 0) {
     insights.performance.push({
+      key: 'period-total',
       value: `${fmtNum(totalSold)} sold`,
       label: `${periodName} total · ${formatCurrency(totalRevenue)}`,
       detail: `${fmtNum(avgDaily)} units/day · ${formatCurrency(avgRevenue)}/day avg`,
@@ -255,20 +262,37 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  insights.performance = insights.performance.slice(0, 3)
-
   // ┌─────────────────────────────────────────┐
   // │  2. TRENDS (adaptive by tier)           │
   // └─────────────────────────────────────────┘
 
-  // Period-over-period direction
+  /* Period-over-period direction.
+     This one bullet now carries the money as well as the units. It used to have
+     a twin under Risks — "revenue · late-period decline" — computed from the
+     same split; under a flat price per fish a revenue trend and a unit trend
+     are arithmetically the same number, so the panel printed −100.0% twice, in
+     two categories, as though they were two findings. */
   if (split && split.firstSold > 0) {
-    insights.trends.push({
-      value: `${splitTrend >= 0 ? '+' : '−'}${Math.abs(splitTrend).toFixed(1)}%`,
-      label: `sales · ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
-      detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} → ${split.secondLabel}: ${fmtNum(split.secondSold)}`,
-      type: splitTrend >= 5 ? 'positive' : splitTrend <= -5 ? 'negative' : 'neutral',
-    })
+    const stopped = split.secondSold === 0
+    insights.trends.push(stopped
+      /* "−100.0%" is technically what happened and tells the reader nothing
+         they can act on. Nobody writes that sentence; they write the date it
+         stopped. */
+      ? {
+          key: 'period-trend',
+          value: 'No sales',
+          label: `since ${fmtShortDate(split.second[0].date)}`,
+          detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} sold · ${formatCurrency(split.firstRev)}`,
+          type: 'negative',
+        }
+      : {
+          key: 'period-trend',
+          value: `${splitTrend >= 0 ? '+' : '−'}${Math.abs(splitTrend).toFixed(1)}%`,
+          label: `sales · ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
+          detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} · ${formatCurrency(split.firstRev)}`
+            + ` → ${split.secondLabel}: ${fmtNum(split.secondSold)} · ${formatCurrency(split.secondRev)}`,
+          type: splitTrend >= 5 ? 'positive' : splitTrend <= -5 ? 'negative' : 'neutral',
+        })
   }
 
   // Momentum
@@ -276,6 +300,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const dir = momentumPct >= 0
     const windowLabel = windowSize === 1 ? 'day' : `${windowSize} days`
     insights.trends.push({
+      key: 'momentum',
       value: `${dir ? '+' : '−'}${Math.abs(momentumPct).toFixed(1)}%`,
       label: `last ${windowLabel} · ${dir ? 'accelerating' : 'decelerating'}`,
       detail: `recent ${fmtNum(recentWindow)} vs prior ${fmtNum(priorWindow)}`,
@@ -283,15 +308,25 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  // Long-range: weekly pattern for medium tier
+  /* Long-range: weekly pattern for medium tier.
+     Skipped when the peak day falls inside the best week, which is almost
+     always — the same spike is then reported once as a day and once as the week
+     containing it, and the reader is left comparing two numbers that are the
+     same event. The week count in the detail is gone too: the panel header
+     already says how long the range is. */
   if (tier === 'medium' && weeks.length >= 3) {
     const bestWeek = weeks.reduce((b, w) => w.sold > b.sold ? w : b, weeks[0])
-    insights.trends.push({
-      value: `${fmtNum(bestWeek.sold)} units`,
-      label: `best week · ${bestWeek.label}`,
-      detail: `${weeks.length} weeks analyzed`,
-      type: 'neutral',
-    })
+    const bestWeekIdx = weeks.indexOf(bestWeek)
+    const peakInBestWeek = peakIdx >= bestWeekIdx * 7 && peakIdx < (bestWeekIdx + 1) * 7
+    if (!peakInBestWeek) {
+      insights.trends.push({
+        key: 'best-week',
+        value: `${fmtNum(bestWeek.sold)} units`,
+        label: `best week · ${bestWeek.label}`,
+        detail: '',
+        type: 'neutral',
+      })
+    }
   }
 
   // Long-range: monthly seasonality
@@ -300,6 +335,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const worstMonth = months.reduce((w, m) => m.sold < w.sold ? m : w, months[0])
     if (bestMonth.label !== worstMonth.label) {
       insights.trends.push({
+        key: 'seasonality',
         value: `${fmtNum(bestMonth.sold)} units`,
         label: `peak in ${bestMonth.label} · low ${worstMonth.label}`,
         detail: `${worstMonth.label}: ${fmtNum(worstMonth.sold)} · ${months.length} months compared`,
@@ -308,9 +344,14 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
   }
 
-  // Recovery detection — skip noise from zero-to-nonzero bounces
-  if (biggestDrop.pct < -20 && biggestGain.pct > 15 && biggestGain.pct <= 500 && biggestGain.idx > biggestDrop.idx) {
+  /* Recovery detection. `sales[biggestDrop.idx] > 0` is the new condition: a
+     rebound measured from a day that sold nothing is a percentage against zero,
+     which produced things like "+196% rebound" for what was simply sales
+     starting again — and the day it stopped is already reported as a risk. */
+  if (biggestDrop.pct < -20 && sales[biggestDrop.idx] > 0
+      && biggestGain.pct > 15 && biggestGain.pct <= 500 && biggestGain.idx > biggestDrop.idx) {
     insights.trends.push({
+      key: `day:${days[biggestDrop.idx].date}`,
       value: `+${biggestGain.pct.toFixed(0)}%`,
       label: `rebound after ${fmtShortDate(days[biggestDrop.idx].date)} dip`,
       detail: `dropped ${Math.abs(biggestDrop.pct).toFixed(0)}%, recovered in ${biggestGain.idx - biggestDrop.idx}d`,
@@ -318,25 +359,30 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  // Volatility — only when meaningful, skip extreme noise
+  /* Volatility — only when meaningful, skip extreme noise.
+     Reported as units, not as a coefficient of variation. "129% CV" is a
+     statistic about a statistic: it is precise, it is correct, and nobody
+     running a fish farm can act on it. The standard deviation in fish is the
+     same finding in a unit the reader already has on the rest of the page. */
+  const swing = Math.round(vol * (len > 0 ? totalSold / len : 0))
   if (isVolatile && vol <= 2) {
     insights.trends.push({
-      value: `${(vol * 100).toFixed(0)}% CV`,
-      label: 'high variability · inconsistent daily sales',
-      detail: `over ${periodName}`,
+      key: 'volatility',
+      value: `±${fmtNum(swing)}`,
+      label: `typical day-to-day swing · demand is not steady`,
+      detail: `against an average of ${fmtNum(avgDaily)} units/day over ${periodName}`,
       type: 'negative',
     })
   } else if (isStable && len >= 5) {
     insights.trends.push({
-      value: `${(vol * 100).toFixed(0)}% CV`,
-      label: 'stable demand · consistent daily sales',
-      detail: `over ${periodName}`,
+      key: 'volatility',
+      value: `±${fmtNum(swing)}`,
+      label: 'typical day-to-day swing · steady demand',
+      detail: `against an average of ${fmtNum(avgDaily)} units/day over ${periodName}`,
       type: 'positive',
     })
   }
 
-  // Limit trends to top 3
-  insights.trends = insights.trends.slice(0, 3)
 
   // ┌─────────────────────────────────────────┐
   // │  3. RISKS (max 3)                       │
@@ -344,6 +390,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Zero revenue today — this is a risk, not performance
   if (todayRev === 0 && ydayRev > 0) {
     insights.risks.push({
+      key: 'today-revenue',
       value: '₱0',
       label: 'revenue today · −100% vs yesterday',
       detail: `previous ${formatCurrency(ydayRev)}`,
@@ -359,6 +406,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (dropDay && dropIsZero) {
     // Combined: the drop resulted in zero sales
     insights.risks.push({
+      key: `day:${dropDay.date}`,
       value: '0 sales',
       label: `on ${fmtShortDate(dropDay.date)} · ${Math.abs(biggestDrop.pct).toFixed(0)}% drop from prior day`,
       detail: `previous day ${fmtNum(sales[biggestDrop.idx - 1])} units`,
@@ -367,6 +415,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   } else {
     if (biggestDrop.pct < -25) {
       insights.risks.push({
+        key: `day:${days[biggestDrop.idx].date}`,
         value: `−${Math.abs(biggestDrop.pct).toFixed(0)}%`,
         label: `drop on ${fmtShortDate(days[biggestDrop.idx].date)} · ${fmtNum(sales[biggestDrop.idx])} units`,
         detail: `previous day ${fmtNum(sales[biggestDrop.idx - 1])} units`,
@@ -375,6 +424,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
     if (lowDay && lowDay.sold_total === 0 && len > 1 && !zeroIsDropDay) {
       insights.risks.push({
+        key: `day:${lowDay.date}`,
         value: '0 sales',
         label: `on ${fmtShortDate(lowDay.date)} · verify downtime or gap`,
         detail: '',
@@ -382,6 +432,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
       })
     } else if (lowDay && lowDay.sold_total > 0 && avgDaily > 0 && lowDay.sold_total < avgDaily * 0.35) {
       insights.risks.push({
+        key: `day:${lowDay.date}`,
         value: `${fmtNum(lowDay.sold_total)} units`,
         label: `on ${fmtShortDate(lowDay.date)} · ${Math.round((lowDay.sold_total / avgDaily) * 100)}% of avg`,
         detail: `avg ${fmtNum(avgDaily)} units/day`,
@@ -390,20 +441,11 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
   }
 
-  // Revenue declining across period
-  if (split && split.firstRev > 0 && splitRevTrend < -10) {
-    insights.risks.push({
-      value: `−${Math.abs(splitRevTrend).toFixed(1)}%`,
-      label: 'revenue · late-period decline',
-      detail: `${split.firstLabel}: ${formatCurrency(split.firstRev)} → ${split.secondLabel}: ${formatCurrency(split.secondRev)}`,
-      type: 'negative',
-    })
-  }
-
   const activeAlerts = (lowStockAlerts || []).filter(a => a.status !== 'ok')
   const criticals = activeAlerts.filter(a => a.status === 'critical')
   if (criticals.length > 0) {
     insights.risks.push({
+      key: 'stock',
       value: 'Critical',
       label: `${criticals.map(a => `${a.variant} (${fmtNum(a.stock)})`).join(', ')} · restock now`,
       detail: 'below safety threshold',
@@ -411,6 +453,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   } else if (activeAlerts.length > 0) {
     insights.risks.push({
+      key: 'stock',
       value: `${activeAlerts.length} warning${activeAlerts.length > 1 ? 's' : ''}`,
       label: activeAlerts.map(a => a.variant).join(', '),
       detail: 'approaching low levels',
@@ -418,7 +461,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  insights.risks = insights.risks.slice(0, 3)
 
   // ┌─────────────────────────────────────────┐
   // │  4. OPPORTUNITIES (max 3)               │
@@ -429,6 +471,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const allTotal = sortedVariants.reduce((s, v) => s + v[1], 0)
     const share = allTotal > 0 ? Math.round((topVariant[1] / allTotal) * 100) : 0
     insights.opportunities.push({
+      key: 'variant-share',
       value: `${share}%`,
       label: `${topVariant[0]} share · ${fmtNum(topVariant[1])} in stock`,
       detail: 'prioritize availability for top variant',
@@ -440,6 +483,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const gap = topVariant[1] - bottomVariant[1]
     if (gap > 0 && bottomVariant[1] > 0) {
       insights.opportunities.push({
+        key: 'variant-gap',
         value: `${fmtNum(gap)} units`,
         label: `${bottomVariant[0]} trails · growth room`,
         detail: 'consider pricing or bundling to close gap',
@@ -448,9 +492,11 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
   }
 
-  // Upward momentum opportunity
+  // Upward momentum opportunity — same split as the sales trend above, so it
+  // carries that reading's key and drops out when the trend already said it.
   if (split && splitTrend > 15) {
     insights.opportunities.push({
+      key: 'period-trend',
       value: `+${splitTrend.toFixed(0)}%`,
       label: 'growth trend · scale supply to match',
       detail: 'demand accelerating in later half',
@@ -458,95 +504,81 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  insights.opportunities = insights.opportunities.slice(0, 3)
-
-  return insights
+  // One event, one bullet — see utils/insights.js.
+  return dedupeInsights(insights)
 }
 
 /* ─── Category config ───
-   The colour is passed as a CSS variable rather than a class per element: the
-   card needs it for its left rule and the dots need it as a background, and one
-   variable does both without three parallel class tables drifting apart. */
+   Names only. Each category used to carry a colour and an icon, which meant
+   four hues and four glyphs decorating four headings whose own words already
+   said "Performance", "Trends", "Risks". Colour is left to the readings, where
+   it means a direction; the categories are labels, and labels are grey. */
 const INSIGHT_CATEGORIES = [
-  { key: 'performance',   label: 'Performance',   icon: Zap,         color: 'var(--attention)' },
-  { key: 'trends',        label: 'Trends',        icon: TrendingUp,  color: 'var(--info)' },
-  { key: 'risks',         label: 'Risks',         icon: ShieldAlert, color: 'var(--negative)' },
-  { key: 'opportunities', label: 'Opportunities', icon: Target,      color: 'var(--positive)' },
+  { key: 'performance',   label: 'Performance' },
+  { key: 'trends',        label: 'Trends' },
+  { key: 'risks',         label: 'Risks' },
+  { key: 'opportunities', label: 'Opportunities' },
 ]
 
 const TYPE_COLORS = {
   positive: 'text-positive',
   negative: 'text-negative',
-  neutral: 'text-text-secondary',
+  neutral: 'text-text-primary',
 }
 
-/* ─── Analytics Insights Panel (premium SaaS layout) ─── */
 const MOBILE_VISIBLE = 2  // rows past this collapse on phones; all show from 640px up
 
-function InsightCard({ cat, items }) {
-  const CatIcon = cat.icon
+/* One category of readings. Not a card: it is a heading, a rule, and a list.
+   The three boxes this replaces each had a border, a background, a coloured
+   left edge, a coloured icon, a coloured heading and a coloured dot per row —
+   six pieces of chrome around what is, in the end, six lines of text. */
+function InsightGroup({ cat, items }) {
   const [expanded, setExpanded] = useState(false)
   if (!items || items.length === 0) return null
 
   const overflow = items.length - MOBILE_VISIBLE
 
   return (
-    <div className="insight-card" style={{ '--cat': cat.color }}>
-      {/* Section label. The icon sits inline at text size rather than in a
-          tinted 28px tile — four tiles across the panel were the loudest thing
-          in a block whose whole job is to be read as text. */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <CatIcon size={12} style={{ color: cat.color }} aria-hidden="true" />
-        <span className="eyebrow" style={{ color: cat.color }}>{cat.label}</span>
-      </div>
-
-      {/* Insight rows */}
-      <div>
+    <section className="insight-group" aria-label={cat.label}>
+      <h4 className="insight-group-label">{cat.label}</h4>
+      <dl className="m-0">
         {items.map((insight, i) => (
           <div
             key={i}
             className={`insight-row${i >= MOBILE_VISIBLE && !expanded ? ' is-overflow' : ''}`}
           >
-            <span className="insight-dot" style={{ background: cat.color }} />
-            <div className="min-w-0 flex-1">
-              {/* Value and label are separate spans so a wrap breaks between them
-                  rather than mid-phrase, and only the number carries the colour. */}
-              <span className="text-xs leading-snug block">
-                {insight.value && (
-                  <span className={`font-semibold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
-                )}
-                {insight.value && insight.label && ' '}
-                {insight.label && (
-                  <span className="text-text-secondary">{insight.label}</span>
-                )}
-              </span>
-              {/* Always visible: hover-reveal reserved the same height anyway and
-                  was unreachable on touch, where :hover and title= never fire. */}
-              {insight.detail && (
-                <span className="meta block mt-px">{insight.detail}</span>
+            {/* Value and label are separate elements so a wrap breaks between
+                them rather than mid-phrase, and only the figure takes colour. */}
+            <dt className="inline text-xs leading-snug">
+              {insight.value && (
+                <span className={`font-semibold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
               )}
-            </div>
+            </dt>
+            <dd className="inline m-0 text-xs leading-snug text-text-secondary">
+              {insight.value && insight.label && ' '}
+              {insight.label}
+            </dd>
+            {/* Always visible: hover-reveal reserved the same height anyway and
+                was unreachable on touch, where :hover and title= never fire. */}
+            {insight.detail && <p className="meta m-0">{insight.detail}</p>}
           </div>
         ))}
+      </dl>
 
-        {overflow > 0 && (
-          <button onClick={() => setExpanded(v => !v)} className="insight-more-btn"
-            aria-expanded={expanded}>
-            {expanded ? 'Show less' : `+${overflow} more`}
-          </button>
-        )}
-      </div>
-    </div>
+      {overflow > 0 && (
+        <button onClick={() => setExpanded(v => !v)} className="insight-more-btn"
+          aria-expanded={expanded}>
+          {expanded ? 'Show less' : `+${overflow} more`}
+        </button>
+      )}
+    </section>
   )
 }
 
 function InsightSkeleton() {
   return (
-    <div className="insight-card">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Skeleton width={12} height={12} />
-        <Skeleton width="45%" height={9} />
-      </div>
+    <div className="insight-group">
+      <div className="insight-group-label"><Skeleton width="45%" height={9} /></div>
       <div className="space-y-2">
         {[1, 2].map(i => (
           <div key={i} className="space-y-1">
@@ -561,25 +593,38 @@ function InsightSkeleton() {
 
 /* The panel's contents, without the container that opens it. */
 function AnalyticsBody({ insights, hasAny, trendLoading }) {
-  /* A grid, not CSS multi-columns. `columns-*` flows the four cards top-to-
-     bottom and then wraps, so which category landed in which column depended on
-     how many bullets each happened to generate that day — the panel reordered
-     itself as the farm's data changed. A grid keeps Performance, Trends, Risks
-     and Opportunities in that order every time, which is the point of naming
-     them. */
-  const cls = 'grid gap-grid items-start grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]'
+  /* A grid, not CSS multi-columns. `columns-*` flows the four groups
+     top-to-bottom and then wraps, so which category landed in which column
+     depended on how many bullets each happened to generate that day — the panel
+     reordered itself as the farm's data changed. auto-fit keeps Performance,
+     Trends, Risks and Opportunities in that order and closes the gap when a
+     category has nothing to report. */
+  const cls = 'grid gap-x-6 gap-y-3 items-start grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]'
   if (trendLoading) {
-    return <div className={cls}>{[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}</div>
+    return (
+      <div className="glass-card card-pad">
+        <div className={cls}>{[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}</div>
+      </div>
+    )
   }
   if (!hasAny) {
-    return <EmptyState compact icon={Lightbulb} title="No insights yet"
-      message="Insights appear once there's enough sales activity in the selected range." />
+    return (
+      <div className="glass-card card-pad">
+        <EmptyState compact icon={Lightbulb} title="No insights yet"
+          message="Insights appear once there's enough sales activity in the selected range." />
+      </div>
+    )
   }
+  /* One panel holding four groups, rather than four panels sitting in a row.
+     The groups are separated by the gap and by their own heading rules, which
+     is all the separation a set of related readings needs. */
   return (
-    <div className={cls}>
-      {INSIGHT_CATEGORIES.map(cat => (
-        <InsightCard key={cat.key} cat={cat} items={insights ? insights[cat.key] : []} />
-      ))}
+    <div className="glass-card card-pad">
+      <div className={cls}>
+        {INSIGHT_CATEGORIES.map(cat => (
+          <InsightGroup key={cat.key} cat={cat} items={insights ? insights[cat.key] : []} />
+        ))}
+      </div>
     </div>
   )
 }
@@ -610,7 +655,8 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
           <span className="section-title">Analytics Overview</span>
           {dailyData.length > 0 && !trendLoading && (
             <span className="meta">
-              {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analysed
+              {fmtShortDate(dailyData[0].date)} – {fmtShortDate(dailyData[dailyData.length - 1].date)}
+              {' · '}{dailyData.length} day{dailyData.length !== 1 ? 's' : ''}
             </span>
           )}
         </summary>
