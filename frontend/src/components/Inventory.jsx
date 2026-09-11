@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
 import { getRecordType, formatRecordDate, MOVEMENT } from '../utils/notes'
-import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
-import { Button, PageHeader, SectionHeader, EmptyState, Modal, Skeleton, DateInput } from './ui'
+import { RefreshCw, Archive, RotateCcw, Package, AlertCircle, Search, X } from 'lucide-react'
+import { Button, PageHeader, SectionHeader, EmptyState, Modal, Skeleton, DateInput, Pager } from './ui'
 
 const VARIANTS = ['SPIN_20']
 const PER_PAGE_OPTIONS = [5, 10, 20, 50]
@@ -76,18 +76,23 @@ function highlight(text, query) {
    the only way to reach a row's Archive button was to scroll the page sideways.
    The note is shown only while searching — it is what the search matched, and
    otherwise it restates the count ("Wholesale order: 65,560 pcs"). */
-function RecordList({ label, records, query, action, actionWidth = '4.5rem', pendingIds }) {
+function RecordList({ label, records, query, action, actionWidth = '14%', pendingIds }) {
   const noteOf = r => (query && r.notes ? highlight(r.notes, query) : null)
   return (
     <>
+      {/* Shares, not rems. With fixed widths on every column but Date, Date
+          took every pixel the panel gained — 560px on a laptop, most of it a
+          gap before Type — while Total's 7rem clipped "₱26,224.00". Date
+          still takes what is left: about 30% here, 22% in the archive, where
+          Restore needs the room. */}
       <table className="dark-table ledger table-fixed hidden md:table">
         <caption className="sr-only">{label}</caption>
         <colgroup>
           <col />
-          <col className="w-[5.5rem]" />
-          <col className="w-[6rem]" />
-          <col className="w-[5.5rem]" />
-          <col className="w-[7rem]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+          <col className="w-[17%]" />
           <col style={{ width: actionWidth }} />
         </colgroup>
         <thead>
@@ -161,7 +166,10 @@ export default function Inventory() {
 
   // Pagination
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(5)
+  // Ten rows where they fit under the filters, as on a laptop; five on the 7"
+  // panel and on phones, where ten would scroll.
+  const [perPage, setPerPage] = useState(() =>
+    window.matchMedia('(min-width: 768px) and (min-height: 680px)').matches ? 10 : 5)
   const [totalPages, setTotalPages] = useState(1)
   const [totalRecords, setTotalRecords] = useState(0)
 
@@ -371,34 +379,17 @@ export default function Inventory() {
     }
   }
 
-  function goPage(p) {
-    if (p < 1 || p > displayTotalPages) return
-    setPage(p)
-  }
-
-  function pageNumbers() {
-    const pages = []
-    const maxVisible = 5
-    let start = Math.max(1, page - Math.floor(maxVisible / 2))
-    let end = Math.min(displayTotalPages, start + maxVisible - 1)
-    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
-    for (let i = start; i <= end; i++) pages.push(i)
-    return pages
-  }
-
   const filtered = !!(searchQuery || searchStartDate || searchEndDate || variantFilter)
-  const first = (page - 1) * perPage + 1
-  const last = Math.min(page * perPage, displayTotalRecords)
   const isArchiving = confirmAction?.type === 'delete'
   const confirmRecord = confirmAction?.record
   const confirmKind = confirmRecord ? movementOf(confirmRecord) : null
 
   return (
-    /* Left-aligned, not centred: every other screen's title sits at the pane's
-       left edge, and a centred column made "Inventory" jump sideways on each
-       tab switch. The cap keeps the ledger's columns close enough to read
-       across on a wide monitor. */
-    <div className="flex flex-col gap-section max-w-5xl">
+    /* The full pane. A 5xl cap kept the ledger's columns together on a wide
+       monitor but left a fifth of a laptop screen empty beside it; the columns
+       are shares of the width now, so they spread evenly instead of drifting
+       apart around one wide Date column. */
+    <div className="flex flex-col gap-section">
       <PageHeader
         title="Inventory"
         meta={loading ? undefined
@@ -499,45 +490,9 @@ export default function Inventory() {
         )}
 
         {!loading && !loadError && displayRecords.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-[var(--pad-card)] py-2 border-t border-rule">
-            <p className="meta tabular-nums">
-              {first.toLocaleString()}–{last.toLocaleString()} of {displayTotalRecords.toLocaleString()}
-            </p>
-            <div className="flex items-center gap-2">
-              <label className="meta flex items-center gap-1.5">
-                Rows
-                <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
-                  className="neu-input py-1 text-[13px]">
-                  {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </label>
-              {displayTotalPages > 1 && (
-                <nav aria-label="Pages" className="flex items-center gap-1">
-                  <button type="button" onClick={() => goPage(page - 1)} disabled={page <= 1}
-                    aria-label="Previous page" className="icon-btn disabled:opacity-40 disabled:cursor-not-allowed">
-                    <ChevronLeft size={16} />
-                  </button>
-                  {/* Page numbers from sm; on a phone "1–5 of 177" already says
-                      where you are, and five 44px targets don't fit beside it. */}
-                  <div className="hidden sm:block">
-                    <div className="segmented">
-                      {pageNumbers().map(p => (
-                        <button key={p} type="button" onClick={() => goPage(p)}
-                          data-active={p === page} aria-current={p === page ? 'page' : undefined}
-                          aria-label={`Page ${p}`} className="tabular-nums">
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => goPage(page + 1)} disabled={page >= displayTotalPages}
-                    aria-label="Next page" className="icon-btn disabled:opacity-40 disabled:cursor-not-allowed">
-                    <ChevronRight size={16} />
-                  </button>
-                </nav>
-              )}
-            </div>
-          </div>
+          <Pager page={page} pages={displayTotalPages} total={displayTotalRecords}
+            perPage={perPage} options={PER_PAGE_OPTIONS}
+            onPage={setPage} onPerPage={n => { setPerPage(n); setPage(1) }} />
         )}
       </section>
 
@@ -588,7 +543,7 @@ export default function Inventory() {
                 <RecordList
                   label="Archived records"
                   records={archiveRecords}
-                  actionWidth="8.5rem"
+                  actionWidth="22%"
                   action={r => (
                     <Button variant="secondary" size="sm" icon={RotateCcw} onClick={() => confirmRestore(r)}
                       aria-label={`Restore record from ${formatRecordDate(r.date)}`}>
