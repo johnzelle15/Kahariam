@@ -6,6 +6,7 @@ import {
   ScanLine,
   Package,
   Settings2,
+  FileChartColumn,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +29,7 @@ const ALL_NAV_ITEMS = [
   { id: 'counter',     group: 'Daily',   label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',         adminOnly: false },
   { id: 'inventory',   group: 'Records', label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',       adminOnly: true },
   { id: 'adjustments', group: 'Records', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments', adminOnly: true },
+  { id: 'reports',     group: 'Records', label: 'Reports',     icon: FileChartColumn, tooltip: 'Summaries, charts & exports', adminOnly: true },
   { id: 'settings',    group: 'System',  label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',  adminOnly: false },
 ]
 

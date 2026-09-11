@@ -598,7 +598,7 @@ def get_statistics():
 
     today_revenue_query = (
         "SELECT "
-        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
+        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold "
         "FROM inventory WHERE deleted = 0 AND DATE(date) = CURRENT_DATE"
     )
     c.execute(today_revenue_query)
@@ -619,7 +619,7 @@ def get_statistics():
     try:
         total_sales_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total "
             f"FROM inventory {where_clause}"
         )
         c.execute(total_sales_query, params)
@@ -651,7 +651,7 @@ def get_statistics():
         # Yesterday's daily revenue
         yday_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold "
             "FROM inventory WHERE deleted = 0 AND DATE(date) = ?"
         )
         c.execute(yday_rev_query, [yesterday_str])
@@ -662,7 +662,7 @@ def get_statistics():
         # Yesterday's cumulative total revenue (all time up to end of yesterday)
         yday_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total "
             "FROM inventory WHERE deleted = 0 AND DATE(date) <= ?"
         )
         c.execute(yday_total_rev_query, [yesterday_str])
@@ -703,8 +703,8 @@ def get_statistics():
         # up disagreeing about what counts as a sale.
         global_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total, "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN 1 ELSE 0 END) as sales_count "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total, "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN 1 ELSE 0 END) as sales_count "
             "FROM inventory WHERE deleted = 0"
         )
         c.execute(global_total_rev_query)
@@ -1060,12 +1060,17 @@ def daily_trend():
     range_where = "WHERE deleted = 0 AND DATE(date) BETWEEN ? AND ?" + where_variant
     range_params = [d_start.isoformat(), d_end.isoformat()] + params_variant
 
+    # A death is not a sale, but it does leave the pond. Deaths are stored as
+    # transaction_type='DIED' — the old test for a 'Died.' note prefix matched
+    # nothing, so every death was counted as a sale and as revenue. sold_*
+    # drives revenue; out_wholesale, every fish that left, drives the stock.
     c.execute(
         "SELECT DATE(date) as day, "
         "SUM(CASE WHEN action='IN' THEN count ELSE 0 END) as added_tank, "
-        "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%%' THEN ABS(count) ELSE 0 END) as sold_tank, "
+        "SUM(CASE WHEN action='OUT' AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_tank, "
         "SUM(CASE WHEN action='WHOLESALE' AND count > 0 THEN count ELSE 0 END) as added_wholesale, "
-        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%%' THEN ABS(count) ELSE 0 END) as sold_wholesale "
+        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_wholesale, "
+        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 THEN ABS(count) ELSE 0 END) as out_wholesale "
         "FROM inventory " + range_where + " GROUP BY day ORDER BY day",
         range_params
     )
@@ -1077,6 +1082,7 @@ def daily_trend():
             'sold_tank': int(_row_value(row, 'sold_tank', 2, 0) or 0),
             'added_wholesale': int(_row_value(row, 'added_wholesale', 3, 0) or 0),
             'sold_wholesale': int(_row_value(row, 'sold_wholesale', 4, 0) or 0),
+            'out_wholesale': int(_row_value(row, 'out_wholesale', 5, 0) or 0),
         }
     conn.close()
 
@@ -1085,9 +1091,9 @@ def daily_trend():
     current = d_start
     while current <= d_end:
         ds = current.isoformat()
-        d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0})
+        d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0, 'out_wholesale': 0})
         running_tank += d['added_tank'] - d['sold_tank']
-        running_wholesale += d['added_wholesale'] - d['sold_wholesale']
+        running_wholesale += d['added_wholesale'] - d['out_wholesale']
         revenue = round((d['sold_tank'] + d['sold_wholesale']) * PRICE_PER_FISH, 2)
         result.append({
             'date': ds,

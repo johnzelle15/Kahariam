@@ -922,6 +922,137 @@ button.strip-cell:focus-visible {
 .ledger td:last-child { padding-right: var(--pad-card); }
 
 /* ═══════════════════════════════════════════
+   REPORTS
+   The workspace reuses the ledger table; these add what its scroll box needs
+   — a pinned header and totals — and the paper the report is handed over on.
+   ═══════════════════════════════════════════ */
+.report-chart { height: clamp(110px, 30dvh, 280px); }
+
+/* The rows scroll inside their own box, so a long log never lengthens the page
+   past everything below it. */
+.report-scroll {
+  max-height: min(24rem, 55dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+@media (max-height: 620px) { .report-scroll { max-height: max(9rem, 50dvh); } }
+
+/* Compact rows on touch screens too: nothing in a report row is a tap target,
+   so the 44px rhythm the ledger keeps for its Archive buttons would only cost
+   rows. The doubled class outranks that rule. */
+.dark-table.report-table tbody td { padding-block: 0.5rem; font-size: 0.8125rem; }
+.dark-table.report-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-block: 0.5rem;
+  background: var(--glass-bg);
+  border-bottom: none;
+  /* A collapsed border stays behind when the header sticks; a shadow travels. */
+  box-shadow: inset 0 -1px 0 var(--table-border);
+}
+/* Single-class, so the ledger's first/last-cell inset still wins the sides. */
+.report-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  padding: 0.5rem 0.625rem;
+  background: var(--glass-bg);
+  box-shadow: inset 0 1px 0 var(--glass-border);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+@media (min-width: 640px) { .report-table tfoot td { padding-inline: 1rem; } }
+@media (max-height: 620px) {
+  .dark-table.report-table tbody td,
+  .dark-table.report-table thead th { padding-block: 0.375rem; }
+  .report-table tfoot td { padding-block: 0.375rem; }
+}
+
+/* The report as a page. `theme-light` sits on the same element and re-declares
+   the palette for everything inside, so it is dark ink on white paper in either
+   app theme — in the preview and in print alike. */
+.report-paper {
+  background: #fff;
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: clamp(1rem, 3vw, 2rem);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.report-paper-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--accent-green);
+}
+/* The strip's trick on paper: each cell draws its own top and left rule and
+   the frame clips the ones on its edge, however the grid wraps. */
+.report-paper-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  margin: 1rem 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.report-paper-figures > div {
+  padding: 0.5rem 0.75rem;
+  box-shadow: -1px 0 0 var(--rule), 0 -1px 0 var(--rule);
+}
+.report-paper-chart { margin: 0 0 1rem; }
+.report-paper table { width: 100%; border-collapse: collapse; }
+.report-paper th {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--text-muted);
+}
+.report-paper td {
+  padding: 0.3125rem 0.5rem;
+  vertical-align: top;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--rule);
+}
+.report-paper tfoot td {
+  font-weight: 600;
+  color: var(--text-primary);
+  border-top: 1px solid var(--text-muted);
+  border-bottom: none;
+}
+.report-paper-foot {
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+/* The printer's copy is portalled to <body> and hidden on screen. In print it
+   is the only thing on the page: the app, its dialog and the dialog's clipped
+   scroll box all go. */
+.print-root { display: none; }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { display: block; }
+  .print-root .report-paper { border: none; border-radius: 0; padding: 0; }
+  /* Column heads repeat on every page; the totals print once, at the end. */
+  .report-paper thead { display: table-header-group; }
+  .report-paper tfoot { display: table-row-group; }
+  .report-paper tr,
+  .report-paper-figures,
+  .report-paper-chart { break-inside: avoid; }
+}
+
+/* ═══════════════════════════════════════════
    MODAL
    ═══════════════════════════════════════════ */
 .modal-overlay {
