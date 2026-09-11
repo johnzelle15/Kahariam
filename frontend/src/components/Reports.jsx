@@ -282,8 +282,12 @@ function ReportDocument({ model, data, filters, author, chartTitle, chartWidth }
         </figure>
       )}
 
+      {/* The table pans inside the paper on a narrow screen. Left to overflow,
+          a six-column report ran past the paper's edge onto the dialog behind
+          it — dark ink on the dark ground — and dragged the whole preview
+          sideways with it. */}
       {model.rows.length > 0
-        ? <ReportTable model={model} paper />
+        ? <div className="report-paper-table"><ReportTable model={model} paper /></div>
         : <p className="meta">{EMPTY[model.id][0]}.</p>}
 
       <footer className="report-paper-foot meta">
@@ -366,7 +370,7 @@ export default function Reports() {
   const docProps = model && { model, data, filters, author, chartTitle }
 
   return (
-    <div className="flex flex-col gap-section max-w-5xl">
+    <div className="flex flex-col gap-section grow">
       <PageHeader
         title="Reports"
         meta={periodText(range.start, range.end)}
@@ -455,7 +459,7 @@ export default function Reports() {
       </section>
 
       <div id="report-panel" role="tabpanel" aria-labelledby={`report-tab-${type}`} aria-busy={loading}
-        className={`flex flex-col gap-section transition-opacity duration-150 ${loading && model ? 'opacity-60' : ''}`}>
+        className={`grow flex flex-col gap-section transition-opacity duration-150 ${loading && model ? 'opacity-60' : ''}`}>
         {error ? (
           <section className="glass-card px-[var(--pad-card)]">
             <EmptyState compact icon={AlertCircle} title="Couldn't load the report"
@@ -483,13 +487,18 @@ export default function Reports() {
                 <EmptyState compact icon={ICONS[type]} title={EMPTY[type][0]} message={EMPTY[type][1]} />
               </section>
             ) : (
-              <>
+              /* From xl a chart and its rows sit side by side, so the table
+                 starts beside the chart rather than below the fold. Details is
+                 taken out of flow there, as Recent activity is on the
+                 dashboard: the chart sets the row's height and the rows fill
+                 it. A report without a chart keeps the full width. */
+              <div className={model.chart ? 'report-split grid gap-grid xl:grid-cols-2 xl:flex-1' : 'contents'}>
                 {model.chart && (
-                  <section aria-label={chartTitle} className="glass-card card-pad">
+                  <section aria-label={chartTitle} className="glass-card card-pad flex flex-col">
                     <SectionHeader className="mb-2" title={chartTitle}
                       meta={periodText(data.start_date, data.end_date)} />
                     <div className="report-chart" style={{ color: SERIES_COLOR[type] }}
-                      role="img" aria-label={`${chartTitle}. Every value is listed in the table below.`}>
+                      role="img" aria-label={`${chartTitle}. Every value is listed in the details table.`}>
                       <ReportChart model={model} />
                     </div>
                   </section>
@@ -497,14 +506,17 @@ export default function Reports() {
 
                 {/* The rows scroll inside their own box, header and totals
                     pinned, so a long log never lengthens the page past them. */}
-                <section aria-label="Report details" className="glass-card overflow-hidden">
-                  <SectionHeader className="card-pad" title="Details"
-                    meta={`${model.rows.length.toLocaleString()} row${model.rows.length === 1 ? '' : 's'}`} />
-                  <div className="report-scroll border-t border-rule">
-                    <ReportTable model={model} className="dark-table ledger report-table" />
-                  </div>
-                </section>
-              </>
+                <div className={model.chart ? 'min-w-0 xl:relative' : 'contents'}>
+                  <section aria-label="Report details"
+                    className={`glass-card overflow-hidden flex flex-col ${model.chart ? 'xl:absolute xl:inset-0' : ''}`}>
+                    <SectionHeader className="card-pad shrink-0" title="Details"
+                      meta={`${model.rows.length.toLocaleString()} row${model.rows.length === 1 ? '' : 's'}`} />
+                    <div className="report-scroll border-t border-rule">
+                      <ReportTable model={model} className="dark-table ledger report-table" />
+                    </div>
+                  </section>
+                </div>
+              </div>
             )}
           </>
         )}
@@ -524,7 +536,11 @@ export default function Reports() {
                 </button>
               ))}
             </div>
-            <p className="meta flex-1 min-w-[12rem] [@media(max-height:520px)]:hidden">{fmt.hint}</p>
+            {/* On a phone the choice and its button share the first line and
+                the hint goes under both; as three stacked rows they took a
+                sixth of the dialog away from the preview. */}
+            <p className="meta basis-full order-last sm:basis-auto sm:order-none sm:flex-1 sm:min-w-[12rem]
+              [@media(max-height:520px)]:hidden">{fmt.hint}</p>
             <Button size="sm" icon={fmt.icon} onClick={runExport} className="ml-auto">{fmt.action}</Button>
           </div>
         )}>
