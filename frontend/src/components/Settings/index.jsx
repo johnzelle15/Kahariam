@@ -5,9 +5,8 @@
  */
 import React, { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  User, Shield, Users, ChevronRight, Lock,
-} from 'lucide-react'
+import { User, Shield, Users, Lock } from 'lucide-react'
+import { Badge, PageHeader } from '../ui'
 import useAuthStore from '../../store/authStore'
 import AccountTab  from './AccountTab'
 import SecurityTab from './SecurityTab'
@@ -34,23 +33,11 @@ function ToastContainer({ toasts, dismiss }) {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 60, scale: 0.9 }}
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium min-w-[260px] max-w-[380px]"
-            style={{
-              background: t.type === 'success'
-                ? 'rgba(16,185,129,0.12)'
-                : t.type === 'error'
-                  ? 'rgba(239,68,68,0.12)'
-                  : 'rgba(96,165,250,0.12)',
-              border: `1px solid ${
-                t.type === 'success' ? 'rgba(16,185,129,0.3)'
-                : t.type === 'error'  ? 'rgba(239,68,68,0.3)'
-                : 'rgba(96,165,250,0.3)'
-              }`,
-              color: t.type === 'success' ? '#34d399'
-                   : t.type === 'error'   ? '#f87171'
-                   : '#60a5fa',
-              backdropFilter: 'blur(16px)',
-            }}
+            className={`pointer-events-auto flex items-center gap-3 px-3.5 py-2.5 rounded-lg
+              border text-xs font-medium min-w-[240px] max-w-[380px] shadow-lg ${
+              t.type === 'success' ? 'bg-positive/10 border-positive/30 text-positive'
+              : t.type === 'error' ? 'bg-negative/10 border-negative/30 text-negative'
+              : 'bg-info/10 border-info/30 text-info'}`}
             onClick={() => dismiss(t.id)}
           >
             <span className="flex-1">{t.message}</span>
@@ -74,9 +61,9 @@ function useToast() {
 
 /* ── Page transition variants ───────────────────────────────────────────────── */
 const tabVariants = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] } },
-  exit:    { opacity: 0, y: -6, transition: { duration: 0.15 } },
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.12 } },
+  exit:    { opacity: 0, transition: { duration: 0.08 } },
 }
 
 /* ── Settings Page ──────────────────────────────────────────────────────────── */
@@ -99,121 +86,76 @@ export default function Settings() {
 
   return (
     <ToastContext.Provider value={toast}>
-      {/* Settings content */}
-      <div className="w-full">
+      {/* Settings is a page of forms, and a form field is unreadable at 1360px.
+          The column is capped at a measure the eye can track along; the pane
+          keeps its own margins around it rather than stretching the inputs. */}
+      <div className="w-full max-w-4xl flex flex-col gap-section">
 
-        {/* Page header */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-6"
-        >
-          <div className="flex items-center gap-2 mb-1 text-xs"
-            style={{ color: 'var(--text-muted)' }}>
-            <span>Kahariam Farms</span>
-            <ChevronRight className="w-3 h-3" />
-            <span style={{ color: 'var(--text-secondary)' }}>Settings</span>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              Settings
-            </h1>
-            {/* Role badge */}
-            <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider"
-              style={{
-                background: isAdmin ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
-                color:      isAdmin ? 'var(--accent-purple)'   : 'var(--accent-blue)',
-                border:     `1px solid ${isAdmin ? 'rgba(167,139,250,0.25)' : 'rgba(96,165,250,0.2)'}`,
-              }}
-            >
-              <Shield className="w-3 h-3" />
+        <PageHeader
+          title="Settings"
+          meta={user?.username ? `@${user.username}` : undefined}
+          actions={
+            <Badge variant={isAdmin ? 'info' : 'neutral'} className="gap-1 uppercase tracking-wider">
+              <Shield size={11} aria-hidden="true" />
               {isAdmin ? 'Admin' : 'Staff'}
-            </span>
+            </Badge>
+          }
+        />
+
+        {/* Staff access-level notice — the same treatment as every other
+            advisory band in the app, rather than its own blue rgba. */}
+        {!isAdmin && (
+          <p role="note" className="flex items-start gap-2 rounded-lg border border-info/25
+            bg-info/10 px-3 py-2 text-xs leading-snug text-info">
+            <Lock size={13} className="shrink-0 mt-px" aria-hidden="true" />
+            System administration is restricted to admin accounts. Ask an
+            administrator to make changes here.
+          </p>
+        )}
+
+        {/* ── Tabs ──
+               Real tab semantics, so a screen reader announces "tab 2 of 3,
+               selected" and arrow keys move between them. They were plain
+               buttons with no role, no aria-selected and no keyboard model. ── */}
+        <div>
+          <div className="tabs" role="tablist" aria-label="Settings sections">
+            {tabs.map((t, i) => {
+              const Icon = t.icon
+              const isActive = activeTab === t.id
+              return (
+                <button
+                  key={t.id}
+                  id={`tab-${t.id}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={isActive}
+                  aria-controls={`panel-${t.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => setActiveTab(t.id)}
+                  onKeyDown={e => {
+                    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+                    if (!step) return
+                    e.preventDefault()
+                    const next = tabs[(i + step + tabs.length) % tabs.length]
+                    setActiveTab(next.id)
+                    document.getElementById(`tab-${next.id}`)?.focus()
+                  }}
+                  className="tab"
+                >
+                  <Icon size={14} aria-hidden="true" />
+                  {t.label}
+                </button>
+              )
+            })}
           </div>
 
-          {/* Staff access-level notice */}
-          {!isAdmin && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.25 }}
-              className="flex items-center gap-2 mt-3 px-3.5 py-2.5 rounded-xl text-xs"
-              style={{
-                background: 'rgba(96,165,250,0.06)',
-                border: '1px solid rgba(96,165,250,0.15)',
-                color: 'var(--accent-blue)',
-              }}
-            >
-              <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>
-                System administration features are restricted to admin accounts.
-                Contact your administrator to request changes.
-              </span>
-            </motion.div>
-          )}
-        </motion.div>
-
-        {/* Layout: tab list + content */}
-        <div className="flex flex-col lg:flex-row gap-5">
-
-          {/* ── Tab list (sidebar on lg+, horizontal scroll on mobile) ─── */}
-          <motion.nav
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: 0.05 }}
-            className="lg:w-52 flex-shrink-0"
+          <div
+            id={`panel-${activeTab}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${activeTab}`}
+            tabIndex={0}
+            className="mt-4 [@media(max-height:620px)]:mt-2 focus-visible:outline-none"
           >
-            {/* Mobile: horizontal scroll */}
-            <div className="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 lg:overflow-visible
-              scrollbar-hide snap-x snap-mandatory">
-              {tabs.map(t => {
-                const Icon = t.icon
-                const isActive = activeTab === t.id
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveTab(t.id)}
-                    className="relative flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium
-                      transition-all duration-200 border-none cursor-pointer whitespace-nowrap
-                      snap-start flex-shrink-0"
-                    style={{
-                      color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                      background: isActive ? 'var(--glass-bg-hover)' : 'transparent',
-                    }}
-                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'var(--glass-bg)'; e.currentTarget.style.color = 'var(--text-secondary)' } }}
-                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' } }}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="settings-tab-bg"
-                        className="absolute inset-0 rounded-xl"
-                        style={{
-                          background: 'var(--glass-bg-hover)',
-                          border: '1px solid var(--glass-border)',
-                        }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                      />
-                    )}
-                    <Icon className="relative w-4 h-4 flex-shrink-0" />
-                    <span className="relative">{t.label}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="settings-tab-indicator"
-                        className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-l-full"
-                        style={{ background: 'var(--accent-purple)' }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                      />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </motion.nav>
-
-          {/* ── Tab content ─────────────────────────────────────────────── */}
-          <div className="flex-1 min-w-0">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

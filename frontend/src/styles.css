@@ -1,6 +1,67 @@
+/* Self-hosted so it loads on a farm Pi with no internet — and so the app's own
+   CSP (default-src 'self') doesn't have to be widened to a third-party host. */
+@import '@fontsource-variable/inter';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ═══════════════════════════════════════════
+   SCALE — spacing, radius, figure sizes
+
+   One place decides how tight the interface is. Before this block the answer
+   lived in ~40 inline `[@media(max-height:620px)]:` overrides spread across
+   eight components, which is why no two panels agreed on their padding: every
+   new block re-guessed the number. The panel is 800x480 with ~90px of browser
+   chrome on top of it, so "tight" is not an edge case here — it is the primary
+   device, and it deserves a switch rather than a per-component patch.
+   ═══════════════════════════════════════════ */
+:root {
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+
+  /* Card padding, the gap between page sections, and the gap between cards in
+     a grid. Three values, because those are the three distances that actually
+     recur; everything else is a one-off and stays a utility class. */
+  --pad-card: 0.875rem;
+  --gap-section: 1.125rem;
+  --gap-grid: 0.75rem;
+
+  /* Figures. --fig-hero is the one number on the page that carries the screen. */
+  --fig-hero: 2.25rem;
+  --fig: 1.375rem;
+  --fig-sm: 1.0625rem;
+
+  /* Three radii, not seven. Controls, cards, dialogs. */
+  --r-sm: 0.375rem;
+  --r-md: 0.5rem;
+  --r-lg: 0.75rem;
+}
+
+/* The 7" panel and short laptops. */
+@media (max-height: 620px) {
+  :root {
+    --pad-card: 0.625rem;
+    --gap-section: 0.5rem;
+    --gap-grid: 0.5rem;
+    --fig-hero: 1.625rem;
+    --fig: 1.125rem;
+    --fig-sm: 0.9375rem;
+  }
+}
+
+@media (max-height: 520px) {
+  :root {
+    --pad-card: 0.5rem;
+    --gap-section: 0.375rem;
+    --gap-grid: 0.375rem;
+    --fig-hero: 1.375rem;
+    --fig: 1rem;
+    --fig-sm: 0.875rem;
+  }
+}
 
 /* ═══════════════════════════════════════════
    THEME SYSTEM — CSS Custom Properties
@@ -14,33 +75,51 @@
   --bg-tertiary: 42 53 41;
   --bg-elevated: 56 68 55;
 
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-bg-hover: rgba(255, 255, 255, 0.055);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-border-hover: rgba(255, 255, 255, 0.10);
+  /* Solid surfaces, not translucency: nothing sits behind these cards, so the
+     blur cost bought no visual effect — and borders at 6% read as absent. */
+  --glass-bg: #1c231c;
+  --glass-bg-hover: #222a21;
+  --glass-border: rgba(255, 255, 255, 0.11);
+  --glass-border-hover: rgba(255, 255, 255, 0.18);
 
   --text-primary: #edefe9;
   --text-secondary: #b7c2b0;
   --text-muted: #8fa089;
 
-  --accent-purple: #a78bfa;
-  --accent-blue: #6fa0af;
-  --accent-cyan: #22d3ee;
+  /* Four roles, not eight hues. Green is brand + primary + positive; amber and
+     red are status only; blue marks outbound movement and non-admin identity.
+     --accent-purple survives solely as the admin-role identity chip, desaturated
+     to sit inside the olive palette instead of fighting it. */
   --accent-green: #7cb342;
-  --accent-teal: #6fb3ac;
-  --accent-red: #d97862;
+  --accent-blue: #6fa0af;
   --accent-amber: #e0a24f;
-  --accent-terracotta: #c27c52;
+  --accent-red: #d97862;
+  --accent-purple: #9a8fc4;
+  --on-accent: #16200f;
 
-  --input-bg: rgba(31, 40, 31, 0.85);
+  /* Semantic aliases. Components ask for the *meaning*, never the hue — which
+     is what stopped four light-theme hexes from being hardcoded into the KPI
+     dialog and the chart, where they stayed pale olive on the dark ground. */
+  --positive: var(--accent-green);
+  --negative: var(--accent-red);
+  --attention: var(--accent-amber);
+  --info: var(--accent-blue);
+
+  /* Hairline between rows and between cells of a strip. Deliberately weaker
+     than --glass-border: a divider inside a panel should read as one panel
+     subdivided, not as several panels butted together. */
+  --rule: rgba(255, 255, 255, 0.07);
+  --nav-active-bg: rgba(124, 179, 66, 0.14);
+
+  --input-bg: #1f281f;
   --input-border: rgba(255, 255, 255, 0.06);
   --input-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.25), inset -1px -1px 2px rgba(255, 255, 255, 0.02);
   --input-focus-shadow: 0 0 0 3px rgba(124, 179, 66, 0.16);
 
-  --sidebar-bg: rgba(22, 28, 22, 0.75);
+  --sidebar-bg: #1a201a;
   --sidebar-border: rgba(255, 255, 255, 0.05);
 
-  --tooltip-bg: rgba(31, 40, 31, 0.96);
+  --tooltip-bg: #232c22;
   --tooltip-border: rgba(255, 255, 255, 0.08);
 
   --chart-grid: rgba(255, 255, 255, 0.04);
@@ -57,9 +136,12 @@
   --table-border: rgba(255, 255, 255, 0.05);
   --table-row-hover: rgba(255, 255, 255, 0.025);
 
-  --btn-secondary-bg: rgba(255, 255, 255, 0.04);
-  --btn-secondary-border: rgba(255, 255, 255, 0.07);
-  --btn-secondary-hover: rgba(255, 255, 255, 0.08);
+  /* A secondary button has to look like a button. At 0.04/0.07 the border was
+     below the point where the eye reads an edge on this dark ground, so an
+     enabled secondary control and a disabled one were the same grey rectangle. */
+  --btn-secondary-bg: rgba(255, 255, 255, 0.07);
+  --btn-secondary-border: rgba(255, 255, 255, 0.18);
+  --btn-secondary-hover: rgba(255, 255, 255, 0.12);
 }
 
 /* ── Light Theme ── */
@@ -69,33 +151,39 @@
   --bg-tertiary: 228 223 209;
   --bg-elevated: 213 207 189;
 
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-bg-hover: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(42, 46, 39, 0.08);
-  --glass-border-hover: rgba(42, 46, 39, 0.14);
+  --glass-bg: #ffffff;
+  --glass-bg-hover: #f7f5ef;
+  --glass-border: rgba(42, 46, 39, 0.14);
+  --glass-border-hover: rgba(42, 46, 39, 0.22);
 
   --text-primary: #2a2e27;
   --text-secondary: #5a6154;
-  --text-muted: #8a8f86;
+  --text-muted: #6b716a;
 
-  --accent-purple: #7c3aed;
-  --accent-blue: #4a7c8c;
-  --accent-cyan: #0891b2;
   --accent-green: #4c7a3d;
-  --accent-teal: #5e9b94;
-  --accent-red: #b5533f;
+  --accent-blue: #4a7c8c;
   --accent-amber: #d98e3b;
-  --accent-terracotta: #ad6a42;
+  --accent-red: #b5533f;
+  --accent-purple: #6b5fa8;
+  --on-accent: #ffffff;
 
-  --input-bg: rgba(255, 255, 255, 0.92);
+  --positive: var(--accent-green);
+  --negative: var(--accent-red);
+  --attention: var(--accent-amber);
+  --info: var(--accent-blue);
+
+  --rule: rgba(42, 46, 39, 0.10);
+  --nav-active-bg: rgba(76, 122, 61, 0.11);
+
+  --input-bg: #ffffff;
   --input-border: rgba(42, 46, 39, 0.10);
   --input-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.04), inset -1px -1px 2px rgba(255, 255, 255, 0.9);
   --input-focus-shadow: 0 0 0 3px rgba(76, 122, 61, 0.14);
 
-  --sidebar-bg: rgba(255, 255, 255, 0.85);
+  --sidebar-bg: #ffffff;
   --sidebar-border: rgba(42, 46, 39, 0.06);
 
-  --tooltip-bg: rgba(255, 255, 255, 0.96);
+  --tooltip-bg: #ffffff;
   --tooltip-border: rgba(42, 46, 39, 0.08);
 
   --chart-grid: rgba(42, 46, 39, 0.06);
@@ -112,9 +200,9 @@
   --table-border: rgba(42, 46, 39, 0.07);
   --table-row-hover: rgba(76, 122, 61, 0.04);
 
-  --btn-secondary-bg: rgba(42, 46, 39, 0.04);
-  --btn-secondary-border: rgba(42, 46, 39, 0.08);
-  --btn-secondary-hover: rgba(42, 46, 39, 0.07);
+  --btn-secondary-bg: rgba(42, 46, 39, 0.05);
+  --btn-secondary-border: rgba(42, 46, 39, 0.22);
+  --btn-secondary-hover: rgba(42, 46, 39, 0.09);
 }
 
 /* ═══════════════════════════════════════════
@@ -123,7 +211,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: rgb(var(--bg-primary));
   color: var(--text-primary);
   margin: 0;
@@ -135,111 +223,269 @@ body {
 #root { padding: 0; min-height: 100vh; }
 
 /* ═══════════════════════════════════════════
-   GLASSMORPHISM CARD
+   CARD — the single card definition.
+   The <Card> primitive renders this class, so the CSS and the React
+   component can no longer drift apart the way they had.
    ═══════════════════════════════════════════ */
 .glass-card {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 1rem;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: var(--r-lg);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.glass-card:hover {
+/* Card padding from the scale, so a card is as tight as the screen requires
+   without every caller restating the breakpoint. */
+.card-pad { padding: var(--pad-card); }
+
+/* ═══════════════════════════════════════════
+   TYPE ROLES
+   Four roles, so a heading means the same thing wherever it appears. The
+   dashboard previously used three different treatments for what was
+   structurally the same thing — `text-lg font-medium` on Card, `text-sm
+   font-bold` on Sales Trend, `text-xs font-bold uppercase` on Recent Activity
+   — which is a large part of why the page read as assembled rather than
+   designed.
+   ═══════════════════════════════════════════ */
+
+/* Panel title: the name of a block of content. */
+.section-title {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+/* Field label above a number, and column headings. Small caps, never bold
+   enough to compete with the figure it labels. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* A number the operator reads. tabular-nums so a changing figure does not
+   shuffle its own digits sideways on every socket update. */
+.figure {
+  font-size: var(--fig);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.figure-hero { font-size: var(--fig-hero); }
+.figure-sm { font-size: var(--fig-sm); }
+
+/* Supporting line under a figure or beside a row. */
+.meta {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* A search match: a tint under the text, not the browser's solid yellow block.
+   The `bg-accent-amber/25` that was meant to replace it never existed — colours
+   defined as var() take no opacity modifier in this Tailwind config — so every
+   match on Inventory and Adjustments rendered as exactly that yellow block.
+   One amber works on both themes at this strength. */
+mark {
+  background: rgba(224, 162, 79, 0.24);
+  color: var(--text-primary);
+  border-radius: 2px;
+}
+
+/* ═══════════════════════════════════════════
+   WATERMARK
+   The farm's mark, faint, centred in the working pane. It lies over the
+   content rather than under it: every panel here is a solid surface, so a
+   layer beneath showed only in the 16px gaps between cards, as stripes. At
+   this strength it costs no measurable contrast, and it never takes a tap
+   (pointer-events) or a screen-reader stop (aria-hidden on the element).
+   ═══════════════════════════════════════════ */
+.watermark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(32rem, 76%);
+  height: min(32rem, 76%);
+  background: url('./assets/logo.svg') center / contain no-repeat;
+  /* The drawing fills only the upper part of its 64px square (y 6–44), so
+     the square is lowered to centre the sun and hills rather than the box. */
+  transform: translateY(11%);
+  opacity: 0.1;
+  /* Blended, not laid on top. Plain 5% of green over the Counter's white
+     digit greyed it by ten levels and drew the hill line across the glyph.
+     `screen` can only lighten: on the dark theme the mark still shows on dark
+     surfaces and white stays white. On the light theme `multiply` can only
+     darken: it shows on the white cards and dark text stays dark. */
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.theme-light .watermark { mix-blend-mode: multiply; }
+
+/* ═══════════════════════════════════════════
+   METRIC STRIP
+   A row of related figures reading as one panel subdivided by hairlines,
+   rather than as N separate floating cards. This is the shape that lets the
+   dashboard show stock movement and five revenue figures without turning into
+   the card grid the redesign is trying to get away from.
+   ═══════════════════════════════════════════ */
+.strip {
+  display: grid;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.strip > * + * {
+  border-left: 1px solid var(--rule);
+}
+
+/* Once the strip wraps to more than one row the left rules alone leave the
+   rows welded together, so each cell carries its own top rule and the first
+   row's is masked by the panel edge. Grid line detection is not available in
+   CSS, so the rule is drawn as an inset shadow that the container clips. */
+.strip > * {
+  padding: var(--pad-card);
+  min-width: 0;
+  box-shadow: 0 -1px 0 var(--rule);
+}
+
+.strip-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  text-align: left;
+}
+
+/* Tappable cells: the whole cell is the target, and it must not look like a
+   button until it is under a finger or a pointer. */
+button.strip-cell {
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+@media (hover: hover) {
+  button.strip-cell:hover { background: var(--glass-bg-hover); }
+}
+button.strip-cell:active { background: var(--glass-bg-hover); }
+button.strip-cell:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: -2px;
+}
+
+/* On a short screen the supporting line under each figure is the first thing to
+   go. In the revenue strip the eyebrow already names the period — "THIS WEEK"
+   over "7–10 Sep" — so the second line is a restatement costing five rows'
+   worth of a 390px-tall page. */
+@media (max-height: 620px) {
+  .strip-compact .meta { display: none; }
+}
+
+/* ── The count ──
+   Two constraints, whichever binds first.
+
+   Height: ~a third of the screen, so the number carries the frame on the 600px
+   panel and reads from across the room.
+
+   Width: the card's own width divided by how many characters are in the number
+   — which React feeds in as --count-chars. Height alone is not enough. A single
+   "0" and a full "300,000" were being set at the same size, so once a real
+   count passed five figures the number ran wider than its card and the
+   overflow-hidden on the frame simply cut the digits off.
+
+   `container-type: inline-size` (not `size`) is what makes cqi work here: the
+   frame's height comes from `flex-1` and is indefinite, but its width is not,
+   and inline-size only needs the width. 0.62 approximates the advance width of
+   a tabular Inter digit at 1em, and the 92 leaves a margin either side. */
+.count-frame {
+  container-type: inline-size;
+
+  /* How much of the screen's height the figure may claim. On the 7" panel the
+     frame is only ~230px tall once the context strip and the buttons have taken
+     their share, so 34vh is as large as the number can be without pushing the
+     label or the rate line out of the card. A desktop has no such squeeze: the
+     frame stretches to ~760px there, and at 34vh the figure sat in the middle
+     of it with 400px of empty card around it — the screen read as unfinished
+     rather than calm. */
+  --count-vh: 34vh;
+  --count-max: 18rem;
+}
+
+/* Both steps have to move together. Raising only --count-vh changed nothing on
+   a desktop, because 46vh of a 994px viewport is 457px and the 18rem ceiling
+   was already clamping the figure to 288px — the cap was the binding
+   constraint, not the height term. */
+@media (min-height: 640px) {
+  .count-frame {
+    --count-vh: 46vh;
+    --count-max: 26rem;
+  }
+}
+
+.count-value {
+  font-size: clamp(
+    2.5rem,
+    min(var(--count-vh), calc(92cqi / (var(--count-chars, 1) * 0.62))),
+    var(--count-max)
+  );
+}
+
+/* Raised surface — reserved for P0 content, so elevation means priority. */
+.glass-card-raised {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* Hover is opt-in: a card that lights up without being clickable is noise. */
+.glass-card-interactive:hover {
   background: var(--glass-bg-hover);
   border-color: var(--glass-border-hover);
 }
 
 /* ═══════════════════════════════════════════
-   ANALYTICS OVERVIEW — Premium Cards
+   ANALYTICS OVERVIEW
+
+   Four groups of readings inside one panel. Each group was a card of its own,
+   and each card carried a border, a background, a 2px coloured left edge, a
+   coloured icon, a coloured uppercase heading and a coloured dot per row — six
+   pieces of chrome around six lines of text, in three hues that meant nothing
+   beyond "this is a different box from that box".
+
+   What is left is a heading, a rule under it, and the lines. Colour survives
+   only on the figures, where green and red say which direction a number went.
    ═══════════════════════════════════════════ */
-.analytics-header {
-  padding: 1rem 1.25rem;
-}
-@media (min-width: 640px) {
-  .analytics-header {
-    padding: 1.25rem 1.5rem;
-  }
+.insight-group {
+  min-width: 0;
 }
 
-.insight-card {
-  position: relative;
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: 1rem;
-  padding: 0.75rem 0.875rem 0.875rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+.insight-group-label {
+  margin: 0 0 0.375rem;
+  padding-bottom: 0.3125rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
-@media (min-width: 640px) {
-  .insight-card {
-    padding: 1rem 1.25rem 1.25rem;
-  }
-}
-
-/* Hover lift only where a pointer exists — on touch it sticks after a tap. */
-@media (hover: hover) {
-  .insight-card:hover {
-    background: var(--glass-bg-hover);
-    border-color: var(--glass-border-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  }
-
-  .insight-card:hover .insight-card-accent {
-    opacity: 1;
-  }
-}
-
-/* Top accent bar */
-.insight-card-accent {
-  position: absolute;
-  top: 0;
-  left: 0.875rem;
-  right: 0.875rem;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
-  opacity: 0.6;
-  transition: opacity 0.3s ease;
-}
-
-@media (min-width: 640px) {
-  .insight-card-accent {
-    left: 1.25rem;
-    right: 1.25rem;
-  }
-}
-
-.insight-card-accent.accent-amber  { background: linear-gradient(90deg, var(--accent-amber), transparent); }
-.insight-card-accent.accent-blue   { background: linear-gradient(90deg, var(--accent-blue), transparent); }
-.insight-card-accent.accent-red    { background: linear-gradient(90deg, var(--accent-red), transparent); }
-.insight-card-accent.accent-green  { background: linear-gradient(90deg, var(--accent-green), transparent); }
-
-/* Individual insight row */
+/* One reading: figure and phrase on a line, supporting detail under it. */
 .insight-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.375rem 0.25rem;
-  border-radius: 0.5rem;
-  transition: background 0.2s ease;
+  padding: 0.1875rem 0;
 }
-
-@media (min-width: 640px) {
-  .insight-row {
-    gap: 0.625rem;
-    padding: 0.5rem;
-  }
-}
-
-@media (hover: hover) {
-  .insight-row:hover {
-    background: rgba(255, 255, 255, 0.02);
-  }
+.insight-row + .insight-row {
+  margin-top: 0.25rem;
 }
 
 /* Rows past MOBILE_VISIBLE collapse on phones so the panel fits without a long
@@ -250,24 +496,28 @@ body {
 
 .insight-more-btn {
   display: block;
-  width: 100%;
   margin-top: 0.25rem;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  background: var(--btn-secondary-bg);
-  border: 1px solid var(--glass-border);
+  padding: 0.25rem 0;
+  background: transparent;
+  border: none;
   color: var(--text-muted);
   font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 600;
   cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.insight-more-btn:hover { color: var(--text-secondary); }
+.insight-more-btn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
 }
 
 /* From 640px there is room for everything: show all rows, drop the toggle. */
 @media (min-width: 640px) {
   .insight-row.is-overflow {
-    display: flex;
+    display: block;
   }
 
   .insight-more-btn {
@@ -275,12 +525,260 @@ body {
   }
 }
 
-.insight-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 9999px;
-  margin-top: 0.45rem;
+/* ═══════════════════════════════════════════
+   ACTIVITY LIST
+   A log, not a stack of cards. The time is the spine of the list and is set in
+   tabular figures so the column stays a column; the action carries the weight;
+   who did it and how long it took are the quietest thing in the row.
+   ═══════════════════════════════════════════ */
+.activity-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 0.625rem;
+  padding: 0.3125rem 0.25rem;
+  border-radius: var(--r-sm);
+}
+@media (hover: hover) {
+  .activity-row:hover { background: var(--table-row-hover); }
+}
+
+.activity-time {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding-top: 0.0625rem;
+}
+
+/* Day separator inside the feed. A date the operator can scan for, not another
+   row that looks like the entries under it. */
+.activity-day {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.activity-day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.activity-day:first-child { padding-top: 0; }
+
+/* The feed is unbounded data, so it scrolls inside its own box rather than
+   lengthening the page — the house rule here is that controls wrap and data
+   scrolls in a bounded container. When a chart sits beside it the grid row
+   supplies the bound and this cap is overridden; when the range is empty and
+   the card falls back into normal flow, this is the only thing stopping eleven
+   entries from running the page past the bottom of the screen. */
+/* A share of the screen rather than a fixed number of rows: a 16rem list fits a
+   1080px monitor with room to spare and runs a 768px laptop 12px past the
+   bottom of the pane. The rem term keeps it from becoming absurdly long on a
+   very tall display. */
+.activity-scroll { max-height: min(26rem, 34dvh); }
+@media (max-height: 620px) { .activity-scroll { max-height: 7.5rem; } }
+@media (max-height: 520px) { .activity-scroll { max-height: 5.5rem; } }
+
+/* The plot area. A floor, not a height: flex-1 lets it take every spare pixel
+   of the card, and the floor only binds when the pane is cramped — where a
+   short chart the operator can see all of beats a tall one running off screen. */
+.chart-plot { flex: 1 1 0%; min-height: 130px; overflow: hidden; }
+@media (max-height: 620px) { .chart-plot { min-height: 96px; } }
+@media (max-height: 520px) { .chart-plot { min-height: 80px; } }
+
+/* ═══════════════════════════════════════════
+   SEGMENTED CONTROL
+   One control with N options, which is what a date-range filter is. As four
+   separately styled buttons — the selected one a 135° two-colour gradient with
+   a 12px drop shadow — the loudest element on the dashboard was the thing that
+   picks which week you are looking at.
+   ═══════════════════════════════════════════ */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--r-md);
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.segmented button {
+  padding: 0.25rem 0.625rem;
+  border: none;
+  border-radius: calc(var(--r-md) - 2px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.segmented button:hover { color: var(--text-primary); }
+.segmented button[data-active="true"] {
+  background: var(--accent-green);
+  color: var(--on-accent);
+}
+.segmented button:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+
+/* Each option is its own target on touch. Adjacency makes a mis-tap land on a
+   neighbouring range rather than on nothing, but 34px is still under the floor. */
+@media (pointer: coarse) {
+  .segmented button { min-width: 44px; }
+}
+
+/* ═══════════════════════════════════════════
+   TABS
+   An underlined tab bar, which is what a set of three sibling views is. Settings
+   ran them as a 208px vertical rail immediately beside the app's own 208px
+   navigation rail — two stacked column navigations for a page with three
+   destinations — and marked the active one with a purple bar, a colour this
+   palette reserves for the admin-role chip. The active tab is green, like every
+   other "you are here" in the app.
+   ═══════════════════════════════════════════ */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.4375rem 0.625rem;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.tab:hover { color: var(--text-primary); }
+.tab[aria-selected="true"] {
+  color: var(--accent-green);
+  border-bottom-color: var(--accent-green);
+  font-weight: 600;
+}
+.tab:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: -2px;
+  border-radius: var(--r-sm);
+}
+
+/* ═══════════════════════════════════════════
+   ICON BUTTON
+   A square action inside a table row. The two in the staff table were built
+   from inline styles with hardcoded rgba(239,68,68) and rgba(16,185,129) —
+   Tailwind's red-500 and emerald-500, neither of which is in this palette — and
+   neither had a focus ring or an accessible name.
+   ═══════════════════════════════════════════ */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: var(--btn-secondary-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.icon-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--glass-border);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+.icon-btn-danger:hover { color: var(--negative); border-color: var(--negative); }
+.icon-btn-positive:hover { color: var(--positive); border-color: var(--positive); }
+
+@media (pointer: coarse) {
+  .icon-btn { width: 44px; height: 44px; }
+}
+
+/* Quiet secondary action inside a panel header. */
+.chart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.chart-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--glass-border-hover);
+}
+.chart-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chart-btn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+
+/* An icon toggle set inside a line of text — the eye beside "Today's revenue".
+   A glyph in the label's own muted colour, not a chip: it is a setting on the
+   figures, and should not compete with them. On touch it keeps a 44px target,
+   and the negative margins take the extra height back out of the line, so the
+   strip is exactly as tall as it was — on the 7" panel that is the difference
+   between the dashboard fitting and scrolling. */
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: -4px -4px -4px 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.inline-toggle:hover { color: var(--text-primary); }
+.inline-toggle:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .inline-toggle {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    margin: -15px -14px;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -290,7 +788,7 @@ body {
   .neu-input {
     background: var(--input-bg);
     border: 1px solid var(--input-border);
-    border-radius: 0.75rem;
+    border-radius: var(--r-md);
     padding: 0.625rem 1rem;
     color: var(--text-primary);
     font-size: 0.875rem;
@@ -311,134 +809,16 @@ body {
 }
 
 /* ═══════════════════════════════════════════
-   GLOW BUTTON
-   ═══════════════════════════════════════════ */
-.glow-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.625rem 1.5rem;
-  border: none;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: white;
-  cursor: pointer;
-  /* Brand green/teal — matches the SalesTrend period selector and the chart
-     palette. Was purple/blue, which appears nowhere else in the product. */
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-teal));
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Modal buttons override padding with text-xs/py-2, which lands under the 44px
-   touch minimum. */
-@media (pointer: coarse) {
-  .glow-btn {
-    min-height: 44px;
-  }
-}
-
-.glow-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.glow-btn:active { transform: translateY(0); }
-
-.glow-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.glow-btn-green {
-  background: linear-gradient(135deg, var(--accent-green), #059669);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-.glow-btn-green:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.glow-btn-red {
-  background: linear-gradient(135deg, var(--accent-red), #dc2626);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-.glow-btn-red:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.glow-btn-secondary {
-  background: var(--btn-secondary-bg);
-  border: 1px solid var(--btn-secondary-border);
-  box-shadow: none;
-  color: var(--text-secondary);
-}
-.glow-btn-secondary:hover {
-  background: var(--btn-secondary-hover);
-  box-shadow: none;
-  color: var(--text-primary);
-}
-
-/* ═══════════════════════════════════════════
-   STAT CARD GLOW BORDER
-   ═══════════════════════════════════════════ */
-.stat-glow {
-  position: relative;
-  overflow: hidden;
-}
-.stat-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-teal), var(--accent-amber));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.2;
-  transition: opacity 0.25s;
-}
-.stat-glow:hover::before {
-  opacity: 0.35;
-}
-
-/* ═══════════════════════════════════════════
    ANIMATIONS
+   Only the skeleton shimmer survives here: it is the one animation on the page
+   that reports something (data is on its way). The stat-card glow border, the
+   float and the purple pulse-glow were decoration, and the purple they glowed
+   was a colour the app stopped using when the olive palette landed.
    ═══════════════════════════════════════════ */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 12px rgba(167, 139, 250, 0.1); }
-  50% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.18); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-4px); }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.5s ease-out forwards;
-}
-
-.animate-delay-1 { animation-delay: 0.1s; opacity: 0; }
-.animate-delay-2 { animation-delay: 0.2s; opacity: 0; }
-.animate-delay-3 { animation-delay: 0.3s; opacity: 0; }
-.animate-delay-4 { animation-delay: 0.4s; opacity: 0; }
-.animate-delay-5 { animation-delay: 0.5s; opacity: 0; }
 
 /* ═══════════════════════════════════════════
    SKELETON
@@ -447,7 +827,7 @@ body {
   background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-via) 50%, var(--skeleton-from) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 0.5rem;
+  border-radius: var(--r-md);
 }
 
 /* ═══════════════════════════════════════════
@@ -469,8 +849,7 @@ body {
 .recharts-default-tooltip {
   background: var(--tooltip-bg) !important;
   border: 1px solid var(--tooltip-border) !important;
-  border-radius: 0.75rem !important;
-  backdrop-filter: blur(12px) !important;
+  border-radius: var(--r-lg) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
@@ -533,6 +912,146 @@ body {
   background: var(--table-row-hover);
 }
 
+/* The Inventory ledger runs edge to edge inside its panel. Its first and last
+   cells take the panel's own inset, so the dates line up under the search box
+   and the action buttons under the pager — one left edge and one right edge
+   for the whole panel — and they tighten with --pad-card on short screens. */
+.ledger th:first-child,
+.ledger td:first-child { padding-left: var(--pad-card); }
+.ledger th:last-child,
+.ledger td:last-child { padding-right: var(--pad-card); }
+
+/* ═══════════════════════════════════════════
+   REPORTS
+   The workspace reuses the ledger table; these add what its scroll box needs
+   — a pinned header and totals — and the paper the report is handed over on.
+   ═══════════════════════════════════════════ */
+.report-chart { height: clamp(110px, 30dvh, 280px); }
+
+/* The rows scroll inside their own box, so a long log never lengthens the page
+   past everything below it. */
+.report-scroll {
+  max-height: min(24rem, 55dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+@media (max-height: 620px) { .report-scroll { max-height: max(9rem, 50dvh); } }
+
+/* Compact rows on touch screens too: nothing in a report row is a tap target,
+   so the 44px rhythm the ledger keeps for its Archive buttons would only cost
+   rows. The doubled class outranks that rule. */
+.dark-table.report-table tbody td { padding-block: 0.5rem; font-size: 0.8125rem; }
+.dark-table.report-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-block: 0.5rem;
+  background: var(--glass-bg);
+  border-bottom: none;
+  /* A collapsed border stays behind when the header sticks; a shadow travels. */
+  box-shadow: inset 0 -1px 0 var(--table-border);
+}
+/* Single-class, so the ledger's first/last-cell inset still wins the sides. */
+.report-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  padding: 0.5rem 0.625rem;
+  background: var(--glass-bg);
+  box-shadow: inset 0 1px 0 var(--glass-border);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+@media (min-width: 640px) { .report-table tfoot td { padding-inline: 1rem; } }
+@media (max-height: 620px) {
+  .dark-table.report-table tbody td,
+  .dark-table.report-table thead th { padding-block: 0.375rem; }
+  .report-table tfoot td { padding-block: 0.375rem; }
+}
+
+/* The report as a page. `theme-light` sits on the same element and re-declares
+   the palette for everything inside, so it is dark ink on white paper in either
+   app theme — in the preview and in print alike. */
+.report-paper {
+  background: #fff;
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: clamp(1rem, 3vw, 2rem);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.report-paper-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--accent-green);
+}
+/* The strip's trick on paper: each cell draws its own top and left rule and
+   the frame clips the ones on its edge, however the grid wraps. */
+.report-paper-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  margin: 1rem 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.report-paper-figures > div {
+  padding: 0.5rem 0.75rem;
+  box-shadow: -1px 0 0 var(--rule), 0 -1px 0 var(--rule);
+}
+.report-paper-chart { margin: 0 0 1rem; }
+.report-paper table { width: 100%; border-collapse: collapse; }
+.report-paper th {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--text-muted);
+}
+.report-paper td {
+  padding: 0.3125rem 0.5rem;
+  vertical-align: top;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--rule);
+}
+.report-paper tfoot td {
+  font-weight: 600;
+  color: var(--text-primary);
+  border-top: 1px solid var(--text-muted);
+  border-bottom: none;
+}
+.report-paper-foot {
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+/* The printer's copy is portalled to <body> and hidden on screen. In print it
+   is the only thing on the page: the app, its dialog and the dialog's clipped
+   scroll box all go. */
+.print-root { display: none; }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { display: block; }
+  .print-root .report-paper { border: none; border-radius: 0; padding: 0; }
+  /* Column heads repeat on every page; the totals print once, at the end. */
+  .report-paper thead { display: table-header-group; }
+  .report-paper tfoot { display: table-row-group; }
+  .report-paper tr,
+  .report-paper-figures,
+  .report-paper-chart { break-inside: avoid; }
+}
+
 /* ═══════════════════════════════════════════
    MODAL
    ═══════════════════════════════════════════ */
@@ -570,7 +1089,7 @@ body {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s ease;
@@ -582,9 +1101,8 @@ body {
 }
 
 .theme-pill button[data-active="true"] {
-  color: white;
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-teal));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: var(--on-accent);
+  background: var(--accent-green);
 }
 
 /* ═══════════════════════════════════════════
@@ -596,41 +1114,36 @@ body {
     padding: 0.5rem 0.625rem;
     font-size: 0.75rem;
   }
+}
 
-  .glass-card {
-    border-radius: 0.75rem;
+/* Phone sizing for inputs lives in the same layer as the base rule. Out here
+   it came after Tailwind's utilities and beat them at equal specificity, so on
+   every phone the `pl-10` that clears room for a search icon became 10px and
+   the icon sat on the first letters of the placeholder — on Inventory,
+   Adjustments and the Settings user search alike — and the `pr-9` that clears
+   the show-password button stopped clearing it. Inside the layer, a utility on
+   the element wins at every width, as it always did on the desktop. */
+@layer components {
+  @media (max-width: 767px) {
+    .neu-input {
+      padding-block: 0.5rem;
+      padding-right: 0.75rem;
+      font-size: 0.8125rem;
+    }
   }
 
-  .glow-btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.8125rem;
-  }
-
-  .neu-input {
-    padding-block: 0.5rem;
-    padding-right: 0.75rem;
-    font-size: 0.8125rem;
+  @media (max-width: 480px) {
+    .neu-input {
+      padding: 0.5rem 0.625rem;
+      font-size: 0.75rem;
+    }
   }
 }
 
 @media (pointer: coarse) {
-  .glow-btn {
-    min-height: 44px;
-  }
   .neu-input {
     min-height: 44px;
   }
-}
-
-.modal-panel {
-  background: rgba(15, 23, 42, 0.95);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1.25rem;
-  padding: 2rem;
-  min-width: 320px;
-  max-width: 480px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
 }
 
 /* ═══════════════════════════════════════════
@@ -639,18 +1152,27 @@ body {
 html {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+
+  /* The page itself never scrolls sideways. Wide data already lives in its own
+     overflow-x-auto boxes (Inventory, Settings tables), so anything that spills
+     past the viewport here is an accident, not content the user needs to reach.
+     `clip` rather than `hidden`: hidden would make <html> a scroll container and
+     break the sidebar's position: sticky. */
+  overflow-x: clip;
+
+  /* clip stops the page *scrolling* sideways, but on the touch panel a sideways
+     swipe still dragged the whole screen left and right — that is overscroll
+     (and the browser's swipe-to-navigate), which happens precisely because
+     there is nowhere to scroll. Only the root is pinned: the tables that
+     legitimately scroll sideways are nested scrollers and keep their own. */
+  overscroll-behavior-x: none;
 }
 
 /* ═══════════════════════════════════════════
    TOUCH FEEDBACK & INTERACTIONS
    ═══════════════════════════════════════════ */
 @media (pointer: coarse) {
-  .touch-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  button, select, input, .neu-input, .glow-btn {
+  button, select, input, .neu-input {
     min-height: 44px;
   }
 
@@ -679,7 +1201,7 @@ html {
   align-items: center;
   justify-content: center;
   padding: 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-md);
   background: var(--btn-secondary-bg);
   color: var(--text-muted);
   border: 1px solid var(--btn-secondary-border);
@@ -725,10 +1247,9 @@ html {
   align-items: center;
   gap: 0.75rem;
   padding: 0.875rem 1.25rem;
-  border-radius: 1rem;
+  border-radius: var(--r-lg);
   background: var(--tooltip-bg);
   border: 1px solid var(--tooltip-border);
-  backdrop-filter: blur(12px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   font-size: 0.875rem;
   color: var(--text-primary);
@@ -736,13 +1257,13 @@ html {
 
 .snackbar-undo {
   padding: 0.375rem 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: var(--r-md);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: var(--accent-blue);
-  color: white;
+  color: var(--on-accent);
   border: none;
   cursor: pointer;
   transition: opacity 0.15s ease;
@@ -764,31 +1285,151 @@ html {
    7-INCH TOUCH DISPLAY OPTIMIZATIONS
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
-  .glass-card {
-    border-radius: 0.625rem;
-    padding: 0.75rem;
-  }
-
   .dark-table thead th,
   .dark-table tbody td {
     padding: 0.625rem 0.5rem;
     font-size: 0.6875rem;
   }
 
-  .glow-btn {
-    padding: 0.5rem 0.875rem;
-    font-size: 0.75rem;
-    border-radius: 0.625rem;
-  }
-
-  .neu-input {
-    padding: 0.5rem 0.625rem;
-    font-size: 0.75rem;
-    border-radius: 0.625rem;
-  }
-
   .theme-pill button {
     padding: 8px 12px;
     font-size: 12px;
   }
+}
+
+/* ═══════════════════════════════════════════
+   REDUCED MOTION
+   Framer Motion is handled by <MotionConfig reducedMotion="user">;
+   this covers the CSS transitions and keyframes it does not see.
+   ═══════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   SIDEBAR NAV
+   Was driven by onMouseEnter/onMouseLeave handlers mutating inline styles,
+   which meant no theming, no override, and no keyboard focus state at all.
+   ═══════════════════════════════════════════ */
+.nav-item {
+  color: var(--text-secondary);
+  background: transparent;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.nav-item:hover {
+  color: var(--text-primary);
+  background: var(--btn-secondary-bg);
+}
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: -2px;
+  color: var(--text-primary);
+}
+
+/* The active item is the one thing in the rail that must be unmistakable from
+   across a room. --glass-bg-hover alone was #f7f5ef against #ffffff on the
+   light theme — a two-percent difference doing the work of "you are here". */
+.nav-item[aria-current="page"] {
+  color: var(--accent-green);
+  background: var(--nav-active-bg);
+  font-weight: 600;
+}
+
+.nav-group + .nav-group { margin-top: 0.5rem; }
+
+.nav-group-label {
+  margin: 0 0 0.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.nav-group-rule {
+  height: 1px;
+  margin: 0.5rem 0.5rem 0.375rem;
+  border: 0;
+  background: var(--rule);
+}
+.nav-group:first-child > .nav-group-rule { display: none; }
+
+/* Short screens: the group labels are the rail's chrome, so they go before any
+   destination does. */
+@media (max-height: 620px) {
+  .nav-group-label { display: none; }
+  .nav-group + .nav-group { margin-top: 0.25rem; }
+}
+
+.nav-tooltip {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0.625rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-sm);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 100;
+}
+.nav-item:hover .nav-tooltip,
+.nav-item:focus-visible .nav-tooltip { opacity: 1; }
+
+/* Visually hidden, still announced. The collapsed rail is icon-only, and an
+   icon-only button with no accessible name is unusable with a screen reader. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nav-action {
+  color: var(--text-muted);
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-action:hover { color: var(--text-primary); background: var(--glass-bg-hover); }
+.nav-action:focus-visible { outline: 2px solid var(--accent-green); outline-offset: -2px; }
+
+.nav-action-danger:hover { color: var(--accent-red); background: rgba(217, 120, 98, 0.10); }
+.nav-action-danger:focus-visible { outline: 2px solid var(--accent-red); outline-offset: -2px; }
+
+/* ═══════════════════════════════════════════
+   AUTOFILL
+   Chrome paints its own near-white background over autofilled inputs, which
+   made the remembered username field read as a different control from the
+   password field beside it. The inset shadow trick is the only way to override
+   it; -webkit-text-fill-color is needed because `color` alone is ignored.
+   ═══════════════════════════════════════════ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  caret-color: var(--text-primary);
+  transition: background-color 9999s ease-in-out 0s;
 }

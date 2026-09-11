@@ -20,46 +20,42 @@ export default {
           hover: 'var(--glass-bg-hover)',
         },
         accent: {
-          purple: 'var(--accent-purple)',
-          blue: 'var(--accent-blue)',
-          cyan: 'var(--accent-cyan)',
           green: 'var(--accent-green)',
-          teal: 'var(--accent-teal)',
-          red: 'var(--accent-red)',
+          blue: 'var(--accent-blue)',
           amber: 'var(--accent-amber)',
-          terracotta: 'var(--accent-terracotta)',
+          red: 'var(--accent-red)',
+          purple: 'var(--accent-purple)',
         },
         text: {
           primary: 'var(--text-primary)',
           secondary: 'var(--text-secondary)',
           muted: 'var(--text-muted)',
         },
+        /* Meaning, not hue. `text-positive` survives a palette change;
+           `text-accent-green` quietly becomes a lie. */
+        positive: 'var(--positive)',
+        negative: 'var(--negative)',
+        attention: 'var(--attention)',
+        info: 'var(--info)',
+        rule: 'var(--rule)',
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['Inter Variable', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
+      /* Two card radii and one control radius, matching --r-md / --r-lg. The
+         xl/2xl/3xl steps are pulled down onto the same scale rather than left
+         at 0.75/1/1.5rem: a 16px round on a 90px-tall panel is what made these
+         cards read as pill-shaped tiles instead of an instrument panel. */
       borderRadius: {
-        '2xl': '1rem',
-        '3xl': '1.25rem',
+        lg: 'var(--r-md)',
+        xl: 'var(--r-lg)',
+        '2xl': 'var(--r-lg)',
+        '3xl': 'var(--r-lg)',
       },
-      animation: {
-        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
-        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
-        'float': 'float 3s ease-in-out infinite',
-      },
-      keyframes: {
-        fadeInUp: {
-          from: { opacity: '0', transform: 'translateY(10px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
-        pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 12px rgba(167, 139, 250, 0.1)' },
-          '50%': { boxShadow: '0 0 20px rgba(167, 139, 250, 0.18)' },
-        },
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-4px)' },
-        },
+      spacing: {
+        card: 'var(--pad-card)',
+        section: 'var(--gap-section)',
+        grid: 'var(--gap-grid)',
       },
     },
   },

@@ -18,7 +18,7 @@ import smtplib
 import string
 import threading
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from functools import wraps
@@ -33,17 +33,40 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/v1/auth')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me-in-production')
+def _require_jwt_secret() -> str:
+    """Fail loudly rather than fall back to a known key.
+
+    This used to default to 'change-me-in-production'. A missing or unedited
+    JWT_SECRET would then start the app normally while every token it issued
+    was forgeable by anyone who has read this file — the worst kind of
+    failure, because nothing looks wrong.
+    """
+    secret = (os.environ.get('JWT_SECRET') or '').strip()
+    placeholders = {'change-me-in-production', 'changeme', 'secret', 'your-secret-key'}
+    if not secret or secret.lower() in placeholders:
+        raise RuntimeError(
+            'JWT_SECRET is missing or still set to a placeholder. Set it to a '
+            'random value (for example: python -c "import secrets; '
+            'print(secrets.token_urlsafe(48))") in your .env before starting.'
+        )
+    if len(secret) < 32:
+        raise RuntimeError(
+            f'JWT_SECRET is too short ({len(secret)} chars). Use at least 32.'
+        )
+    return secret
+
+
+JWT_SECRET = _require_jwt_secret()
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRY_HOURS = int(os.environ.get('JWT_EXPIRY_HOURS', '8'))
 
 OTP_LENGTH = 6
 OTP_EXPIRY_MINUTES = 5
 OTP_MAX_ATTEMPTS = 3
-
-# ── TESTING ONLY ──────────────────────────────────────────────────────────────
-# In production, remove this and always send OTP to the user's own email.
-ADMIN_TEST_EMAIL = 'johnzelle.gabalones@gmail.com'
+LOGIN_MAX_ATTEMPTS = int(os.environ.get('LOGIN_MAX_ATTEMPTS', '5'))
+LOGIN_LOCKOUT_MINUTES = int(os.environ.get('LOGIN_LOCKOUT_MINUTES', '15'))
+OTP_RESEND_COOLDOWN_SECONDS = int(os.environ.get('OTP_RESEND_COOLDOWN_SECONDS', '60'))
+OTP_MAX_SENDS_PER_HOUR = int(os.environ.get('OTP_MAX_SENDS_PER_HOUR', '6'))
 
 EMAIL_USER = os.environ.get('EMAIL_USER', '')
 EMAIL_PASS = os.environ.get('EMAIL_PASS', '')
@@ -64,17 +87,13 @@ def _generate_otp() -> str:
 
 
 def _resolve_otp_email(role: str, user_email: str) -> str:
-    """
-    Determine where to send the OTP.
+    """Where the OTP goes: the address on the account, always.
 
-    SYSTEM RULE:
-      - admin → ADMIN_TEST_EMAIL (testing only; in production send to user's real email)
-      - staff → the email stored in the database
+    Admin codes used to be redirected to one hardcoded mailbox for testing,
+    which meant every admin's second factor landed in the same inbox and no
+    admin could receive their own. `role` is kept in the signature because
+    callers pass it and a future policy may need it.
     """
-    if role == 'admin':
-        # TESTING: all admin OTPs go to the hardcoded test address.
-        # TODO: In production, send to the user's own email instead.
-        return ADMIN_TEST_EMAIL
     return user_email
 
 
@@ -254,6 +273,111 @@ def require_auth(f):
     return decorated
 
 
+def _client_ip_ua():
+    xff = request.headers.get('X-Forwarded-For', '')
+    ip = xff.split(',')[0].strip() if xff else (request.remote_addr or '')
+    ua = (request.headers.get('User-Agent') or '')[:255]
+    return ip, ua
+
+
+def _record_login_attempt(c, user_id, status):
+    """Write a login_history row.
+
+    Failures were never recorded, which left the security activity view blind
+    and gave account lockout nothing to count.
+    """
+    try:
+        ip, ua = _client_ip_ua()
+        c.execute(
+            'INSERT INTO login_history (user_id, ip_address, device, status) VALUES (?, ?, ?, ?)',
+            (user_id, ip, ua, status),
+        )
+    except Exception as e:
+        print(f'[AUTH] could not record login attempt: {e}')
+
+
+# INTERVAL takes a literal, not a placeholder. LOGIN_LOCKOUT_MINUTES is coerced
+# to int at import, so it cannot carry anything but a number into the statement.
+_FAILURE_WINDOW_SQL = (
+    'SELECT COUNT(*) AS n, '
+    '       TIMESTAMPDIFF(SECOND, MAX(login_time), NOW()) AS since_last '
+    'FROM login_history '
+    "WHERE user_id = ? AND status = 'failed' "
+    '  AND login_time > (NOW() - INTERVAL {} MINUTE) '
+    # Compared by id, not by time: login_time is second-granular, so a failure
+    # landing in the same second as a success would slip past a '>' on the
+    # timestamp. Ids are monotonic, which makes "since the last success" exact.
+    '  AND id > COALESCE(('
+    '        SELECT MAX(h2.id) FROM login_history h2 '
+    "        WHERE h2.user_id = ? AND h2.status = 'success'"
+    '      ), 0)'
+)
+
+
+def _recent_failures(c, user_id):
+    """Failed attempts counting against this account right now.
+
+    Only failures inside the window AND newer than the last successful login,
+    so signing in successfully clears the slate rather than leaving earlier
+    failures to lock the account minutes later.
+
+    Ages come from the database clock, so this never depends on the app process
+    and MariaDB agreeing about the timezone.
+
+    Returns (count, seconds_since_most_recent_failure).
+    """
+    try:
+        c.execute(_FAILURE_WINDOW_SQL.format(int(LOGIN_LOCKOUT_MINUTES)), (user_id, user_id))
+        row = c.fetchone()
+        return int(row['n'] or 0), int(row['since_last'] or 0)
+    except Exception as e:
+        # A bookkeeping failure must never lock out a legitimate user.
+        print(f'[AUTH] could not read login failures: {e}')
+        return 0, 0
+
+
+def _create_otp_token(user_id: int) -> str:
+    """Short-lived proof that this caller completed the password step.
+
+    /verify-otp and /resend-otp used to identify the pending sign-in by a raw
+    user_id, which is a small integer anyone can guess — so neither endpoint
+    had evidence the caller had passed step one. This handle is signed, scoped
+    to the OTP step, and expires with the code.
+    """
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            'sub': int(user_id),
+            'purpose': 'otp',
+            'iat': int(now.timestamp()),
+            'exp': int((now + timedelta(minutes=OTP_EXPIRY_MINUTES + 1)).timestamp()),
+        },
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM,
+    )
+
+
+def _read_otp_token(token: str):
+    """Return the user id from a valid OTP handle, or None.
+
+    The purpose claim matters: without it a normal session token would be
+    accepted here, letting a signed-in user skip the OTP step for any account.
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={'verify_sub': False})
+    except jwt.PyJWTError:
+        return None
+    if payload.get('purpose') != 'otp':
+        return None
+    try:
+        return int(payload['sub'])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @auth_bp.route('/login', methods=['POST'])
@@ -290,7 +414,18 @@ def login():
             return jsonify({'error': 'Invalid credentials'}), 401
 
         if not user.get('active', 1):
-            return jsonify({'error': 'Account is disabled'}), 403
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        # Lockout is checked BEFORE the password is compared, so a locked
+        # account answers the same way whatever password is supplied and
+        # cannot be used to test guesses.
+        failures, since_last = _recent_failures(c, user['id'])
+        if failures >= LOGIN_MAX_ATTEMPTS:
+            retry_after = max(0, LOGIN_LOCKOUT_MINUTES * 60 - since_last)
+            return jsonify({
+                'error': 'Too many failed sign-in attempts. Try again later.',
+                'retry_after': retry_after,
+            }), 429
 
         # Verify password — guard against empty/null hash in DB
         stored_hash = user.get('password_hash') or ''
@@ -301,10 +436,18 @@ def login():
             pw_matches = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
         except Exception as e:
             print(f'[AUTH] bcrypt error for user {user.get("username")}: {e}')
-            return jsonify({'error': 'Invalid credentials'}), 401
+            pw_matches = False
 
         if not pw_matches:
-            return jsonify({'error': 'Invalid credentials'}), 401
+            _record_login_attempt(c, user['id'], 'failed')
+            conn.commit()
+            remaining = max(0, LOGIN_MAX_ATTEMPTS - (failures + 1))
+            payload = {'error': 'Invalid credentials'}
+            # Warn only as the limit approaches; naming the count on every
+            # attempt would tell an attacker the account exists.
+            if remaining <= 2:
+                payload['attempts_remaining'] = remaining
+            return jsonify(payload), 401
 
         user_id = user['id']
         username = user['username']
@@ -342,7 +485,7 @@ def login():
 
         return jsonify({
             'message': 'OTP sent',
-            'user_id': user_id,
+            'otp_token': _create_otp_token(user_id),
             'email_hint': masked,
             'expires_in': OTP_EXPIRY_MINUTES * 60,  # seconds
         }), 200
@@ -351,20 +494,105 @@ def login():
         conn.close()
 
 
+@auth_bp.route('/resend-otp', methods=['POST'])
+def resend_otp():
+    """
+    POST /api/v1/auth/resend-otp
+    Body: { "otp_token": "..." }
+
+    Re-sends the code for a login already in progress. Without this an expired
+    code was a dead end: the only way forward was to go back and re-enter the
+    password.
+
+    Deliberately narrow. It acts only when the user already has a recent OTP
+    row, so it cannot be pointed at arbitrary user ids to mail them. A cooldown
+    and an hourly cap bound it further.
+
+    Identified by the signed otp_token from /login, so a caller must have
+    passed the password step to reach this.
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = _read_otp_token(data.get('otp_token'))
+    if not user_id:
+        return jsonify({'error': 'Your sign-in expired. Please sign in again.'}), 401
+
+    conn = get_db()
+    try:
+        c = conn.cursor()
+
+        # Only for a login already in flight: there must be a recent OTP row.
+        # Ages come from the database clock so this never depends on whether
+        # the app process and MariaDB agree about the timezone.
+        c.execute(
+            'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age '
+            'FROM otp_codes WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+            (user_id,)
+        )
+        latest = c.fetchone()
+        if not latest or latest['age'] is None or int(latest['age']) > 3600:
+            return jsonify({'error': 'No sign-in in progress. Please sign in again.'}), 400
+
+        age = int(latest['age'])
+        if age < OTP_RESEND_COOLDOWN_SECONDS:
+            return jsonify({
+                'error': 'Please wait before requesting another code.',
+                'retry_after': OTP_RESEND_COOLDOWN_SECONDS - age,
+            }), 429
+
+        c.execute(
+            'SELECT COUNT(*) AS n FROM otp_codes '
+            'WHERE user_id = ? AND created_at > (NOW() - INTERVAL 1 HOUR)',
+            (user_id,)
+        )
+        if int(c.fetchone()['n'] or 0) >= OTP_MAX_SENDS_PER_HOUR:
+            return jsonify({'error': 'Too many codes requested. Please try again later.'}), 429
+
+        c.execute('SELECT id, username, email, role, active FROM users WHERE id = ?', (user_id,))
+        user = c.fetchone()
+        if not user or not user.get('active', 1):
+            return jsonify({'error': 'No sign-in in progress. Please sign in again.'}), 400
+
+        # Retire the old code so only the newest one can be used.
+        c.execute('UPDATE otp_codes SET used = 1 WHERE user_id = ? AND used = 0', (user_id,))
+
+        otp_code = _generate_otp()
+        expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        c.execute(
+            'INSERT INTO otp_codes (user_id, otp_code, expires_at) VALUES (?, ?, ?)',
+            (user_id, _hash_otp(otp_code), expires_at.strftime('%Y-%m-%d %H:%M:%S'))
+        )
+        conn.commit()
+
+        recipient = _resolve_otp_email(user.get('role', 'staff'), user.get('email', ''))
+        if not recipient:
+            return jsonify({'error': 'No email address configured for this account'}), 500
+        try:
+            _send_otp_email(recipient, otp_code, user['username'])
+        except Exception as e:
+            print(f'[AUTH] Failed to resend OTP email: {e}')
+            return jsonify({'error': 'Failed to send OTP email. Please try again.'}), 500
+
+        return jsonify({'message': 'OTP resent', 'expires_in': OTP_EXPIRY_MINUTES * 60}), 200
+    finally:
+        conn.close()
+
+
 @auth_bp.route('/verify-otp', methods=['POST'])
 def verify_otp():
     """
     POST /api/v1/auth/verify-otp
-    Body: { "user_id": 1, "otp": "123456" }
+    Body: { "otp_token": "...", "otp": "123456" }
 
     Verifies the OTP, returns JWT on success.
     """
     data = request.get_json(silent=True) or {}
-    user_id = data.get('user_id')
     otp_input = (data.get('otp') or '').strip()
+    user_id = _read_otp_token(data.get('otp_token'))
 
-    if not user_id or not otp_input:
-        return jsonify({'error': 'user_id and otp are required'}), 400
+    if not user_id:
+        return jsonify({'error': 'Your sign-in expired. Please sign in again.'}), 401
+    if not otp_input:
+        return jsonify({'error': 'otp is required'}), 400
 
     conn = get_db()
     try:

@@ -12,6 +12,7 @@ WHOLESALE_LINK_MARKER_PATTERN = re.compile(r"\[AUTO_LINK:WHOLESALE_PARENT_ID=(\d
 
 # Company sells wholesale only — one flat price per fish, no retail tier.
 PRICE_PER_FISH = float(os.environ.get('PRICE_PER_FISH', '0.40'))
+UNDO_WINDOW_SECONDS = int(os.environ.get('UNDO_WINDOW_SECONDS', '120'))
 
 # Minimum fish per wholesale OUT submit. 0 disables the rule entirely
 # (every check below becomes vacuously false). Was 300.
@@ -226,9 +227,26 @@ def save_inventory():
         VALUES (?, ?, ?, ?, ?, ?)
     ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes, action, tx_type))
     conn.commit()
+
+    # Link the run that produced this count, so a session records whether it
+    # ever reached inventory. Best-effort: a bookkeeping failure must not
+    # invalidate a save that already committed.
+    try:
+        inventory_id = getattr(c, 'lastrowid', None)
+        c.execute(
+            "UPDATE counting_sessions SET status='saved', inventory_id=? "
+            "WHERE status='completed' AND inventory_id IS NULL "
+            'ORDER BY id DESC LIMIT 1',
+            (inventory_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[WARN] could not link session to inventory row: {e}")
+
     conn.close()
-    
-    return jsonify({"status": "success", "message": f"Saved {count} {variant} fish to inventory!"})
+
+    return jsonify({"status": "success", "id": inventory_id,
+                    "message": f"Saved {count} {variant} fish to inventory!"})
 
 
 @inventory_bp.route('/get_inventory')
@@ -377,6 +395,52 @@ def delete_inventory(id):
     conn.close()
 
     return jsonify({"status": "success", "message": "Record moved to archive"})
+
+
+@inventory_bp.route('/undo_save/<int:record_id>', methods=['POST'])
+@require_auth
+def undo_save(record_id):
+    """Reverse a counting save, stock effect included.
+
+    Distinct from /delete_inventory, which archives a row for UI purposes
+    while it keeps counting toward stock. Undo sets `deleted`, so the fish
+    leave the totals as well as the list.
+
+    Time-boxed to UNDO_WINDOW_SECONDS so this stays an undo of the save the
+    operator just made, not a way to rewrite arbitrary history.
+    """
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, date, deleted FROM inventory WHERE id = ?', (record_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': 'Record not found'}), 404
+    if int(_row_value(row, 'deleted', 2, 0) or 0) == 1:
+        conn.close()
+        return jsonify({'status': 'success', 'message': 'Already undone'})
+
+    saved_at = _row_value(row, 'date', 1)
+    if not isinstance(saved_at, datetime):
+        try:
+            saved_at = datetime.strptime(str(saved_at), '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            saved_at = None
+    if saved_at and (datetime.now() - saved_at).total_seconds() > UNDO_WINDOW_SECONDS:
+        conn.close()
+        return jsonify({'status': 'error',
+                        'message': 'Too late to undo. Correct this from Inventory instead.'}), 409
+
+    c.execute('UPDATE inventory SET deleted = 1 WHERE id = ?', (record_id,))
+    # The run no longer reached inventory, so it is completed, not saved.
+    try:
+        c.execute("UPDATE counting_sessions SET status='completed', inventory_id=NULL "
+                  'WHERE inventory_id = ?', (record_id,))
+    except Exception as e:
+        print(f"[WARN] could not unlink session on undo: {e}")
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'message': 'Save undone'})
 
 
 @inventory_bp.route('/clear_inventory', methods=['POST'])
@@ -534,7 +598,7 @@ def get_statistics():
 
     today_revenue_query = (
         "SELECT "
-        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
+        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold "
         "FROM inventory WHERE deleted = 0 AND DATE(date) = CURRENT_DATE"
     )
     c.execute(today_revenue_query)
@@ -555,7 +619,7 @@ def get_statistics():
     try:
         total_sales_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total "
             f"FROM inventory {where_clause}"
         )
         c.execute(total_sales_query, params)
@@ -587,7 +651,7 @@ def get_statistics():
         # Yesterday's daily revenue
         yday_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold "
             "FROM inventory WHERE deleted = 0 AND DATE(date) = ?"
         )
         c.execute(yday_rev_query, [yesterday_str])
@@ -598,7 +662,7 @@ def get_statistics():
         # Yesterday's cumulative total revenue (all time up to end of yesterday)
         yday_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total "
             "FROM inventory WHERE deleted = 0 AND DATE(date) <= ?"
         )
         c.execute(yday_total_rev_query, [yesterday_str])
@@ -633,20 +697,27 @@ def get_statistics():
         c.execute("SELECT SUM(count) as total FROM inventory WHERE deleted = 0 AND (action='WHOLESALE' OR action='INVENTORY')")
         global_wholesale_total = _row_scalar(c.fetchone(), 'total') or 0
 
+        # sales_count rides along in the same query and on the same predicate
+        # that defines a sale for revenue. Deriving it separately — or in the
+        # browser — is how the numerator and denominator of "average sale" end
+        # up disagreeing about what counts as a sale.
         global_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total, "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN 1 ELSE 0 END) as sales_count "
             "FROM inventory WHERE deleted = 0"
         )
         c.execute(global_total_rev_query)
         global_rev_row = c.fetchone()
         global_sold_total = float(_row_scalar(global_rev_row, 'sold_total') or 0)
         global_total_revenue = round(global_sold_total * PRICE_PER_FISH, 2)
+        global_sales_count = int(_row_value(global_rev_row, 'sales_count', 1, 0) or 0)
     except Exception:
         global_additions_total = additions_total
         global_tank_total = tank_total
         global_wholesale_total = wholesale_total
         global_total_revenue = total_revenue
+        global_sales_count = 0
 
     conn.close()
     
@@ -676,7 +747,11 @@ def get_statistics():
             "wholesale_total": global_wholesale_total,
             "today_revenue": today_revenue,
             "total_revenue": global_total_revenue,
-            "today_session_total": today_session_total
+            "today_session_total": today_session_total,
+            # Number of recorded sale movements all-time. Additive: existing
+            # consumers are unaffected, and it is what makes the dashboard's
+            # average-sale figure a measurement rather than an estimate.
+            "sales_count": global_sales_count
         }
     })
 
@@ -985,12 +1060,17 @@ def daily_trend():
     range_where = "WHERE deleted = 0 AND DATE(date) BETWEEN ? AND ?" + where_variant
     range_params = [d_start.isoformat(), d_end.isoformat()] + params_variant
 
+    # A death is not a sale, but it does leave the pond. Deaths are stored as
+    # transaction_type='DIED' — the old test for a 'Died.' note prefix matched
+    # nothing, so every death was counted as a sale and as revenue. sold_*
+    # drives revenue; out_wholesale, every fish that left, drives the stock.
     c.execute(
         "SELECT DATE(date) as day, "
         "SUM(CASE WHEN action='IN' THEN count ELSE 0 END) as added_tank, "
-        "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%%' THEN ABS(count) ELSE 0 END) as sold_tank, "
+        "SUM(CASE WHEN action='OUT' AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_tank, "
         "SUM(CASE WHEN action='WHOLESALE' AND count > 0 THEN count ELSE 0 END) as added_wholesale, "
-        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%%' THEN ABS(count) ELSE 0 END) as sold_wholesale "
+        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_wholesale, "
+        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 THEN ABS(count) ELSE 0 END) as out_wholesale "
         "FROM inventory " + range_where + " GROUP BY day ORDER BY day",
         range_params
     )
@@ -1002,6 +1082,7 @@ def daily_trend():
             'sold_tank': int(_row_value(row, 'sold_tank', 2, 0) or 0),
             'added_wholesale': int(_row_value(row, 'added_wholesale', 3, 0) or 0),
             'sold_wholesale': int(_row_value(row, 'sold_wholesale', 4, 0) or 0),
+            'out_wholesale': int(_row_value(row, 'out_wholesale', 5, 0) or 0),
         }
     conn.close()
 
@@ -1010,9 +1091,9 @@ def daily_trend():
     current = d_start
     while current <= d_end:
         ds = current.isoformat()
-        d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0})
+        d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0, 'out_wholesale': 0})
         running_tank += d['added_tank'] - d['sold_tank']
-        running_wholesale += d['added_wholesale'] - d['sold_wholesale']
+        running_wholesale += d['added_wholesale'] - d['out_wholesale']
         revenue = round((d['sold_tank'] + d['sold_wholesale']) * PRICE_PER_FISH, 2)
         result.append({
             'date': ds,

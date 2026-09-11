@@ -1,135 +1,32 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { io } from 'socket.io-client'
 import { rawApi } from '../utils/api'
-import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend
-} from 'recharts'
-import {
-  TrendingUp, Fish, ScanLine, DollarSign,
-  Activity, AlertTriangle, Filter, X, Package,
-  Lightbulb, Zap, Target, ShieldAlert
-} from 'lucide-react'
+import { Fish, Lightbulb, ChevronDown, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import SalesTrend from './SalesTrend'
-import { getNoteDisplay } from '../utils/notes'
-import { Button, EmptyState, Modal, PageHeader, StatCard, StatusIndicator, Skeleton } from './ui'
-import useAuthStore from '../store/authStore'
+import { getNoteDisplay, getRecordType, MOVEMENT as ACTIVITY } from '../utils/notes'
+import { avgDailyOutflow, daysOfCover, stockStatus, coverLabel } from '../utils/stock'
+import { dedupeInsights } from '../utils/insights'
+import {
+  isoDay, revenueWindow, periodRevenue, averageSale,
+  formatPeso, formatPesoShort,
+  /* aliased: the insight engine below has its own rangeLabel, which names a
+     duration ("7 days") rather than a span of dates ("7–10 Sep"). */
+  rangeLabel as dateSpan,
+} from '../utils/revenue'
+import { Button, EmptyState, Metric, Modal, PageHeader, SectionHeader, StatusIndicator, Skeleton } from './ui'
 
 /* ─── Helpers ─── */
-function useDebounce(fn, delay) {
-  const timer = useRef(null)
-  const fnRef = useRef(fn)
-  fnRef.current = fn
-  return useCallback((...args) => {
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => fnRef.current(...args), delay)
-  }, [delay])
-}
-
-function KpiSkeleton() {
+function MetricSkeleton() {
   return (
-    <div className="glass-card stat-glow p-5">
-      <Skeleton width="60%" height={12} className="mb-3" />
-      <Skeleton width="50%" height={32} className="mb-2" />
-      <Skeleton width="80%" height={14} />
+    <div className="strip-cell">
+      <Skeleton width="60%" height={9} className="mb-1.5" />
+      <Skeleton width="70%" height={18} />
     </div>
   )
 }
 
-const CHART_COLORS = ['#4C7A3D']
-const VARIANT_COLORS = { SPIN_20: '#4C7A3D' }
-
-const formatCurrency = v => {
-  try { return '₱' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
-  catch { return '₱0.00' }
-}
-
-/* ─── Trend percentage (used by StatCard) ─── */
-function trendPercent(current, yesterday) {
-  const cur = Number(current || 0)
-  const yday = Number(yesterday || 0)
-  const diff = cur - yday
-  if (yday !== 0) return (diff / Math.abs(yday)) * 100
-  return diff !== 0 ? 100 : 0
-}
-
-/* ─── Low Stock Alerts ─── */
-function LowStockAlerts({ alerts, loading }) {
-  if (loading) {
-    return (
-      <div className="glass-card p-5">
-        <Skeleton width="40%" height={16} className="mb-3" />
-        <Skeleton width="100%" height={48} />
-      </div>
-    )
-  }
-
-  const activeAlerts = (alerts || []).filter(a => a.status !== 'ok')
-
-  return (
-    <div className="glass-card p-5 h-full">
-      <div className="flex items-center gap-2 mb-4">
-        <AlertTriangle className="w-4 h-4 text-accent-amber" />
-        <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider">Stock Alerts</h3>
-      </div>
-      {activeAlerts.length === 0 ? (
-        <p className="text-sm text-accent-green font-medium">All stock levels healthy</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {activeAlerts.map((a, i) => (
-            <div key={i} className={`flex items-center justify-between p-3 rounded-xl border
-              ${a.status === 'critical'
-                ? 'bg-accent-red/10 border-accent-red/20'
-                : 'bg-accent-amber/10 border-accent-amber/20'
-              }`}>
-              <div>
-                <p className="text-sm font-semibold text-text-primary">{a.variant}</p>
-                <p className="text-xs text-text-muted">{a.source === 'tank' ? 'Fish Tank' : 'Wholesale'}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-text-primary">{a.stock}</p>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full
-                  ${a.status === 'critical' ? 'bg-accent-red/20 text-accent-red' : 'bg-accent-amber/20 text-accent-amber'}
-                `}>{a.status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-4 pt-3 border-t border-white/5">
-        <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Indicators</p>
-        <div className="flex gap-4 text-xs text-text-muted">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-accent-red" /> Critical (≤15)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-accent-amber" /> Warning (16-30)
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Custom Tooltip ─── */
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="px-4 py-3 rounded-xl text-sm"
-      style={{
-        background: 'var(--tooltip-bg)',
-        border: '1px solid var(--tooltip-border)',
-        backdropFilter: 'blur(12px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-      }}>
-      <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }}>
-          {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
-        </p>
-      ))}
-    </div>
-  )
-}
+const formatCurrency = formatPeso
 
 /* ═══════════════════════════════════════════════════
    RANGE-ADAPTIVE ANALYTICS INSIGHT ENGINE
@@ -190,13 +87,14 @@ function rangeTier(len) {
   return 'long'
 }
 
-/** Describe a range length in human terms */
+/** Describe a range length in human terms.
+ *
+ *  Days, not weeks, up to two months. Rounding 30 days to "4 weeks" here while
+ *  the weekly grouping below counted 5 buckets put two different lengths for
+ *  one range in the same panel — "4 weeks total" beside "5 weeks analyzed". */
 function rangeLabel(len) {
   if (len <= 1) return 'today'
-  if (len <= 7) return `${len} days`
-  if (len <= 14) return `${len} days`
-  if (len <= 35) return `${Math.round(len / 7)} weeks`
-  if (len <= 95) return `${Math.round(len / 30)} months`
+  if (len <= 60) return `${len} days`
   return `${Math.round(len / 30)} months`
 }
 
@@ -291,7 +189,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // ── Adaptive split ──
   const split = splitPeriod(days)
   const splitTrend = split ? pct(split.secondSold, split.firstSold) : 0
-  const splitRevTrend = split ? pct(split.secondRev, split.firstRev) : 0
 
   // ── Adaptive momentum (last ~20% vs prior ~20%) ──
   const windowSize = Math.max(2, Math.min(7, Math.floor(len * 0.2)))
@@ -314,13 +211,15 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (todayRev > 0 && ydayRev > 0) {
     const dir = revChange >= 0
     insights.performance.push({
-      value: `${dir ? '+' : ''}${revChange.toFixed(1)}%`,
+      key: 'today-revenue',
+      value: `${dir ? '+' : '−'}${Math.abs(revChange).toFixed(1)}%`,
       label: 'revenue vs yesterday',
       detail: `${formatCurrency(todayRev)} · previous ${formatCurrency(ydayRev)}`,
       type: dir ? 'positive' : 'negative',
     })
   } else if (todayRev > 0) {
     insights.performance.push({
+      key: 'today-revenue',
       value: formatCurrency(todayRev),
       label: 'revenue today',
       detail: '',
@@ -329,18 +228,24 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   }
 
   if (peakDay && peakDay.sold_total > 0) {
-    const peakVsAvg = avgDaily > 0 ? ((peakDay.sold_total / avgDaily) - 1) * 100 : 0
-    const peakSuffix = peakVsAvg > 200 ? 'outlier spike' : `+${peakVsAvg.toFixed(0)}% vs avg`
+    // "3.2× the average" says what "outlier spike" was gesturing at, and it
+    // saves the detail line that used to restate the average as its own number
+    // two bullets above the bullet that already reports it.
+    const multiple = avgDaily > 0 ? peakDay.sold_total / avgDaily : 0
     insights.performance.push({
+      key: 'peak',
       value: `${fmtNum(peakDay.sold_total)} units`,
-      label: `peak on ${fmtShortDate(peakDay.date)} · ${peakSuffix}`,
-      detail: `${periodName} avg: ${fmtNum(avgDaily)} units/day`,
+      label: multiple >= 1.1
+        ? `peak on ${fmtShortDate(peakDay.date)} · ${multiple.toFixed(1)}× the daily average`
+        : `peak on ${fmtShortDate(peakDay.date)}`,
+      detail: '',
       type: 'positive',
     })
   }
 
   if (avgDaily > 0) {
     insights.performance.push({
+      key: 'period-total',
       value: `${fmtNum(totalSold)} sold`,
       label: `${periodName} total · ${formatCurrency(totalRevenue)}`,
       detail: `${fmtNum(avgDaily)} units/day · ${formatCurrency(avgRevenue)}/day avg`,
@@ -348,20 +253,37 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  insights.performance = insights.performance.slice(0, 3)
-
   // ┌─────────────────────────────────────────┐
   // │  2. TRENDS (adaptive by tier)           │
   // └─────────────────────────────────────────┘
 
-  // Period-over-period direction
+  /* Period-over-period direction.
+     This one bullet now carries the money as well as the units. It used to have
+     a twin under Risks — "revenue · late-period decline" — computed from the
+     same split; under a flat price per fish a revenue trend and a unit trend
+     are arithmetically the same number, so the panel printed −100.0% twice, in
+     two categories, as though they were two findings. */
   if (split && split.firstSold > 0) {
-    insights.trends.push({
-      value: `${splitTrend >= 0 ? '+' : ''}${splitTrend.toFixed(1)}%`,
-      label: `sales · ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
-      detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} → ${split.secondLabel}: ${fmtNum(split.secondSold)}`,
-      type: splitTrend >= 5 ? 'positive' : splitTrend <= -5 ? 'negative' : 'neutral',
-    })
+    const stopped = split.secondSold === 0
+    insights.trends.push(stopped
+      /* "−100.0%" is technically what happened and tells the reader nothing
+         they can act on. Nobody writes that sentence; they write the date it
+         stopped. */
+      ? {
+          key: 'period-trend',
+          value: 'No sales',
+          label: `since ${fmtShortDate(split.second[0].date)}`,
+          detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} sold · ${formatCurrency(split.firstRev)}`,
+          type: 'negative',
+        }
+      : {
+          key: 'period-trend',
+          value: `${splitTrend >= 0 ? '+' : '−'}${Math.abs(splitTrend).toFixed(1)}%`,
+          label: `sales · ${splitTrend >= 5 ? 'strong' : splitTrend <= -5 ? 'weak' : 'flat'} late-period`,
+          detail: `${split.firstLabel}: ${fmtNum(split.firstSold)} · ${formatCurrency(split.firstRev)}`
+            + ` → ${split.secondLabel}: ${fmtNum(split.secondSold)} · ${formatCurrency(split.secondRev)}`,
+          type: splitTrend >= 5 ? 'positive' : splitTrend <= -5 ? 'negative' : 'neutral',
+        })
   }
 
   // Momentum
@@ -369,22 +291,33 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const dir = momentumPct >= 0
     const windowLabel = windowSize === 1 ? 'day' : `${windowSize} days`
     insights.trends.push({
-      value: `${dir ? '+' : ''}${momentumPct.toFixed(1)}%`,
+      key: 'momentum',
+      value: `${dir ? '+' : '−'}${Math.abs(momentumPct).toFixed(1)}%`,
       label: `last ${windowLabel} · ${dir ? 'accelerating' : 'decelerating'}`,
       detail: `recent ${fmtNum(recentWindow)} vs prior ${fmtNum(priorWindow)}`,
       type: momentumPct >= 10 ? 'positive' : momentumPct <= -10 ? 'negative' : 'neutral',
     })
   }
 
-  // Long-range: weekly pattern for medium tier
+  /* Long-range: weekly pattern for medium tier.
+     Skipped when the peak day falls inside the best week, which is almost
+     always — the same spike is then reported once as a day and once as the week
+     containing it, and the reader is left comparing two numbers that are the
+     same event. The week count in the detail is gone too: the panel header
+     already says how long the range is. */
   if (tier === 'medium' && weeks.length >= 3) {
     const bestWeek = weeks.reduce((b, w) => w.sold > b.sold ? w : b, weeks[0])
-    insights.trends.push({
-      value: `${fmtNum(bestWeek.sold)} units`,
-      label: `best week · ${bestWeek.label}`,
-      detail: `${weeks.length} weeks analyzed`,
-      type: 'neutral',
-    })
+    const bestWeekIdx = weeks.indexOf(bestWeek)
+    const peakInBestWeek = peakIdx >= bestWeekIdx * 7 && peakIdx < (bestWeekIdx + 1) * 7
+    if (!peakInBestWeek) {
+      insights.trends.push({
+        key: 'best-week',
+        value: `${fmtNum(bestWeek.sold)} units`,
+        label: `best week · ${bestWeek.label}`,
+        detail: '',
+        type: 'neutral',
+      })
+    }
   }
 
   // Long-range: monthly seasonality
@@ -393,6 +326,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const worstMonth = months.reduce((w, m) => m.sold < w.sold ? m : w, months[0])
     if (bestMonth.label !== worstMonth.label) {
       insights.trends.push({
+        key: 'seasonality',
         value: `${fmtNum(bestMonth.sold)} units`,
         label: `peak in ${bestMonth.label} · low ${worstMonth.label}`,
         detail: `${worstMonth.label}: ${fmtNum(worstMonth.sold)} · ${months.length} months compared`,
@@ -401,9 +335,14 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
   }
 
-  // Recovery detection — skip noise from zero-to-nonzero bounces
-  if (biggestDrop.pct < -20 && biggestGain.pct > 15 && biggestGain.pct <= 500 && biggestGain.idx > biggestDrop.idx) {
+  /* Recovery detection. `sales[biggestDrop.idx] > 0` is the new condition: a
+     rebound measured from a day that sold nothing is a percentage against zero,
+     which produced things like "+196% rebound" for what was simply sales
+     starting again — and the day it stopped is already reported as a risk. */
+  if (biggestDrop.pct < -20 && sales[biggestDrop.idx] > 0
+      && biggestGain.pct > 15 && biggestGain.pct <= 500 && biggestGain.idx > biggestDrop.idx) {
     insights.trends.push({
+      key: `day:${days[biggestDrop.idx].date}`,
       value: `+${biggestGain.pct.toFixed(0)}%`,
       label: `rebound after ${fmtShortDate(days[biggestDrop.idx].date)} dip`,
       detail: `dropped ${Math.abs(biggestDrop.pct).toFixed(0)}%, recovered in ${biggestGain.idx - biggestDrop.idx}d`,
@@ -411,25 +350,30 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  // Volatility — only when meaningful, skip extreme noise
+  /* Volatility — only when meaningful, skip extreme noise.
+     Reported as units, not as a coefficient of variation. "129% CV" is a
+     statistic about a statistic: it is precise, it is correct, and nobody
+     running a fish farm can act on it. The standard deviation in fish is the
+     same finding in a unit the reader already has on the rest of the page. */
+  const swing = Math.round(vol * (len > 0 ? totalSold / len : 0))
   if (isVolatile && vol <= 2) {
     insights.trends.push({
-      value: `${(vol * 100).toFixed(0)}% CV`,
-      label: 'high variability · inconsistent daily sales',
-      detail: `over ${periodName}`,
+      key: 'volatility',
+      value: `±${fmtNum(swing)}`,
+      label: `typical day-to-day swing · demand is not steady`,
+      detail: `against an average of ${fmtNum(avgDaily)} units/day over ${periodName}`,
       type: 'negative',
     })
   } else if (isStable && len >= 5) {
     insights.trends.push({
-      value: `${(vol * 100).toFixed(0)}% CV`,
-      label: 'stable demand · consistent daily sales',
-      detail: `over ${periodName}`,
+      key: 'volatility',
+      value: `±${fmtNum(swing)}`,
+      label: 'typical day-to-day swing · steady demand',
+      detail: `against an average of ${fmtNum(avgDaily)} units/day over ${periodName}`,
       type: 'positive',
     })
   }
 
-  // Limit trends to top 3
-  insights.trends = insights.trends.slice(0, 3)
 
   // ┌─────────────────────────────────────────┐
   // │  3. RISKS (max 3)                       │
@@ -437,6 +381,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   // Zero revenue today — this is a risk, not performance
   if (todayRev === 0 && ydayRev > 0) {
     insights.risks.push({
+      key: 'today-revenue',
       value: '₱0',
       label: 'revenue today · −100% vs yesterday',
       detail: `previous ${formatCurrency(ydayRev)}`,
@@ -452,6 +397,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   if (dropDay && dropIsZero) {
     // Combined: the drop resulted in zero sales
     insights.risks.push({
+      key: `day:${dropDay.date}`,
       value: '0 sales',
       label: `on ${fmtShortDate(dropDay.date)} · ${Math.abs(biggestDrop.pct).toFixed(0)}% drop from prior day`,
       detail: `previous day ${fmtNum(sales[biggestDrop.idx - 1])} units`,
@@ -460,6 +406,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
   } else {
     if (biggestDrop.pct < -25) {
       insights.risks.push({
+        key: `day:${days[biggestDrop.idx].date}`,
         value: `−${Math.abs(biggestDrop.pct).toFixed(0)}%`,
         label: `drop on ${fmtShortDate(days[biggestDrop.idx].date)} · ${fmtNum(sales[biggestDrop.idx])} units`,
         detail: `previous day ${fmtNum(sales[biggestDrop.idx - 1])} units`,
@@ -468,6 +415,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
     if (lowDay && lowDay.sold_total === 0 && len > 1 && !zeroIsDropDay) {
       insights.risks.push({
+        key: `day:${lowDay.date}`,
         value: '0 sales',
         label: `on ${fmtShortDate(lowDay.date)} · verify downtime or gap`,
         detail: '',
@@ -475,6 +423,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
       })
     } else if (lowDay && lowDay.sold_total > 0 && avgDaily > 0 && lowDay.sold_total < avgDaily * 0.35) {
       insights.risks.push({
+        key: `day:${lowDay.date}`,
         value: `${fmtNum(lowDay.sold_total)} units`,
         label: `on ${fmtShortDate(lowDay.date)} · ${Math.round((lowDay.sold_total / avgDaily) * 100)}% of avg`,
         detail: `avg ${fmtNum(avgDaily)} units/day`,
@@ -483,20 +432,11 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
   }
 
-  // Revenue declining across period
-  if (split && split.firstRev > 0 && splitRevTrend < -10) {
-    insights.risks.push({
-      value: `−${Math.abs(splitRevTrend).toFixed(1)}%`,
-      label: 'revenue · late-period decline',
-      detail: `${split.firstLabel}: ${formatCurrency(split.firstRev)} → ${split.secondLabel}: ${formatCurrency(split.secondRev)}`,
-      type: 'negative',
-    })
-  }
-
   const activeAlerts = (lowStockAlerts || []).filter(a => a.status !== 'ok')
   const criticals = activeAlerts.filter(a => a.status === 'critical')
   if (criticals.length > 0) {
     insights.risks.push({
+      key: 'stock',
       value: 'Critical',
       label: `${criticals.map(a => `${a.variant} (${fmtNum(a.stock)})`).join(', ')} · restock now`,
       detail: 'below safety threshold',
@@ -504,6 +444,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   } else if (activeAlerts.length > 0) {
     insights.risks.push({
+      key: 'stock',
       value: `${activeAlerts.length} warning${activeAlerts.length > 1 ? 's' : ''}`,
       label: activeAlerts.map(a => a.variant).join(', '),
       detail: 'approaching low levels',
@@ -511,7 +452,6 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  insights.risks = insights.risks.slice(0, 3)
 
   // ┌─────────────────────────────────────────┐
   // │  4. OPPORTUNITIES (max 3)               │
@@ -522,6 +462,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const allTotal = sortedVariants.reduce((s, v) => s + v[1], 0)
     const share = allTotal > 0 ? Math.round((topVariant[1] / allTotal) * 100) : 0
     insights.opportunities.push({
+      key: 'variant-share',
       value: `${share}%`,
       label: `${topVariant[0]} share · ${fmtNum(topVariant[1])} in stock`,
       detail: 'prioritize availability for top variant',
@@ -533,6 +474,7 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     const gap = topVariant[1] - bottomVariant[1]
     if (gap > 0 && bottomVariant[1] > 0) {
       insights.opportunities.push({
+        key: 'variant-gap',
         value: `${fmtNum(gap)} units`,
         label: `${bottomVariant[0]} trails · growth room`,
         detail: 'consider pricing or bundling to close gap',
@@ -541,9 +483,11 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     }
   }
 
-  // Upward momentum opportunity
+  // Upward momentum opportunity — same split as the sales trend above, so it
+  // carries that reading's key and drops out when the trend already said it.
   if (split && splitTrend > 15) {
     insights.opportunities.push({
+      key: 'period-trend',
       value: `+${splitTrend.toFixed(0)}%`,
       label: 'growth trend · scale supply to match',
       detail: 'demand accelerating in later half',
@@ -551,114 +495,86 @@ function generateInsights(dailyData, stats, lowStockAlerts) {
     })
   }
 
-  insights.opportunities = insights.opportunities.slice(0, 3)
-
-  return insights
+  // One event, one bullet — see utils/insights.js.
+  return dedupeInsights(insights)
 }
 
-/* ─── Category config ─── */
+/* ─── Category config ───
+   Names only. Each category used to carry a colour and an icon, which meant
+   four hues and four glyphs decorating four headings whose own words already
+   said "Performance", "Trends", "Risks". Colour is left to the readings, where
+   it means a direction; the categories are labels, and labels are grey. */
 const INSIGHT_CATEGORIES = [
-  { key: 'performance',   label: 'Performance',   icon: Zap,          color: 'text-accent-amber',  dot: 'bg-accent-amber',  accentClass: 'accent-amber',  iconBg: 'bg-accent-amber/10' },
-  { key: 'trends',        label: 'Trends',        icon: TrendingUp,   color: 'text-accent-blue',   dot: 'bg-accent-blue',   accentClass: 'accent-blue',   iconBg: 'bg-accent-blue/10' },
-  { key: 'risks',         label: 'Risks',         icon: ShieldAlert,  color: 'text-accent-red',    dot: 'bg-accent-red',    accentClass: 'accent-red',    iconBg: 'bg-accent-red/10' },
-  { key: 'opportunities', label: 'Opportunities', icon: Target,       color: 'text-accent-green',  dot: 'bg-accent-green',  accentClass: 'accent-green',  iconBg: 'bg-accent-green/10' },
+  { key: 'performance',   label: 'Performance' },
+  { key: 'trends',        label: 'Trends' },
+  { key: 'risks',         label: 'Risks' },
+  { key: 'opportunities', label: 'Opportunities' },
 ]
 
 const TYPE_COLORS = {
-  positive: 'text-accent-green',
-  negative: 'text-accent-red',
-  neutral: 'text-text-secondary',
+  positive: 'text-positive',
+  negative: 'text-negative',
+  neutral: 'text-text-primary',
 }
 
-/* ─── Analytics Insights Panel (premium SaaS layout) ─── */
 const MOBILE_VISIBLE = 2  // rows past this collapse on phones; all show from 640px up
 
-function InsightCard({ cat, items }) {
-  const CatIcon = cat.icon
+/* One category of readings. Not a card: it is a heading, a rule, and a list.
+   The three boxes this replaces each had a border, a background, a coloured
+   left edge, a coloured icon, a coloured heading and a coloured dot per row —
+   six pieces of chrome around what is, in the end, six lines of text. */
+function InsightGroup({ cat, items }) {
   const [expanded, setExpanded] = useState(false)
   if (!items || items.length === 0) return null
 
   const overflow = items.length - MOBILE_VISIBLE
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-      className="insight-card group/card"
-    >
-      {/* Card header accent line */}
-      <div className={`insight-card-accent ${cat.accentClass}`} />
-
-      {/* Section label */}
-      <div className="flex items-center gap-2 mb-3 pt-1">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${cat.iconBg}`}>
-          <CatIcon className={`w-3.5 h-3.5 ${cat.color}`} />
-        </div>
-        <span className={`text-[11px] font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
-      </div>
-
-      {/* Insight rows */}
-      <div className="space-y-0.5">
+    <section className="insight-group" aria-label={cat.label}>
+      <h4 className="insight-group-label">{cat.label}</h4>
+      <dl className="m-0">
         {items.map((insight, i) => (
-          <motion.div
+          <div
             key={i}
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.06, duration: 0.3 }}
             className={`insight-row${i >= MOBILE_VISIBLE && !expanded ? ' is-overflow' : ''}`}
           >
-            <span className={`insight-dot ${cat.dot}`} />
-            <div className="min-w-0 flex-1">
-              {/* Value and label are separate spans so a wrap breaks between them
-                  rather than mid-phrase, and only the number carries the colour. */}
-              <span className="text-[13px] leading-snug block">
-                {insight.value && (
-                  <span className={`font-bold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
-                )}
-                {insight.value && insight.label && ' '}
-                {insight.label && (
-                  <span className="font-medium text-text-secondary">{insight.label}</span>
-                )}
-              </span>
-              {/* Always visible: hover-reveal reserved the same height anyway and
-                  was unreachable on touch, where :hover and title= never fire. */}
-              {insight.detail && (
-                <span className="text-[11px] text-text-muted leading-snug block mt-0.5">
-                  {insight.detail}
-                </span>
+            {/* Value and label are separate elements so a wrap breaks between
+                them rather than mid-phrase, and only the figure takes colour. */}
+            <dt className="inline text-xs leading-snug">
+              {insight.value && (
+                <span className={`font-semibold ${TYPE_COLORS[insight.type]}`}>{insight.value}</span>
               )}
-            </div>
-          </motion.div>
+            </dt>
+            <dd className="inline m-0 text-xs leading-snug text-text-secondary">
+              {insight.value && insight.label && ' '}
+              {insight.label}
+            </dd>
+            {/* Always visible: hover-reveal reserved the same height anyway and
+                was unreachable on touch, where :hover and title= never fire. */}
+            {insight.detail && <p className="meta m-0">{insight.detail}</p>}
+          </div>
         ))}
+      </dl>
 
-        {overflow > 0 && (
-          <button onClick={() => setExpanded(v => !v)} className="insight-more-btn"
-            aria-expanded={expanded}>
-            {expanded ? 'Show less' : `+${overflow} more`}
-          </button>
-        )}
-      </div>
-    </motion.div>
+      {overflow > 0 && (
+        <button onClick={() => setExpanded(v => !v)} className="insight-more-btn"
+          aria-expanded={expanded}>
+          {expanded ? 'Show less' : `+${overflow} more`}
+        </button>
+      )}
+    </section>
   )
 }
 
 function InsightSkeleton() {
   return (
-    <div className="insight-card">
-      <div className="insight-card-accent bg-white/5" />
-      <div className="flex items-center gap-2 mb-3 pt-1">
-        <Skeleton width={28} height={28} className="!rounded-lg" />
-        <Skeleton width="40%" height={10} />
-      </div>
-      <div className="space-y-2.5">
+    <div className="insight-group">
+      <div className="insight-group-label"><Skeleton width="45%" height={9} /></div>
+      <div className="space-y-2">
         {[1, 2].map(i => (
-          <div key={i} className="flex items-start gap-2.5 p-2">
-            <Skeleton width={6} height={6} className="!rounded-full mt-1" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton width="90%" height={13} />
-              <Skeleton width="60%" height={10} />
-            </div>
+          <div key={i} className="space-y-1">
+            <Skeleton width="90%" height={11} />
+            <Skeleton width="60%" height={9} />
           </div>
         ))}
       </div>
@@ -666,7 +582,50 @@ function InsightSkeleton() {
   )
 }
 
-// Range and daily-trend data come from Dashboard, shared with SalesTrend above.
+/* The panel's contents, without the container that opens it. */
+function AnalyticsBody({ insights, hasAny, trendLoading }) {
+  /* A grid, not CSS multi-columns. `columns-*` flows the four groups
+     top-to-bottom and then wraps, so which category landed in which column
+     depended on how many bullets each happened to generate that day — the panel
+     reordered itself as the farm's data changed. auto-fit keeps Performance,
+     Trends, Risks and Opportunities in that order and closes the gap when a
+     category has nothing to report. */
+  const cls = 'grid gap-x-6 gap-y-3 items-start grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]'
+  if (trendLoading) {
+    return (
+      <div className="glass-card card-pad">
+        <div className={cls}>{[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}</div>
+      </div>
+    )
+  }
+  if (!hasAny) {
+    return (
+      <div className="glass-card card-pad">
+        <EmptyState compact icon={Lightbulb} title="No insights yet"
+          message="Insights appear once there's enough sales activity in the selected range." />
+      </div>
+    )
+  }
+  /* One panel holding four groups, rather than four panels sitting in a row.
+     The groups are separated by the gap and by their own heading rules, which
+     is all the separation a set of related readings needs. */
+  return (
+    <div className="glass-card card-pad">
+      <div className={cls}>
+        {INSIGHT_CATEGORIES.map(cat => (
+          <InsightGroup key={cat.key} cat={cat} items={insights ? insights[cat.key] : []} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* Range and daily-trend data come from Dashboard, shared with SalesTrend above.
+   A collapsible panel on the page, not a dialog: this is the dashboard's own
+   reading, and it belongs in the flow of the page with everything else. It sits
+   directly under the KPI row so it is reachable on the 7" panel without
+   scrolling; opening it does push the chart down, which is the honest trade on
+   a screen that cannot show both at once. */
 function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoading }) {
   if (loading || !stats) return null
 
@@ -675,49 +634,28 @@ function AnalyticsInsights({ stats, lowStockAlerts, loading, dailyData, trendLoa
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.25, duration: 0.4 }}
-      className="space-y-3 sm:space-y-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
     >
-      {/* ── Header bar ── */}
-      <div className="glass-card analytics-header">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, rgba(217, 142, 59, 0.15), rgba(76, 122, 61, 0.15))' }}>
-            <Lightbulb className="w-4 h-4 text-accent-amber" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-text-primary tracking-tight">Analytics Overview</h3>
-            {dailyData.length > 0 && !trendLoading && (
-              <p className="text-[10px] text-text-muted mt-0.5">
-                {dailyData.length} day{dailyData.length !== 1 ? 's' : ''} analyzed
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+      <details className="group">
+        <summary className="cursor-pointer list-none flex items-baseline gap-1.5 py-0.5
+          rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green">
+          <ChevronDown size={13} className="self-center text-text-muted shrink-0
+            transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
+          <span className="section-title">Analytics Overview</span>
+          {dailyData.length > 0 && !trendLoading && (
+            <span className="meta">
+              {fmtShortDate(dailyData[0].date)} – {fmtShortDate(dailyData[dailyData.length - 1].date)}
+              {' · '}{dailyData.length} day{dailyData.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </summary>
 
-      {/* ── Insight cards grid ── */}
-      {trendLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-          {[1, 2, 3, 4].map(i => <InsightSkeleton key={i} />)}
+        <div className="mt-2">
+          <AnalyticsBody insights={insights} hasAny={hasAny} trendLoading={trendLoading} />
         </div>
-      )}
-
-      {!trendLoading && hasAny && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-          {INSIGHT_CATEGORIES.map(cat => {
-            const items = insights ? insights[cat.key] : []
-            return <InsightCard key={cat.key} cat={cat} items={items} />
-          })}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!trendLoading && !hasAny && (
-        <EmptyState icon={Lightbulb} title="No insights yet" message="Insights appear once there's enough sales activity in the selected range." />
-      )}
+      </details>
     </motion.div>
   )
 }
@@ -727,17 +665,19 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
   const [lowStockAlerts, setLowStockAlerts] = useState([])
-  const [lowStockLoading, setLowStockLoading] = useState(true)
-  const [variant, setVariant] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [socketConnected, setSocketConnected] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [sessions, setSessions] = useState([])
   const [kpiModal, setKpiModal] = useState(null) // { label, value, color, icon, details }
   // One range + one daily-trend fetch, shared by SalesTrend and AnalyticsInsights
   const [range, setRange] = useState({ days: 7, start: '', end: '', custom: false })
   const [dailyData, setDailyData] = useState([])
   const [trendLoading, setTrendLoading] = useState(true)
-  const user = useAuthStore(s => s.user)
+  /* Revenue Overview reads its own fixed window (this week / this month), which
+     must not move when the operator changes the chart's range — "This Month"
+     that silently becomes "last 90 days" is worse than no card at all. */
+  const [revRows, setRevRows] = useState(null)
+  const [pricePerFish, setPricePerFish] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -747,231 +687,532 @@ export default function Dashboard() {
       : `days=${range.days}`
     rawApi.get(`/api/daily-trend?${qs}`)
       .then(res => { if (!cancelled) setDailyData(res.data?.data || []) })
-      .catch(e => console.error('Failed to load daily trend', e))
+      .catch(() => { if (!cancelled) setLoadError('Could not load the sales trend.') })
       .finally(() => { if (!cancelled) setTrendLoading(false) })
     return () => { cancelled = true }
   }, [range, stats]) // stats changes on each new reading, so the trend refreshes with it
 
+  /* One fetch covers today, this week and this month — the window reaches back
+     to whichever of the two periods started earlier. Re-runs with `stats` so a
+     sale recorded while the dashboard is open lands in the cards. */
   useEffect(() => {
-    loadStats(); loadLowStock()
-    if (typeof window !== 'undefined' && window.io) {
-      const socket = window.io()
-      socket.on('connect', () => setSocketConnected(true))
-      socket.on('disconnect', () => setSocketConnected(false))
-      socket.on('reading', () => { loadStats(); loadLowStock() })
-      socket.on('counting_state', () => { loadStats(); loadLowStock() })
-      return () => { socket.disconnect?.() }
-    }
+    let cancelled = false
+    const w = revenueWindow()
+    rawApi.get(`/api/daily-trend?start_date=${w.start}&end_date=${w.end}`)
+      .then(res => {
+        if (cancelled) return
+        setRevRows(res.data?.data || [])
+        const p = Number(res.data?.prices?.wholesale)
+        if (Number.isFinite(p)) setPricePerFish(p)
+      })
+      .catch(() => { if (!cancelled) setRevRows([]) })
+    return () => { cancelled = true }
+  }, [stats])
+
+  useEffect(() => {
+    reload()
+    const socket = io()
+    socket.on('connect', () => setSocketConnected(true))
+    socket.on('disconnect', () => setSocketConnected(false))
+    socket.on('reading', () => reload())
+    socket.on('counting_state', () => reload())
+    return () => { socket.disconnect() }
   }, [])
+
+  function reload() { loadStats(); loadLowStock(); loadSessions() }
 
   async function loadLowStock() {
     try { setLowStockAlerts((await rawApi.get('/api/low-stock')).data.alerts || []) }
-    catch (e) { console.error('Failed to load low stock', e) }
-    finally { setLowStockLoading(false) }
+    catch { setLoadError('Could not load stock levels.') }
+  }
+
+  async function loadSessions() {
+    try { setSessions((await rawApi.get('/api/sessions?limit=15')).data.sessions || []) }
+    catch { /* sessions are supplementary; the activity list falls back to movements */ }
   }
 
   async function loadStats() {
     setStatsLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (variant) params.append('variant', variant)
-      if (startDate) params.append('start_date', startDate)
-      if (endDate) params.append('end_date', endDate)
-      const qs = params.toString()
-      setStats((await rawApi.get('/get_statistics' + (qs ? '?' + qs : ''))).data)
-    } catch (e) { console.error('Failed to load stats', e) }
-    finally { setStatsLoading(false) }
-  }
-
-  const debouncedApply = useDebounce(() => { loadStats() }, 350)
-  function applyFilters() { debouncedApply() }
-  function clearFilters() {
-    setVariant(''); setStartDate(''); setEndDate('')
-    setTimeout(() => { loadStats() }, 0)
+      setStats((await rawApi.get('/get_statistics')).data)
+      setLoadError('')
+    } catch {
+      setLoadError('Could not load dashboard data.')
+    } finally { setStatsLoading(false) }
   }
 
   const yday = stats?.yesterday || {}
   const global = stats?.global || {}
 
-  const variantCounts = stats ? ['SPIN_20'].map(name => {
-    const tank = Number(stats.by_variant?.find(v => v.variant === name)?.count) || 0
-    const wholesale = Number(stats.by_variant_wholesale?.find(v => v.variant === name)?.count) || 0
-    return tank + wholesale
-  }) : [0]
+  /* Stock actually on hand right now: wholesale in minus wholesale out, unfiltered.
+     `additions_total` is lifetime gross additions and never decreases — it is not stock. */
+  const stockOnHand = Number(global.wholesale_total || 0)
+  const outflowRate = avgDailyOutflow(dailyData, 7)
+  const cover = daysOfCover(stockOnHand, outflowRate)
+  const stockTone = stockStatus(stockOnHand, cover)
 
-  const pieData = ['SPIN_20'].map((name, i) => ({
-    name, value: variantCounts[i]
-  }))
+  /* One activity stream. Counting runs come from counting_sessions, which know
+     who ran them and for how long; sales and losses come from inventory. A run
+     that reached inventory is dropped from the movement side so it appears once,
+     while movements predating session tracking still show. */
+  const sessionInventoryIds = new Set(
+    sessions.map(s => s.inventory_id).filter(id => id != null)
+  )
 
-  const kpiCards = stats ? [
-    { key: 'total_fish', label: 'Total Fish', value: Number(stats.additions_total || 0).toLocaleString(), icon: Fish, current: global.additions_total, yesterday: yday.additions_total },
-    { key: 'today_session', label: "Today's Session", value: Number(stats.today_session_total || 0).toLocaleString(), icon: ScanLine, current: global.today_session_total, yesterday: yday.today_session_total },
-    { key: 'today_revenue', label: "Today's Revenue", value: formatCurrency(stats.today_revenue), icon: DollarSign, current: global.today_revenue, yesterday: yday.today_revenue, rawValue: Number(stats.today_revenue || 0) },
-    { key: 'total_revenue', label: 'Total Revenue', value: formatCurrency(stats.total_revenue), icon: Activity, current: global.total_revenue, yesterday: yday.total_revenue, rawValue: Number(stats.total_revenue || 0) },
+  function sessionDuration(s) {
+    if (!s.started_at || !s.ended_at) return null
+    const ms = new Date(s.ended_at.replace(' ', 'T')) - new Date(s.started_at.replace(' ', 'T'))
+    if (!(ms > 0)) return null
+    const mins = Math.floor(ms / 60000)
+    const secs = Math.floor((ms % 60000) / 1000)
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+  }
+
+  const SESSION_STATUS_NOTE = {
+    saved: 'saved to inventory',
+    completed: 'counted, not yet saved',
+    aborted: 'stopped with no count',
+    active: 'in progress',
+  }
+
+  const activityFeed = [
+    ...sessions.map(s => {
+      const dur = sessionDuration(s)
+      return {
+        key: `s${s.id}`,
+        at: s.ended_at || s.started_at || '',
+        date: (s.ended_at || s.started_at || '').slice(0, 16),
+        // An aborted run counted nothing; "Stopped 0 SPIN_20" reads as a quantity
+        // when the point is that there wasn't one.
+        count: s.status === 'aborted' ? null : Number(s.final_count || 0),
+        variant: s.status === 'aborted' ? '' : (s.variant || ''),
+        kind: s.status === 'aborted' ? ACTIVITY.ABORTED : ACTIVITY.WHOLESALE_IN,
+        note: [s.username, dur, SESSION_STATUS_NOTE[s.status]].filter(Boolean).join(' · '),
+        noteFallback: false,
+      }
+    }),
+    ...(stats?.recent_additions || [])
+      .filter(r => !sessionInventoryIds.has(r.id))
+      .map(r => {
+        const note = getNoteDisplay(r.notes, r.action)
+        return {
+          key: `i${r.id}`,
+          at: r.date || '',
+          date: r.date,
+          count: Math.abs(Number(r.count) || 0),
+          variant: r.variant,
+          kind: ACTIVITY[getRecordType(r)] || ACTIVITY.UNKNOWN,
+          note: note.text,
+          noteFallback: note.isFallback,
+        }
+      }),
+  /* Beside a full-height Sales Trend card this column has room for a dozen rows;
+     six left it half empty. The list scrolls, so the extra rows cost no height. */
+  ].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 15)
+
+  /* Day headings, so the feed reads as a log rather than as fifteen rows that
+     all open with the same "2026-09-" prefix. The stored timestamp is
+     "YYYY-MM-DD HH:MM", so the split is positional and needs no parsing. */
+  const todayIso = isoDay(new Date())
+  const yesterdayIso = isoDay(new Date(Date.now() - 86400000))
+  function dayHeading(iso) {
+    if (!iso) return 'Undated'
+    if (iso === todayIso) return 'Today'
+    if (iso === yesterdayIso) return 'Yesterday'
+    return new Date(iso + 'T00:00:00')
+      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  }
+
+  const activityDays = []
+  activityFeed.forEach(item => {
+    const iso = String(item.date || '').slice(0, 10)
+    const last = activityDays[activityDays.length - 1]
+    if (!last || last.iso !== iso) activityDays.push({ iso, heading: dayHeading(iso), items: [item] })
+    else last.items.push(item)
+  })
+
+  // Today's outflow in units — the trend series' last row is always today.
+  const soldToday = dailyData.length > 0 ? Number(dailyData[dailyData.length - 1].sold_total || 0) : 0
+  const countedToday = Number(stats?.today_session_total || 0)
+
+  /* ── The stock band ──
+     One panel, four readings, and only the first of them is set large. These
+     were four equally-weighted cards, three of which routinely read "0" or (in
+     the case of the lifetime total) a seven-figure number that is explicitly
+     not current stock — so the loudest thing on the dashboard was whichever
+     number happened to be longest. Stock on hand is the question the farm
+     actually opens this screen to answer. */
+  /* ── Hiding the takings ──
+     One switch for every peso figure the farm's revenue can be read from at a
+     glance: the five in the revenue strip, plus today's revenue where it is
+     repeated under "Sold today" and in that cell's dialog — hiding it in one
+     place and leaving it two cards up would hide nothing. The mask is the
+     same length whatever the amount, so it doesn't give away the size of the
+     number either. Remembered on this device, because a kiosk that reloads
+     shouldn't come back up showing what the operator had hidden. */
+  const HIDE_KEY = 'fc_hide_amounts'
+  const [hideAmounts, setHideAmounts] = useState(() => {
+    try { return localStorage.getItem(HIDE_KEY) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try {
+      if (hideAmounts) localStorage.setItem(HIDE_KEY, '1')
+      else localStorage.removeItem(HIDE_KEY)
+    } catch { /* storage unavailable: the choice lasts until reload */ }
+  }, [hideAmounts])
+
+  const MASK = '₱••••'
+  // Dialog text needs a string; the strip gets a word for screen readers
+  // instead of four bullets read out one at a time.
+  const moneyText = v => (hideAmounts ? MASK : formatCurrency(v))
+  const amount = text => (hideAmounts
+    ? <><span aria-hidden="true">{MASK}</span><span className="sr-only">hidden</span></>
+    : text)
+
+  const stockCells = stats ? [
+    {
+      key: 'stock_on_hand', label: 'Stock on Hand', value: stockOnHand.toLocaleString(),
+      size: 'hero', tone: stockTone, sub: coverLabel(cover),
+    },
+    {
+      key: 'today_session', label: 'Counted in today', value: countedToday.toLocaleString(),
+      sub: countedToday === 0 ? 'no session yet' : 'added to inventory',
+    },
+    {
+      key: 'sold_today', label: 'Sold today', value: soldToday.toLocaleString(),
+      sub: amount(formatCurrency(stats.today_revenue)), rawValue: Number(stats.today_revenue || 0),
+    },
+    {
+      key: 'total_fish', label: 'Stocked all time', value: Number(stats.additions_total || 0).toLocaleString(),
+      sub: 'gross, never decreases',
+    },
   ] : []
+
+  /* ── Revenue Overview ──
+     Five figures from two existing endpoints. Today leads; the rest are
+     supporting context and are set one step down. Nothing here is computed
+     from anything the farm has not actually recorded — a period with no sales
+     shows ₱0.00, and an average with no sales at all shows a dash. */
+  const rev = periodRevenue(revRows || [], new Date())
+  const salesCount = Number(global.sales_count || 0)
+  const avgSale = averageSale(global.total_revenue, salesCount)
+  const revLoading = revRows === null || statsLoading
+
+  const revenueCells = [
+    {
+      key: 'today', label: "Today's revenue", size: 'md',
+      value: amount(formatPeso(stats?.today_revenue)), sub: dateSpan(todayIso, todayIso),
+    },
+    {
+      key: 'week', label: 'This week',
+      value: amount(formatPesoShort(rev.week)), sub: dateSpan(rev.weekStart, todayIso),
+    },
+    {
+      key: 'month', label: 'This month',
+      value: amount(formatPesoShort(rev.month)), sub: dateSpan(rev.monthStart, todayIso),
+    },
+    {
+      key: 'total', label: 'Total sales',
+      value: amount(formatPesoShort(global.total_revenue)),
+      sub: salesCount > 0 ? `${salesCount.toLocaleString()} recorded sales` : 'no sales recorded',
+    },
+    {
+      key: 'avg', label: 'Average sale',
+      value: amount(avgSale === null ? '—' : formatPesoShort(avgSale)),
+      sub: avgSale === null
+        ? 'needs a recorded sale'
+        : pricePerFish ? `at ₱${pricePerFish.toFixed(2)}/fish` : 'per recorded sale',
+    },
+  ]
+
+  const activeAlerts = (lowStockAlerts || []).filter(a => a.status && a.status !== 'ok')
+
+  /* Mirrors SalesTrend's own isEmpty. The layout has to know before it lays out
+     — a card that is about to render two lines of text must not be handed a
+     third of the page first. */
+  const trendEmpty = !trendLoading && (
+    dailyData.length === 0 ||
+    dailyData.every(d => !Number(d.sold_total) && !Number(d.revenue))
+  )
 
   function openKpiModal(card) {
     let details = null
 
-    if (card.key === 'total_fish') {
+    if (card.key === 'stock_on_hand') {
+      const ydayStock = Number(yday.wholesale_total || 0)
+      const diff = stockOnHand - ydayStock
+      details = {
+        title: 'Stock on Hand',
+        subtitle: `${stockOnHand.toLocaleString()} SPIN_20 available for sale right now`,
+        rows: [
+          { label: 'Available now', color: 'var(--positive)', value: `${stockOnHand.toLocaleString()} fish` },
+          { label: 'As of yesterday', color: 'var(--info)', value: `${ydayStock.toLocaleString()} fish` },
+          { label: 'Selling at', color: 'var(--attention)', value: `${Math.round(outflowRate).toLocaleString()} fish/day (7-day avg)` },
+          { label: 'Cover remaining', color: 'var(--negative)', value: coverLabel(cover) },
+        ],
+        extra: diff === 0
+          ? 'No change from yesterday'
+          : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish since yesterday`
+      }
+    } else if (card.key === 'total_fish') {
       const total = Number(stats.additions_total || 0)
       const ydayTotal = Number(yday.additions_total || 0)
       const diff = total - ydayTotal
       details = {
-        title: 'Total Fish Inventory',
-        subtitle: `Total: ${total.toLocaleString()} fish (SPIN_20)`,
+        title: 'Stocked All Time',
+        subtitle: `${total.toLocaleString()} fish added since records began`,
         rows: [
-          { label: 'Total (all time)', color: '#4C7A3D', value: `${total.toLocaleString()} fish` },
-          { label: 'As of yesterday', color: '#5E9B94', value: `${ydayTotal.toLocaleString()} fish` },
+          { label: 'Gross additions (all time)', color: 'var(--positive)', value: `${total.toLocaleString()} fish` },
+          { label: 'As of yesterday', color: 'var(--info)', value: `${ydayTotal.toLocaleString()} fish` },
+          { label: 'Still on hand', color: 'var(--attention)', value: `${stockOnHand.toLocaleString()} fish` },
         ],
-        extra: diff === 0
-          ? 'No change from yesterday'
-          : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish added since yesterday`
+        extra: 'This is a lifetime running total of fish added — it never decreases and is not current stock.'
+          + (diff === 0 ? '' : ` ${diff > 0 ? '+' : ''}${diff.toLocaleString()} added since yesterday.`)
       }
     } else if (card.key === 'today_session') {
       const todayCount = Number(stats.today_session_total || 0)
       const ydayCount = Number(yday.today_session_total || 0)
       const diff = todayCount - ydayCount
       details = {
-        title: "Today's Session",
+        title: 'Counted Today',
         subtitle: `Counted today: ${todayCount.toLocaleString()} fish`,
         rows: [
-          { label: 'Today', color: '#4C7A3D', value: `${todayCount.toLocaleString()} fish` },
-          { label: 'Yesterday', color: '#5E9B94', value: `${ydayCount.toLocaleString()} fish` },
+          { label: 'Today', color: 'var(--positive)', value: `${todayCount.toLocaleString()} fish` },
+          { label: 'Yesterday', color: 'var(--info)', value: `${ydayCount.toLocaleString()} fish` },
         ],
         extra: diff === 0
           ? 'No change from yesterday'
           : `${diff > 0 ? '+' : ''}${diff.toLocaleString()} fish vs. yesterday`
       }
-    } else if (card.key === 'today_revenue' || card.key === 'total_revenue') {
-      const isToday = card.key === 'today_revenue'
-      const pricePerFish = 0.40
+    } else if (card.key === 'sold_today') {
       details = {
-        title: isToday ? "Today's Revenue Breakdown" : 'Total Revenue Breakdown',
-        subtitle: `Exact: ${formatCurrency(card.rawValue)}`,
+        title: 'Sold Today',
+        subtitle: `${soldToday.toLocaleString()} fish · ${moneyText(card.rawValue)}`,
         rows: [
-          { label: 'Price per fish', color: '#4C7A3D', value: `₱${pricePerFish.toFixed(2)} (wholesale)` },
+          { label: 'Units sold today', color: 'var(--positive)', value: `${soldToday.toLocaleString()} fish` },
+          ...(pricePerFish ? [{ label: 'Price per fish', color: 'var(--info)', value: `₱${pricePerFish.toFixed(2)} (wholesale)` }] : []),
+          { label: 'Revenue today', color: 'var(--attention)', value: moneyText(card.rawValue) },
         ],
-        extra: isToday
-          ? `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`
-          : `Yesterday cumulative: ${formatCurrency(Number(yday.total_revenue || 0))}`
+        extra: `Yesterday: ${moneyText(Number(yday.today_revenue || 0))}`
       }
     }
     setKpiModal({ ...card, details })
   }
 
   return (
-    <div className="space-y-8">
+    /* The gap between sections comes from the scale, so the panel's rhythm is
+       decided once in styles.css instead of at every block on this page. */
+    <div className="flex flex-col gap-section grow">
+      {/* ── Identity line ──
+             Which screen, which stock item, whether the reading is live. The
+             greeting that used to sit here reported nothing about the farm. ── */}
       <PageHeader
-        title={`Welcome back${user?.username ? `, ${user.username}` : ''}`}
-        subtitle="Here's what's happening on the farm today."
+        title="Farm Overview"
+        meta={new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+        actions={
+          <StatusIndicator
+            status={socketConnected ? 'active' : 'idle'}
+            label={socketConnected ? 'Live' : 'Reconnecting'}
+          />
+        }
       />
 
-      {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        {statsLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
-        ) : kpiCards.map((card, i) => (
-          <motion.div key={i}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-            whileHover={{ scale: 1.015, y: -1 }}
-          >
-            <StatCard
-              label={card.label}
-              value={card.value}
-              icon={card.icon}
-              trend={Math.round(trendPercent(card.current, card.yesterday) * 10) / 10}
-              trendLabel="vs yesterday"
-              onClick={() => openKpiModal(card)}
-            />
-          </motion.div>
-        ))}
-      </div>
+      {loadError && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-negative/25
+          bg-negative/10 px-3 py-2 text-xs font-medium text-negative">
+          {loadError}
+          <button onClick={reload} className="underline underline-offset-2 hover:no-underline">
+            Retry
+          </button>
+        </div>
+      )}
 
-      {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
-      <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
+      {/* ── Needs attention ──
+             Low-stock alerts used to exist only as a bullet inside the
+             *collapsed* Analytics Overview, which is the one place an
+             operational warning must never live. It surfaces here, above
+             everything but the stock itself, and renders nothing at all when
+             the farm is fine — so it costs no page on a good day. ── */}
+      {activeAlerts.length > 0 && (
+        <div role="status" className={`flex items-start gap-2 rounded-lg border px-3 py-2
+          ${activeAlerts.some(a => a.status === 'critical')
+            ? 'border-negative/30 bg-negative/10 text-negative'
+            : 'border-attention/30 bg-attention/10 text-attention'}`}>
+          <AlertTriangle size={14} className="shrink-0 mt-px" aria-hidden="true" />
+          <p className="text-xs font-medium leading-snug">
+            {activeAlerts.map(a =>
+              `${a.variant} at ${Number(a.stock || 0).toLocaleString()}`).join(' · ')}
+            <span className="font-normal opacity-80">
+              {' — '}{activeAlerts.some(a => a.status === 'critical') ? 'restock now' : 'approaching low levels'}
+            </span>
+          </p>
+        </div>
+      )}
 
-      {/* ── Analytics Insights ── */}
+      {/* ── Stock band ──
+             One panel with four readings in it, not four cards. Stock on hand
+             takes the wide cell and the hero figure; what moved today and the
+             lifetime total are supporting context beside it, at a third the
+             size. Each cell still opens its own detail dialog on tap, exactly
+             as the cards did. ── */}
+      <section aria-label="Stock">
+        <div className="strip grid-cols-2 md:[grid-template-columns:1.6fr_1fr_1fr_1fr]">
+          {statsLoading
+            ? Array.from({ length: 4 }).map((_, i) => <MetricSkeleton key={i} />)
+            : stockCells.map(cell => (
+              <Metric
+                key={cell.key}
+                label={cell.label}
+                value={cell.value}
+                sub={cell.sub}
+                tone={cell.tone}
+                size={cell.size || 'sm'}
+                /* Two columns below md: the hero takes a full row, then the two
+                   "today" figures pair off, then the lifetime total takes the
+                   last row on its own — spanning it too, so the strip doesn't
+                   end with an empty half-cell. */
+                className={cell.size === 'hero' || cell.key === 'total_fish'
+                  ? 'col-span-2 md:col-span-1' : undefined}
+                onClick={() => openKpiModal(cell)}
+              />
+            ))}
+        </div>
+      </section>
+
+      {/* ── Revenue Overview ──
+             Five figures in one strip. Today leads at the middle figure size;
+             the four behind it are context and stay quiet. On the 7" panel the
+             per-card date ranges drop out (`strip-compact`) — the label above
+             each figure already names the period, so the range beneath it is a
+             restatement costing ~30px of a 390px screen. ── */}
+      <section aria-labelledby="revenue-heading">
+        <SectionHeader
+          id="revenue-heading"
+          title="Revenue"
+          meta={pricePerFish ? `wholesale · ₱${pricePerFish.toFixed(2)} per fish` : 'wholesale'}
+          className="mb-1.5 [@media(max-height:620px)]:hidden"
+        />
+        {/* Today's column is wider from md, as Stock on Hand's is in the band
+            above: it carries the larger figure and the eye. At an equal fifth
+            of the 7" panel the two didn't fit on one line — the label wrapped
+            and dropped today's figure below the other four. */}
+        <div className="strip strip-compact grid-cols-2 sm:grid-cols-3
+          md:[grid-template-columns:minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
+          {revLoading
+            ? Array.from({ length: 5 }).map((_, i) => <MetricSkeleton key={i} />)
+            : revenueCells.map(cell => (
+              <Metric
+                key={cell.key}
+                label={cell.label}
+                value={cell.value}
+                sub={cell.sub}
+                size={cell.size || 'sm'}
+                className={cell.key === 'today' ? 'col-span-2 sm:col-span-1' : undefined}
+                /* The eye sits beside the leading figure, where a banking app
+                   puts it beside the balance, not in the section header: that
+                   header is hidden on the 7" panel so the dashboard fits, and
+                   the panel is where hiding the takings matters most. */
+                action={cell.key === 'today' ? (
+                  <button type="button" className="inline-toggle"
+                    onClick={() => setHideAmounts(h => !h)}
+                    aria-pressed={hideAmounts} aria-label="Hide revenue amounts"
+                    title={hideAmounts ? 'Show amounts' : 'Hide amounts'}>
+                    {hideAmounts
+                      ? <EyeOff size={13} aria-hidden="true" />
+                      : <Eye size={13} aria-hidden="true" />}
+                  </button>
+                ) : undefined}
+              />
+            ))}
+        </div>
+      </section>
+
+      {/* ── Analytics Insights — collapsed, in the flow of the page ── */}
       <AnalyticsInsights stats={stats} lowStockAlerts={lowStockAlerts} loading={statsLoading}
         dailyData={dailyData} trendLoading={trendLoading} />
 
-      {/* ── Charts Grid ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 gap-5"
-      >
-        {/* Variant Pie */}
-        <div className="glass-card p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
-              Overall Variant Inventory
-            </h3>
-            {socketConnected && <StatusIndicator status="active" label="Live" />}
-          </div>
-          {statsLoading ? <Skeleton width="100%" height={200} /> : (
-            variantCounts.every(v => v === 0) ? (
-              <EmptyState icon={Package} title="No inventory data yet" message="Counted fish will appear here once you save your first session." />
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                    dataKey="value" paddingAngle={4} strokeWidth={0}>
-                    {pieData.map((entry, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i]} />
+      {/* ── Chart beside recent activity: uses the page width instead of stacking,
+             which is what kept the dashboard two viewports tall.
+             The columns stretch rather than sitting at their natural heights —
+             opening Daily Breakdown doubles the left card, and with items-start
+             that left a card-sized hole of empty page beside it. ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-grid flex-1">
+        {/* With no sales in the range the trend card is two lines of text, so it
+            stops stretching and the row's height comes from the activity feed
+            instead — which is the content that still has something to say. */}
+        <div className={`xl:col-span-2 min-w-0 flex ${trendEmpty ? 'self-start' : ''}`}>
+        {/* ── Sales & Inventory Trend (owns the shared range filter) ── */}
+        <SalesTrend data={dailyData} loading={trendLoading} range={range} setRange={setRange} />
+        </div>
+        {/* With a chart beside it the activity card is taken out of flow and
+            pinned to the row: the row height then comes from the Sales Trend
+            card alone, and the feed fills it exactly however tall that card
+            gets. Left in flow the two cards fight — whichever is taller sets the
+            row and the other column ends in a card-sized hole of empty page. */}
+        <div className={`min-w-0 flex ${trendEmpty ? 'self-start' : 'md:block md:relative'}`}>
+        {/* ── Recent Activity ── */}
+        <section aria-labelledby="activity-heading"
+          className={`glass-card card-pad w-full flex flex-col ${trendEmpty ? '' : 'md:absolute md:inset-0'}`}>
+          <SectionHeader id="activity-heading" title="Recent activity"
+            meta={activityFeed.length > 0 ? `${activityFeed.length} entries` : undefined}
+            className="mb-1.5 shrink-0" />
+          {statsLoading ? (
+            <div className="space-y-2">
+              <Skeleton width="100%" height={16} />
+              <Skeleton width="90%" height={16} />
+              <Skeleton width="95%" height={16} />
+            </div>
+          ) : activityFeed.length === 0 ? (
+            <EmptyState compact icon={Fish} title="No recent entries"
+              message="Counting sessions and sales appear here as they happen." />
+          ) : (
+            /* Stacked (below md) the list keeps its own cap so it can't run the
+               page long. Side by side it instead fills whatever height the
+               column has — the card is stretched to the Sales Trend card beside
+               it, and a fixed cap there just moved the empty space inside the
+               card. It scrolls if the feed outgrows the room. */
+            <div className={`activity-scroll overflow-y-auto -mr-1 pr-1
+              ${trendEmpty ? '' : 'md:max-h-none md:flex-1 md:min-h-0'}`}>
+              {activityDays.map(day => (
+                <React.Fragment key={day.iso || day.heading}>
+                  <h4 className="activity-day">{day.heading}</h4>
+                  <ul className="list-none m-0 p-0">
+                    {day.items.map(item => (
+                      <li key={item.key} className="activity-row">
+                        {/* The clock time is the spine of the list; the date is
+                            already said once, by the heading above it. */}
+                        <time className="activity-time"
+                          dateTime={String(item.date || '').replace(' ', 'T')}>
+                          {String(item.date || '').slice(11, 16) || '—'}
+                        </time>
+                        {/* Magnitude, not the stored sign — "-65560" is a database detail. */}
+                        <span className="text-xs leading-snug min-w-0">
+                          <span className={`font-semibold ${item.kind.text}`}>{item.kind.label}</span>
+                          {item.count != null && (
+                            <>
+                              {' '}
+                              <span className="font-semibold text-text-primary tabular-nums">
+                                {item.count.toLocaleString()}
+                              </span>
+                              {item.variant && <span className="text-text-secondary"> {item.variant}</span>}
+                            </>
+                          )}
+                        </span>
+                        {item.note && (
+                          <span className={`meta col-start-2 truncate ${item.noteFallback ? 'note-fallback' : ''}`}>
+                            {item.note}
+                          </span>
+                        )}
+                      </li>
                     ))}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )
+                  </ul>
+                </React.Fragment>
+              ))}
+            </div>
           )}
+        </section>
         </div>
-
-        {/* Low Stock Alerts */}
-        <div>
-          <LowStockAlerts alerts={lowStockAlerts} loading={lowStockLoading} />
-        </div>
-      </motion.div>
-
-      {/* ── Recent Sessions ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
-        className="glass-card p-4 sm:p-6"
-      >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Recent Sessions</h3>
-        {statsLoading ? (
-          <div className="space-y-2">
-            <Skeleton width="100%" height={18} />
-            <Skeleton width="90%" height={18} />
-            <Skeleton width="95%" height={18} />
-          </div>
-        ) : (!stats?.recent_additions || stats.recent_additions.length === 0) ? (
-          <EmptyState icon={Fish} title="No recent entries" message="Saved counting sessions will show up here." />
-        ) : (
-          <div className="space-y-2">
-            {stats.recent_additions.map(r => {
-              const note = getNoteDisplay(r.notes, r.action)
-              return (
-                <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 rounded-xl transition-colors hover:bg-white/[0.02]">
-                  <div className="w-2 h-2 rounded-full bg-accent-green flex-shrink-0" />
-                  <span className="text-xs text-text-muted font-medium min-w-[90px] sm:min-w-[100px]">{r.date}</span>
-                  <span className="text-sm font-semibold text-text-primary">{r.count} {r.variant}</span>
-                  <span className={`text-xs truncate basis-full sm:basis-auto sm:flex-1 ${note.isFallback ? 'note-fallback text-text-muted' : 'text-text-muted'}`}>
-                    — {note.text}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </motion.div>
+      </div>
 
       {/* ── KPI Detail Modal ── */}
       <Modal
@@ -986,23 +1227,28 @@ export default function Dashboard() {
       >
         {kpiModal?.details && (
           <>
-            <p className="text-xs text-text-muted -mt-2 mb-4">{kpiModal.details.subtitle}</p>
-            <div className="space-y-2 mb-4">
+            <p className="text-xs text-text-secondary -mt-1 mb-3">{kpiModal.details.subtitle}</p>
+            {/* A definition list, not four bordered boxes. These are label/value
+                pairs about one figure, so hairlines between them say what a
+                border around each one was trying to. */}
+            <dl className="m-0">
               {kpiModal.details.rows.map((row, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between p-3 rounded-xl border"
-                  style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: row.color }} />
-                    <span className="text-sm text-text-secondary font-medium">{row.label}</span>
-                  </span>
-                  <span className="text-sm font-bold text-text-primary">{row.value}</span>
+                <div key={i}
+                  className="flex items-baseline justify-between gap-4 py-2 border-t border-rule first:border-t-0">
+                  <dt className="flex items-baseline gap-2 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 translate-y-[-1px]"
+                      style={{ background: row.color }} />
+                    <span className="text-xs text-text-secondary">{row.label}</span>
+                  </dt>
+                  <dd className="m-0 text-xs font-semibold text-text-primary tabular-nums text-right">
+                    {row.value}
+                  </dd>
                 </div>
               ))}
-            </div>
-            {kpiModal.details.extra && <p className="text-xs text-text-muted px-1">{kpiModal.details.extra}</p>}
+            </dl>
+            {kpiModal.details.extra && (
+              <p className="meta mt-3 leading-relaxed">{kpiModal.details.extra}</p>
+            )}
           </>
         )}
       </Modal>

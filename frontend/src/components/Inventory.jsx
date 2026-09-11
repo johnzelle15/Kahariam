@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
+import { getRecordType, formatRecordDate, MOVEMENT } from '../utils/notes'
 import { RefreshCw, Archive, RotateCcw, Package, ChevronLeft, ChevronRight, AlertCircle, Search, X } from 'lucide-react'
+import { Button, PageHeader, SectionHeader, EmptyState, Modal, Skeleton, DateInput } from './ui'
 
 const VARIANTS = ['SPIN_20']
 const PER_PAGE_OPTIONS = [5, 10, 20, 50]
@@ -14,7 +16,7 @@ function formatCurrency(val) {
 const PRICE_PER_FISH = 0.40
 
 function computeTotal(record) {
-  const type = getTypeLabel(record)
+  const type = getRecordType(record)
   const count = Math.abs(Number(record?.count) || 0)
   if (type === 'SOLD') {
     return count * PRICE_PER_FISH
@@ -22,29 +24,13 @@ function computeTotal(record) {
   return null
 }
 
-function getTypeLabel(record) {
-  const tt = (record?.transaction_type || '').toUpperCase()
-  if (tt) {
-    if (tt === 'WHOLESALE_SOLD') return 'SOLD'
-    if (tt === 'TANK_IN') return 'WHOLESALE_IN'
-    return tt
-  }
-  const action = (record?.action || '').toUpperCase()
-  const notes = (record?.notes || '').toLowerCase()
-  if (action === 'OUT' && notes.startsWith('died')) return 'DIED'
-  if (action === 'OUT') return 'SOLD'
-  if (action === 'IN') return 'WHOLESALE_IN'
-  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) >= 0) return 'WHOLESALE_IN'
-  if ((action === 'WHOLESALE' || action === 'INVENTORY') && Number(record?.count) < 0) return 'SOLD'
-  return action || 'UNKNOWN'
-}
-
-function getTypeBadgeClass(type) {
-  switch (type) {
-    case 'SOLD': return 'bg-accent-blue/20 text-accent-blue'
-    case 'DIED': return 'bg-accent-amber/20 text-accent-amber'
-    case 'WHOLESALE_IN': return 'bg-accent-purple/20 text-accent-purple'
-    default: return 'bg-white/10 text-text-muted'
+/* The dashboard's word and colour for a movement, so a row reads the same on
+   both screens. A type the map doesn't know keeps its own name, muted. */
+function movementOf(record) {
+  const type = getRecordType(record)
+  return MOVEMENT[type] || {
+    label: type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, ' '),
+    text: 'text-text-muted',
   }
 }
 
@@ -70,9 +56,107 @@ function getSearchableDate(dateStr) {
   ].join(' ').toLowerCase()
 }
 
+/* With a capture group in the pattern, split puts the matches on the odd indexes. */
+function highlight(text, query) {
+  if (!query || !text) return text
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return String(text).split(new RegExp(`(${escaped})`, 'gi')).map((part, i) =>
+    i % 2
+      ? <mark key={i}>{part}</mark>
+      : part
+  )
+}
+
+/* One ledger for both the active records and the archive — they were two
+   hand-copied tables that had already drifted apart (the archive printed
+   counts without thousands separators).
+
+   From md it is a table whose numbers are right-aligned so they compare down
+   the column. Below md it is a list: the table needed 700px, and on a phone
+   the only way to reach a row's Archive button was to scroll the page sideways.
+   The note is shown only while searching — it is what the search matched, and
+   otherwise it restates the count ("Wholesale order: 65,560 pcs"). */
+function RecordList({ label, records, query, action, actionWidth = '4.5rem', pendingIds }) {
+  const noteOf = r => (query && r.notes ? highlight(r.notes, query) : null)
+  return (
+    <>
+      <table className="dark-table ledger table-fixed hidden md:table">
+        <caption className="sr-only">{label}</caption>
+        <colgroup>
+          <col />
+          <col className="w-[5.5rem]" />
+          <col className="w-[6rem]" />
+          <col className="w-[5.5rem]" />
+          <col className="w-[7rem]" />
+          <col style={{ width: actionWidth }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Type</th>
+            <th scope="col">Variant</th>
+            <th scope="col" className="!text-right">Count</th>
+            <th scope="col" className="!text-right">Total</th>
+            <th scope="col"><span className="sr-only">Action</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {records.map(r => {
+            const m = movementOf(r)
+            const note = noteOf(r)
+            return (
+              <tr key={r.id} className={pendingIds?.has(r.id) ? 'opacity-40' : undefined}>
+                <td>
+                  <span className="text-text-primary whitespace-nowrap">{highlight(formatRecordDate(r.date), query)}</span>
+                  {note && <span className="meta block truncate">{note}</span>}
+                </td>
+                <td><span className={`font-medium ${m.text}`}>{m.label}</span></td>
+                <td className="whitespace-nowrap">{r.variant}</td>
+                <td className="text-right tabular-nums">
+                  <span className="font-semibold text-text-primary">{Math.abs(r.count).toLocaleString()}</span>
+                </td>
+                <td className="text-right tabular-nums whitespace-nowrap">{formatCurrency(computeTotal(r))}</td>
+                <td className="!py-0 text-right">{action(r)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      <ul aria-label={label} className="md:hidden list-none m-0 p-0 divide-y divide-rule">
+        {records.map(r => {
+          const m = movementOf(r)
+          const total = computeTotal(r)
+          const note = noteOf(r)
+          return (
+            <li key={r.id}
+              className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 py-1.5 px-[var(--pad-card)]
+                ${pendingIds?.has(r.id) ? 'opacity-40' : ''}`}>
+              <div className="min-w-0">
+                <p className="text-[13px] text-text-primary truncate">{highlight(formatRecordDate(r.date), query)}</p>
+                <p className="meta truncate">
+                  <span className={`font-semibold ${m.text}`}>{m.label}</span> · {r.variant}
+                </p>
+                {note && <p className="meta truncate">{note}</p>}
+              </div>
+              <div className="text-right tabular-nums">
+                <p className="text-[13px] font-semibold text-text-primary">{Math.abs(r.count).toLocaleString()}</p>
+                {total != null && <p className="meta">{formatCurrency(total)}</p>}
+              </div>
+              {action(r)}
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
 export default function Inventory() {
   const [variantFilter, setVariantFilter] = useState('')
   const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [deleteMsg, setDeleteMsg] = useState('')
 
   // Pagination
@@ -88,8 +172,10 @@ export default function Inventory() {
   const [searchEndDate, setSearchEndDate] = useState('')
   const searchTimerRef = useRef(null)
 
-  // Confirmation modal state
-  const [confirmAction, setConfirmAction] = useState(null) // { type: 'delete'|'restore', id, label }
+  // Confirmation modal state. The close handler is stable because Modal
+  // re-runs its focus effect whenever onClose changes identity.
+  const [confirmAction, setConfirmAction] = useState(null) // { type: 'delete'|'restore', id, label, record }
+  const closeConfirm = useCallback(() => setConfirmAction(null), [])
 
   // Undo snackbar state
   const [undoSnackbar, setUndoSnackbar] = useState(null) // { id, label, timerId }
@@ -126,7 +212,14 @@ export default function Inventory() {
         setTotalPages(1)
         setTotalRecords(arr.length)
       }
-    } catch (e) { console.error(e) }
+      setLoadError(false)
+    } catch (e) {
+      console.error(e)
+      // Without this a failed request rendered as "No records found".
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }, [page, perPage, variantFilter, searchQuery, searchStartDate, searchEndDate])
 
   const loadArchive = useCallback(async () => {
@@ -166,17 +259,10 @@ export default function Inventory() {
     setPage(1)
   }
 
-  // Highlight matching text in notes
-  function highlightMatch(text, query) {
-    if (!query || !text) return text
-    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(`(${escaped})`, 'gi')
-    const parts = text.split(regex)
-    return parts.map((part, i) =>
-      regex.test(part)
-        ? <mark key={i} className="bg-accent-purple/30 text-accent-purple rounded-sm px-0.5 font-semibold">{part}</mark>
-        : part
-    )
+  function clearAll() {
+    clearSearch()
+    clearDateFilter()
+    setVariantFilter('')
   }
 
   // Multi-field filtered records (notes + date + month + day)
@@ -234,10 +320,8 @@ export default function Inventory() {
 
   async function doDelete(id, label) {
     setDeleteMsg('')
-    // Animate out
+    // The row dims and its button disables while the request is in flight.
     setArchivingIds(prev => new Set(prev).add(id))
-    // Brief delay for animation
-    await new Promise(r => setTimeout(r, 250))
     try {
       const res = await rawApi.delete(`/delete_inventory/${id}`)
       if (res.data?.status === 'success') {
@@ -302,408 +386,255 @@ export default function Inventory() {
     return pages
   }
 
+  const filtered = !!(searchQuery || searchStartDate || searchEndDate || variantFilter)
+  const first = (page - 1) * perPage + 1
+  const last = Math.min(page * perPage, displayTotalRecords)
+  const isArchiving = confirmAction?.type === 'delete'
+  const confirmRecord = confirmAction?.record
+  const confirmKind = confirmRecord ? movementOf(confirmRecord) : null
+
   return (
-    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
-      {/* Filter Bar */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="glass-card p-2.5 sm:p-3"
-      >
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          {/* Search */}
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted/60 pointer-events-none" />
+    /* Left-aligned, not centred: every other screen's title sits at the pane's
+       left edge, and a centred column made "Inventory" jump sideways on each
+       tab switch. The cap keeps the ledger's columns close enough to read
+       across on a wide monitor. */
+    <div className="flex flex-col gap-section max-w-5xl">
+      <PageHeader
+        title="Inventory"
+        meta={loading ? undefined
+          : `${displayTotalRecords.toLocaleString()} ${filtered ? 'matching ' : ''}record${displayTotalRecords === 1 ? '' : 's'}`}
+        actions={
+          <Button variant="secondary" size="sm" icon={RefreshCw} onClick={() => load(page)}>
+            Refresh
+          </Button>
+        }
+      />
+
+      {deleteMsg && <p role="status" className="text-sm text-positive">{deleteMsg}</p>}
+
+      {/* ── Records: filters, ledger and pager as one panel ──
+             They were three floating cards — a filter card, a records card
+             with its own icon-and-caps heading, and a pager inside that — so
+             the filters read as unrelated to the rows they filter. */}
+      <section aria-label="Inventory records" className="glass-card overflow-hidden">
+        {/* Controls wrap onto a second line on narrow screens instead of
+            pushing the panel wider than the page. */}
+        <div className="card-pad flex flex-wrap items-center gap-2 border-b border-rule">
+          <div className="relative flex-[1_1_9rem] min-w-0">
+            <Search size={14} aria-hidden="true"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             <input
               type="text"
+              enterKeyHint="search"
               value={searchInput}
               onChange={e => handleSearchChange(e.target.value)}
-              placeholder="Search notes, dates, days..."
-              className="neu-input w-full pl-10 pr-8 py-[7px] text-xs transition-all duration-200 focus:ring-1 focus:ring-accent-purple/30"
+              placeholder="Search notes or dates"
+              aria-label="Search records"
+              className={`neu-input w-full pl-8 py-1.5 text-[13px] ${searchInput ? 'pr-9' : ''}`}
             />
             {searchInput && (
-              <button onClick={clearSearch}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full bg-white/8 hover:bg-white/15 p-0.5 flex items-center justify-center transition-colors">
-                <X className="w-3 h-3 text-text-muted" />
+              <button type="button" onClick={clearSearch} aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-text-muted hover:text-text-primary
+                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green">
+                <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Date range */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <input type="date" value={searchStartDate}
-              onChange={e => { setSearchStartDate(e.target.value); setPage(1) }}
-              className="neu-input text-xs py-[7px] px-2" />
-            <span className="text-text-muted/40 text-[10px]">–</span>
-            <input type="date" value={searchEndDate}
-              onChange={e => { setSearchEndDate(e.target.value); setPage(1) }}
-              className="neu-input text-xs py-[7px] px-2" />
-            {(searchStartDate || searchEndDate) && (
-              <button onClick={clearDateFilter}
-                className="rounded-full bg-accent-red/10 hover:bg-accent-red/20 p-1 flex items-center justify-center transition-colors"
-                title="Clear dates">
-                <X className="w-2.5 h-2.5 text-accent-red" />
-              </button>
-            )}
+          <select aria-label="Variant" value={variantFilter}
+            onChange={e => { setVariantFilter(e.target.value); setPage(1) }}
+            className="neu-input flex-none py-1.5 text-[13px]">
+            <option value="">All variants</option>
+            {VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+
+          <div className="grid grid-cols-2 gap-2 flex-[1_1_17rem]">
+            <DateInput label="From" inset="pl-10" value={searchStartDate} max={searchEndDate}
+              onChange={v => { setSearchStartDate(v); setPage(1) }} />
+            <DateInput label="To" inset="pl-6" value={searchEndDate} min={searchStartDate}
+              onChange={v => { setSearchEndDate(v); setPage(1) }} />
           </div>
 
-          {/* Dropdowns + Refresh */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <select value={variantFilter} onChange={e => { setVariantFilter(e.target.value); setPage(1) }}
-              className="neu-input text-xs py-[7px] px-2">
-              <option value="">All Variants</option>
-              {VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-            <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
-              className="neu-input text-xs py-[7px] px-2">
-              {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} per page</option>)}
-            </select>
-            <button onClick={() => load(page)}
-              className="neu-input py-[7px] px-2 text-text-muted hover:text-text-primary transition-colors"
-              title="Refresh">
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {/* A search alone has the × in its own box. This clears everything,
+              and shows only once a date or variant is set — so an ordinary
+              search doesn't push a third row onto a phone's toolbar. */}
+          {(searchStartDate || searchEndDate || variantFilter) && (
+            <Button variant="ghost" size="sm" onClick={clearAll}>Clear</Button>
+          )}
         </div>
 
-        {/* Active filter tags */}
-        {(searchQuery || searchStartDate || searchEndDate) && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-white/[0.04]">
-            <span className="text-[9px] text-text-muted/50 font-medium uppercase tracking-wider">Filters:</span>
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-purple/10 text-accent-purple border border-accent-purple/15">
-                {searchQuery}
-                <button onClick={clearSearch} className="hover:text-white transition-colors"><X className="w-2 h-2" /></button>
-              </span>
-            )}
-            {searchStartDate && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
-                {searchStartDate}
-              </span>
-            )}
-            {searchEndDate && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
-                {searchEndDate}
-              </span>
-            )}
+        {loading ? (
+          <div className="card-pad flex flex-col gap-3" aria-hidden="true">
+            {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} height={16} />)}
           </div>
-        )}
-      </motion.div>
-
-      {/* Delete success message */}
-      <AnimatePresence>
-        {deleteMsg && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="p-3 rounded-xl bg-accent-green/10 border border-accent-green/20 text-accent-green text-sm">
-            {deleteMsg}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Records Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.35 }}
-        className="glass-card p-3 sm:p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-accent-blue" />
-            <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
-              Inventory Records {displayTotalRecords > 0 && <span className="text-text-muted/60">({displayTotalRecords})</span>}
-            </h3>
+        ) : loadError ? (
+          <div className="px-[var(--pad-card)]">
+            <EmptyState compact icon={AlertCircle} title="Couldn't load records"
+              message="Check the connection to the server, then try again."
+              actionLabel="Try again" onAction={() => load(page)} />
           </div>
-        </div>
-        {displayRecords.length === 0 ? (
-          <div className="py-12 text-center">
-            <Search className="w-8 h-8 text-text-muted/30 mx-auto mb-3" />
-            <p className="text-sm text-text-muted">
-              {searchQuery || searchStartDate || searchEndDate
-                ? 'No matching records found'
-                : 'No records found'}
-            </p>
-            {(searchQuery || searchStartDate || searchEndDate) && (
-              <button onClick={() => { clearSearch(); clearDateFilter() }}
-                className="mt-2 text-xs font-bold text-accent-purple hover:text-accent-purple/80 transition-colors">
-                Clear all filters
-              </button>
-            )}
+        ) : displayRecords.length === 0 ? (
+          <div className="px-[var(--pad-card)]">
+            {filtered
+              ? <EmptyState compact icon={Search} title="No matching records"
+                  message="Nothing matches this search, variant or date range."
+                  actionLabel="Clear filters" onAction={clearAll} />
+              : <EmptyState compact icon={Package} title="No records yet"
+                  message="Saved counts and adjustments appear here." />}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            {/* min-w must exceed the sum of the fixed cols below (550px), or
-                table-fixed collapses the unsized Type column to 0 and its badge
-                renders on top of the Archive column. Archive is sized for its
-                own header text, not just the 36px button. */}
-            <table className="dark-table table-fixed w-full min-w-[680px]">
-              <colgroup>
-                <col className="w-[150px]" />
-                <col className="w-[110px]" />
-                <col className="w-[80px]" />
-                <col className="w-[120px]" />
-                <col />
-                <col className="w-[90px]" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Variant</th>
-                  <th>Count</th>
-                  <th>Total</th>
-                  <th>Type</th>
-                  <th className="text-center">Archive</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayRecords.map(r => {
-                  const typeLabel = getTypeLabel(r)
-                  const total = computeTotal(r)
-                  return (
-                    <tr key={r.id}>
-                      <td className="whitespace-nowrap">{searchQuery ? highlightMatch(r.date || '', searchQuery) : r.date}</td>
-                      <td>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-accent-green" />
-                          {r.variant}
-                        </span>
-                      </td>
-                      <td className="font-semibold tabular-nums">{Math.abs(r.count).toLocaleString()}</td>
-                      <td className="text-text-muted font-semibold tabular-nums">{formatCurrency(total)}</td>
-                      <td>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(typeLabel)}`}>
-                          {typeLabel.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="!p-0 text-center">
-                        <button onClick={() => confirmDelete(r)}
-                          aria-label="Archive item"
-                          className="archive-btn tap-feedback">
-                          <Archive className="w-3.5 h-3.5" />
+          <RecordList
+            label="Inventory records"
+            records={displayRecords}
+            query={searchQuery}
+            pendingIds={archivingIds}
+            action={r => (
+              <button type="button" onClick={() => confirmDelete(r)} disabled={archivingIds.has(r.id)}
+                aria-label={`Archive record from ${formatRecordDate(r.date)}`} title="Archive"
+                className="icon-btn disabled:opacity-40 disabled:cursor-not-allowed">
+                <Archive size={14} />
+              </button>
+            )}
+          />
+        )}
+
+        {!loading && !loadError && displayRecords.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-[var(--pad-card)] py-2 border-t border-rule">
+            <p className="meta tabular-nums">
+              {first.toLocaleString()}–{last.toLocaleString()} of {displayTotalRecords.toLocaleString()}
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="meta flex items-center gap-1.5">
+                Rows
+                <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
+                  className="neu-input py-1 text-[13px]">
+                  {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+              {displayTotalPages > 1 && (
+                <nav aria-label="Pages" className="flex items-center gap-1">
+                  <button type="button" onClick={() => goPage(page - 1)} disabled={page <= 1}
+                    aria-label="Previous page" className="icon-btn disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} />
+                  </button>
+                  {/* Page numbers from sm; on a phone "1–5 of 177" already says
+                      where you are, and five 44px targets don't fit beside it. */}
+                  <div className="hidden sm:block">
+                    <div className="segmented">
+                      {pageNumbers().map(p => (
+                        <button key={p} type="button" onClick={() => goPage(p)}
+                          data-active={p === page} aria-current={p === page ? 'page' : undefined}
+                          aria-label={`Page ${p}`} className="tabular-nums">
+                          {p}
                         </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      ))}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => goPage(page + 1)} disabled={page >= displayTotalPages}
+                    aria-label="Next page" className="icon-btn disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronRight size={16} />
+                  </button>
+                </nav>
+              )}
+            </div>
           </div>
         )}
+      </section>
 
-        {/* Pagination Controls */}
-        {displayTotalPages > 1 && (
-          <div className="flex items-center justify-center gap-1.5 mt-6 pt-4 border-t border-white/5">
-            <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                ${page <= 1 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:bg-white/10 hover:text-text-primary'}`}>
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {pageNumbers().map(p => (
-              <button key={p} onClick={() => goPage(p)}
-                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all
-                  ${p === page
-                    ? 'bg-gradient-to-r from-accent-green to-accent-teal text-white shadow-lg shadow-accent-green/20'
-                    : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
-                  }`}>{p}</button>
-            ))}
-            <button onClick={() => goPage(page + 1)} disabled={page >= displayTotalPages}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                ${page >= displayTotalPages ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:bg-white/10 hover:text-text-primary'}`}>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Archive Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.35 }}
-        className="glass-card p-3 sm:p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-2">
-            <Archive className="w-4 h-4 text-accent-amber" /> Archived Records
-          </h3>
-          <button onClick={() => setShowArchive(!showArchive)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-              showArchive
-                ? 'bg-accent-amber/20 text-accent-amber border border-accent-amber/30'
-                : 'bg-white/5 text-text-muted hover:bg-white/10 border border-transparent'
-            }`}>
-            {showArchive ? 'Hide Archive' : 'Show Archive'}
-          </button>
-        </div>
+      {/* ── Archive ── expands in place, below the records it came from. */}
+      <section aria-labelledby="archive-heading" className="glass-card overflow-hidden">
+        <SectionHeader id="archive-heading" title="Archived records"
+          meta={showArchive && !archiveLoading && archiveRecords.length > 0
+            ? `${archiveRecords.length.toLocaleString()} record${archiveRecords.length === 1 ? '' : 's'}`
+            : undefined}
+          className="card-pad !items-center"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => setShowArchive(s => !s)}
+              aria-expanded={showArchive} aria-controls="archive-body">
+              {showArchive ? 'Hide' : 'Show'}
+            </Button>
+          } />
 
         {showArchive && (
-          <>
-            {/* Archive Filter */}
-            <div className="flex flex-wrap items-end gap-3 sm:gap-4 mb-4">
-              <div className="flex flex-col gap-2 min-w-0 flex-1 sm:flex-none sm:min-w-[160px]">
-                <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Filter by Variant</label>
-                <select value={archiveVariant} onChange={e => setArchiveVariant(e.target.value)} className="neu-input">
-                  <option value="">All</option>
-                  <option>SPIN_20</option>
-                </select>
-              </div>
-              <button onClick={loadArchive} className="glow-btn glow-btn-secondary flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </button>
+          <div id="archive-body" className="border-t border-rule">
+            <div className="card-pad flex flex-wrap items-center gap-2">
+              <select aria-label="Archived variant" value={archiveVariant}
+                onChange={e => setArchiveVariant(e.target.value)}
+                className="neu-input py-1.5 text-[13px]">
+                <option value="">All variants</option>
+                {VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <Button variant="ghost" size="sm" icon={RefreshCw} onClick={loadArchive}>Refresh</Button>
             </div>
 
-            {/* Restore Messages */}
-            {restoreMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-accent-green/10 border border-accent-green/20 text-accent-green text-sm">
-                {restoreMsg}
-              </div>
-            )}
-            {restoreError && (
-              <div className="mb-4 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-sm flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {restoreError}
-              </div>
+            {(restoreMsg || restoreError) && (
+              <p role={restoreError ? 'alert' : 'status'}
+                className={`px-[var(--pad-card)] pb-2 text-sm flex items-center gap-1.5
+                  ${restoreError ? 'text-negative' : 'text-positive'}`}>
+                {restoreError && <AlertCircle size={14} className="shrink-0" aria-hidden="true" />}
+                {restoreError || restoreMsg}
+              </p>
             )}
 
-            {archiveLoading ? (
-              <p className="text-sm text-text-muted py-8 text-center">Loading archived records...</p>
-            ) : archiveRecords.length === 0 ? (
-              <p className="text-sm text-text-muted py-8 text-center">No archived records found</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="dark-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Variant</th>
-                      <th>Count</th>
-                      <th>Total</th>
-                      <th>Type</th>
-                      <th className="text-right">Restore</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {archiveRecords.map(r => {
-                      const typeLabel = getTypeLabel(r)
-                      const total = computeTotal(r)
-                      return (
-                        <tr key={r.id}>
-                          <td className="whitespace-nowrap">{r.date}</td>
-                          <td>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-accent-green" />
-                              {r.variant}
-                            </span>
-                          </td>
-                          <td className="font-semibold">{Math.abs(r.count)}</td>
-                          <td className="text-text-muted font-semibold">{formatCurrency(total)}</td>
-                          <td>
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(typeLabel)}`}>
-                              {typeLabel.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="text-right">
-                            <button onClick={() => confirmRestore(r)}
-                              aria-label="Restore item"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors tap-feedback">
-                              <RotateCcw className="w-3.5 h-3.5" /> Restore
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </motion.div>
-
-      {/* Confirmation Modal */}
-      <AnimatePresence>
-        {confirmAction && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmAction(null)}>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 backdrop-blur-sm"
-              style={{ background: 'var(--modal-overlay)' }}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="relative glass-card p-6 max-w-sm w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  confirmAction.type === 'delete'
-                    ? 'bg-accent-blue/15'
-                    : 'bg-accent-green/20'
-                }`}>
-                  {confirmAction.type === 'delete'
-                    ? <Archive className="w-5 h-5 text-accent-blue" />
-                    : <RotateCcw className="w-5 h-5 text-accent-green" />
-                  }
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-text-primary">
-                    {confirmAction.type === 'delete' ? 'Archive Record' : 'Restore Record'}
-                  </h4>
-                  <p className="text-xs text-text-muted">This action can be reversed</p>
-                </div>
-              </div>
-              {/* Show the record as a summary rather than inlining it in prose —
-                  the raw action enum ("WHOLESALE") was leaking into the sentence. */}
-              {confirmAction.record ? (
-                <div className="rounded-xl p-3 mb-4"
-                  style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-text-primary tabular-nums truncate">
-                      {Math.abs(confirmAction.record.count).toLocaleString()} {confirmAction.record.variant}
-                    </span>
-                    <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getTypeBadgeClass(getTypeLabel(confirmAction.record))}`}>
-                      {getTypeLabel(confirmAction.record).replace('_', ' ')}
-                    </span>
-                  </div>
-                  <p className="text-xs text-text-muted mt-1 truncate">
-                    {confirmAction.record.date} · {formatCurrency(computeTotal(confirmAction.record))}
-                  </p>
+            <div className="border-t border-rule">
+              {archiveLoading ? (
+                <p className="meta card-pad">Loading archived records…</p>
+              ) : archiveRecords.length === 0 ? (
+                <div className="px-[var(--pad-card)]">
+                  <EmptyState compact icon={Archive} title="Nothing archived"
+                    message="Records you archive are kept here and can be restored." />
                 </div>
               ) : (
-                <p className="text-sm text-text-secondary mb-4">
-                  <span className="font-semibold text-text-primary">{confirmAction.label}</span>
-                </p>
+                <RecordList
+                  label="Archived records"
+                  records={archiveRecords}
+                  actionWidth="8.5rem"
+                  action={r => (
+                    <Button variant="secondary" size="sm" icon={RotateCcw} onClick={() => confirmRestore(r)}
+                      aria-label={`Restore record from ${formatRecordDate(r.date)}`}>
+                      Restore
+                    </Button>
+                  )}
+                />
               )}
-              <p className="text-sm text-text-secondary mb-6">
-                {confirmAction.type === 'delete'
-                  ? 'It will be hidden from this list. Stock and sales totals are not affected.'
-                  : 'It will return to the active records list.'}
-              </p>
-              <div className="flex items-center justify-end gap-3">
-                <button onClick={() => setConfirmAction(null)}
-                  className="glow-btn glow-btn-secondary text-xs py-2 px-4">
-                  Cancel
-                </button>
-                <button onClick={executeConfirmed}
-                  className={`glow-btn text-xs py-2 px-4 flex items-center gap-1.5 ${
-                    confirmAction.type === 'delete' ? '' : 'glow-btn-green'
-                  }`}>
-                  {confirmAction.type === 'delete'
-                    ? <><Archive className="w-3.5 h-3.5" /> Archive</>
-                    : <><RotateCcw className="w-3.5 h-3.5" /> Restore</>
-                  }
-                </button>
-              </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </section>
+
+      {/* Confirmation — the shared dialog, so it traps focus, closes on Escape
+          and hands focus back to the row's button like every other dialog. */}
+      <Modal open={!!confirmAction} onClose={closeConfirm} size="sm"
+        title={isArchiving ? 'Archive this record?' : 'Restore this record?'}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={closeConfirm}>Cancel</Button>
+            <Button variant="primary" size="sm" icon={isArchiving ? Archive : RotateCcw} onClick={executeConfirmed}>
+              {isArchiving ? 'Archive' : 'Restore'}
+            </Button>
+          </>
+        }>
+        {confirmRecord && (
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 m-0 mb-3 px-3 py-2 text-sm
+            rounded-lg border border-rule">
+            <dt className="meta self-center">Date</dt>
+            <dd className="m-0 text-text-primary">{formatRecordDate(confirmRecord.date)}</dd>
+            <dt className="meta self-center">Type</dt>
+            <dd className={`m-0 font-medium ${confirmKind.text}`}>{confirmKind.label}</dd>
+            <dt className="meta self-center">Count</dt>
+            <dd className="m-0 text-text-primary tabular-nums">
+              {Math.abs(confirmRecord.count).toLocaleString()} {confirmRecord.variant}
+            </dd>
+            <dt className="meta self-center">Total</dt>
+            <dd className="m-0 text-text-secondary tabular-nums">{formatCurrency(computeTotal(confirmRecord))}</dd>
+          </dl>
+        )}
+        <p className="text-sm text-text-secondary">
+          {isArchiving
+            ? 'It will be hidden from this list. Stock and sales totals are not affected.'
+            : 'It will return to the active records list.'}
+        </p>
+      </Modal>
 
       {/* Undo Snackbar */}
       <AnimatePresence>

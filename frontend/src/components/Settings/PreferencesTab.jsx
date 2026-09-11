@@ -21,7 +21,6 @@ function SettingsCard({ title, description, children }) {
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
       }}
     >
       {(title || description) && (
@@ -142,7 +141,7 @@ function ThemeCard({ id, label, active, onClick }) {
         <div className="h-1 rounded-full w-3/5"
           style={{ background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }} />
       </div>
-      <span className="text-[11px] font-semibold"
+      <span className="text-xs font-semibold"
         style={{ color: isDark ? '#e8ecf2' : isLight ? '#111827' : '#22d3ee' }}>
         {label}
       </span>

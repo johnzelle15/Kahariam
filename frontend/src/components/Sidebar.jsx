@@ -1,11 +1,12 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import logoImg from '../assets/logo.png'
+import logoImg from '../assets/logo.svg'
 import {
   LayoutDashboard,
   ScanLine,
   Package,
   Settings2,
+  FileChartColumn,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -19,13 +20,29 @@ import useAuthStore from '../store/authStore'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 
+/* Grouped by what the operator is doing, not by an alphabet. Counting and
+   selling are the daily jobs; the records behind them are consulted, not
+   worked; Settings is neither. Five flat items gave no clue that Counter is
+   used hourly and Settings monthly. */
 const ALL_NAV_ITEMS = [
-  { id: 'dashboard',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'View analytics & KPIs',      adminOnly: true },
-  { id: 'counter',     label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',          adminOnly: false },
-  { id: 'inventory',   label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',        adminOnly: true },
-  { id: 'adjustments', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments',  adminOnly: true },
-  { id: 'settings',    label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',   adminOnly: false },
+  { id: 'dashboard',   group: 'Daily',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'Stock, revenue & activity',  adminOnly: true },
+  { id: 'counter',     group: 'Daily',   label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',         adminOnly: false },
+  { id: 'inventory',   group: 'Records', label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',       adminOnly: true },
+  { id: 'adjustments', group: 'Records', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments', adminOnly: true },
+  { id: 'reports',     group: 'Records', label: 'Reports',     icon: FileChartColumn, tooltip: 'Summaries, charts & exports', adminOnly: true },
+  { id: 'settings',    group: 'System',  label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',  adminOnly: false },
 ]
+
+/** [{ group, items }] in declaration order, skipping groups the role can't see. */
+function groupNav(items) {
+  const out = []
+  items.forEach(item => {
+    const last = out[out.length - 1]
+    if (last && last.group === item.group) last.items.push(item)
+    else out.push({ group: item.group, items: [item] })
+  })
+  return out
+}
 
 const THEME_ICONS = { dark: Moon, light: Sun }
 
@@ -38,8 +55,8 @@ function ThemeSwitcher({ collapsed }) {
     return (
       <button
         onClick={() => setTheme(next)}
-        className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer tap-feedback"
-        style={{ color: 'var(--text-muted)', background: 'var(--btn-secondary-bg)' }}
+        className="nav-action w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer tap-feedback"
+        style={{ background: 'var(--btn-secondary-bg)' }}
         title={`Theme: ${THEMES[theme].label} — click to switch`}
         aria-label={`Switch to ${THEMES[next].label} theme`}
       >
@@ -94,12 +111,10 @@ function LogoutButton({ collapsed }) {
       <>
         <button
           onClick={() => setConfirming(true)}
-          className="w-full flex items-center justify-center p-2 rounded-lg transition-colors duration-150 border-none cursor-pointer"
-          style={{ color: 'var(--accent-red)', background: 'transparent' }}
+          className="nav-action nav-action-danger w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer"
+          style={{ color: 'var(--accent-red)' }}
           title="Sign out"
           aria-label="Sign out"
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
           <LogOut className="w-4 h-4" />
         </button>
@@ -112,10 +127,7 @@ function LogoutButton({ collapsed }) {
     <>
       <button
         onClick={() => setConfirming(true)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors duration-150 border-none cursor-pointer text-xs font-medium"
-        style={{ color: 'var(--text-muted)', background: 'transparent' }}
-        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-red)'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+        className="nav-action nav-action-danger w-full flex items-center gap-2 px-3 py-2 rounded-lg border-none cursor-pointer text-xs font-medium"
       >
         <LogOut className="w-3.5 h-3.5" />
         <span className="truncate">{user?.username ? `Sign out (${user.username})` : 'Sign out'}</span>
@@ -133,17 +145,23 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
   const navContent = (isMobile) => (
     <>
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-5 py-6 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
+      <div className={`flex items-center gap-3 px-5 py-6 [@media(max-height:620px)]:py-2 shrink-0 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
-        <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden">
-          <img src={logoImg} alt="Kahariam Farms Logo" className="w-full h-full object-cover" />
-        </div>
+        {/* object-contain, not cover: the mark is wider than it is tall, so
+            cover was cropping its sides off inside the square. The SVG is
+            transparent, so it needs no tile behind it. When the rail is
+            collapsed the mark is the only branding left, so it keeps a label. */}
+        <img
+          src={logoImg}
+          alt={!isMobile && collapsed ? 'Kahariam Farms' : ''}
+          className="w-9 h-9 flex-shrink-0 object-contain"
+        />
         {(isMobile || !collapsed) && (
           <div className="overflow-hidden flex-1">
             <h1 className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
               Kahariam Farms
             </h1>
-            <p className="text-[10px] font-medium tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs font-medium tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
               Fish Management
             </p>
           </div>
@@ -159,101 +177,88 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 flex flex-col gap-1" role="navigation" aria-label="Main navigation">
-        {NAV_ITEMS.map(item => {
-          const Icon = item.icon
-          const isActive = tab === item.id
-          return (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              title={!isMobile && collapsed ? item.tooltip : undefined}
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
-              className={`
-                group relative flex items-center gap-3 rounded-xl
-                transition-all duration-200 border-none cursor-pointer tap-feedback
-                ${!isMobile && collapsed ? 'justify-center p-3' : 'px-4 py-3'}
-              `}
-              style={{
-                color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                background: isActive
-                  ? 'var(--glass-bg-hover)'
-                  : 'transparent',
-                boxShadow: isActive ? '0 1px 4px rgba(0, 0, 0, 0.06)' : 'none',
-              }}
-              onMouseEnter={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'var(--glass-bg-hover)'
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-muted)'
-                }
-              }}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
-                  style={{ background: 'var(--accent-green)' }}
-                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                />
-              )}
+      {/* min-h-0 + overflow-y-auto is what keeps the rail inside its own h-screen
+          box. Without it `flex-1` cannot shrink below the buttons' intrinsic
+          height, so on the 800x480 panel — where the browser leaves ~390px of
+          page — the rail's ~530px of content spilled past the bottom of the
+          screen and dragged the whole document to 530px with it. Every screen
+          in the app then scrolled, no matter how short its own content was. */}
+      <nav className="flex-1 min-h-0 overflow-y-auto py-3 [@media(max-height:620px)]:py-1 px-1.5"
+        aria-label="Main navigation">
+        {groupNav(NAV_ITEMS).map(({ group, items }) => (
+          <div key={group} className="nav-group">
+            {/* The group label is what a collapsed rail cannot show, so there it
+                becomes a hairline separator instead of vanishing silently. */}
+            {(isMobile || !collapsed)
+              ? <p className="nav-group-label">{group}</p>
+              : <hr className="nav-group-rule" />}
+            <ul className="list-none m-0 p-0 flex flex-col gap-0.5">
+              {items.map(item => {
+                const Icon = item.icon
+                const isActive = tab === item.id
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => setTab(item.id)}
+                      title={!isMobile && collapsed ? item.tooltip : undefined}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`
+                        nav-item group relative flex w-full items-center gap-2.5 rounded-lg
+                        border-none cursor-pointer tap-feedback
+                        ${!isMobile && collapsed ? 'justify-center p-2.5' : 'px-3 py-2'}
+                      `}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId="nav-indicator"
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r"
+                          style={{ background: 'var(--accent-green)' }}
+                          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                          aria-hidden="true"
+                        />
+                      )}
 
-              <Icon className={`w-5 h-5 flex-shrink-0 transition-all duration-200
-                ${isActive ? '' : 'group-hover:scale-105'}
-              `} />
+                      {/* No hover scale on the icon: a nav item is a destination,
+                          not a thing that reacts. The colour and ground already
+                          say it is under the pointer. */}
+                      <Icon size={17} className="flex-shrink-0" aria-hidden="true" />
 
-              {(isMobile || !collapsed) && (
-                <span className="text-sm font-semibold truncate">{item.label}</span>
-              )}
+                      {(isMobile || !collapsed)
+                        ? <span className="text-[13px] font-medium truncate">{item.label}</span>
+                        : <span className="sr-only">{item.label}</span>}
 
-              {!isMobile && collapsed && (
-                <div className="
-                  absolute left-full ml-3 top-1/2 -translate-y-1/2
-                  px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap
-                  opacity-0 pointer-events-none group-hover:opacity-100
-                  transition-opacity duration-150 z-[100]
-                "
-                  style={{
-                    background: 'var(--tooltip-bg)',
-                    border: '1px solid var(--tooltip-border)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {item.label}
-                </div>
-              )}
-            </button>
-          )
-        })}
+                      {!isMobile && collapsed && (
+                        <span className="nav-tooltip" aria-hidden="true">{item.label}</span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* Theme switcher */}
-      <div className="px-3 pb-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
-        <div className="pt-3">
+      <div className="px-3 pb-2 [@media(max-height:620px)]:pb-1 shrink-0" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <div className="pt-3 [@media(max-height:620px)]:pt-1.5">
           <ThemeSwitcher collapsed={!isMobile && collapsed} />
         </div>
       </div>
 
       {/* Logout */}
-      <div className="px-3 pb-1">
+      <div className="px-3 pb-1 shrink-0">
         <LogoutButton collapsed={!isMobile && collapsed} />
       </div>
 
-      {/* Collapse toggle (desktop only) */}
+      {/* Collapse toggle (desktop only) — the one control here that is pure
+          chrome, so it is what goes when the rail has no room to spare. */}
       {!isMobile && (
-        <div className="p-3">
+        <div className="p-3 [@media(max-height:620px)_and_(max-width:1279px)]:hidden">
           <button
             onClick={onToggle}
-            className="w-full flex items-center justify-center p-2 rounded-lg
-              transition-colors duration-150 border-none cursor-pointer"
-            style={{ color: 'var(--text-muted)', background: 'var(--btn-secondary-bg)' }}
+            className="nav-action w-full flex items-center justify-center p-2 rounded-lg border-none cursor-pointer"
+            style={{ background: 'var(--btn-secondary-bg)' }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -268,13 +273,12 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
       {/* Desktop sidebar */}
       <aside
         className={`
-          hidden md:flex sticky top-0 h-screen flex-shrink-0 flex-col
+          hidden md:flex h-full flex-shrink-0 flex-col
           transition-all duration-300 ease-in-out z-50
           ${collapsed ? 'w-[72px]' : 'w-[240px]'}
         `}
         style={{
           background: 'var(--sidebar-bg)',
-          backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           borderRight: '1px solid var(--sidebar-border)',
           boxShadow: '2px 0 16px rgba(0, 0, 0, 0.12)',
@@ -302,7 +306,6 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
               className="absolute inset-y-0 left-0 w-[260px] flex flex-col"
               style={{
                 background: 'var(--sidebar-bg)',
-                backdropFilter: 'blur(24px)',
                 WebkitBackdropFilter: 'blur(24px)',
                 borderRight: '1px solid var(--sidebar-border)',
                 boxShadow: '2px 0 16px rgba(0, 0, 0, 0.25)',

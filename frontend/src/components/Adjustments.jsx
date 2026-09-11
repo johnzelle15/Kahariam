@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
-import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
+import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
+import { Badge, Button, PageHeader, SectionHeader } from './ui'
+import { formatRecordDate as formatDate } from '../utils/notes'
 
 const REASONS_WHOLESALE = ['Sold', 'Died']
 const VARIANTS = ['SPIN_20']
@@ -130,7 +132,7 @@ export default function Adjustments() {
     const parts = text.split(regex)
     return parts.map((part, i) =>
       regex.test(part)
-        ? <mark key={i} className="bg-accent-purple/30 text-accent-purple rounded-sm px-0.5 font-semibold">{part}</mark>
+        ? <mark key={i}>{part}</mark>
         : part
     )
   }
@@ -294,17 +296,6 @@ export default function Adjustments() {
     return null
   }
 
-  function formatDate(value) {
-    if (!value) return 'N/A'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return String(value)
-    // Year is noise when every row is the current one; hour:'numeric' drops the
-    // leading zero so this stays short enough not to wrap in a narrow card.
-    const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
-    if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
-    return date.toLocaleDateString('en-US', opts)
-  }
-
   function goPage(p) {
     if (p < 1 || p > displayTotalPages) return
     setPage(p)
@@ -321,26 +312,31 @@ export default function Adjustments() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+    <div className="flex flex-col gap-section grow">
+      <PageHeader title="Adjustments" meta="record sales and losses against stock" />
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] gap-grid items-start">
       {/* Adjust Stock Form */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="glass-card p-4 sm:p-6"
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+        aria-labelledby="adjust-heading"
+        className="glass-card card-pad xl:sticky xl:top-0"
       >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-6 flex items-center gap-2">
-          <Package className="w-4 h-4 text-accent-blue" /> Adjust Stock (Sold / Died)
-        </h3>
+        <SectionHeader id="adjust-heading" title="Adjust stock" meta="sold or died" className="mb-3" />
 
         {/* Batch Items */}
         <div className="space-y-3 mb-4">
-          <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variants &amp; Counts</label>
+          <label className="eyebrow">Variants &amp; Counts</label>
           {batchItems.map((item, idx) => {
             const stock = source === 'wholesale' && reason === 'Sold' ? (wholesaleStock[item.variant] ?? null) : null
             return (
               <div key={idx} className="flex flex-wrap items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                <div className="flex-1 min-w-0 sm:min-w-[130px]">
+                {/* Capped so the variant picker stops sprawling to ~1000px on a
+                    desktop screen while its quantity stepper hugs the far right
+                    edge — they read as one control at any width this way. */}
+                <div className="flex-1 min-w-0 sm:min-w-[130px] sm:max-w-md">
                   <select value={item.variant}
                     onChange={e => updateBatchItem(idx, 'variant', e.target.value)}
                     className="neu-input w-full text-sm">
@@ -410,13 +406,13 @@ export default function Adjustments() {
         {/* Reason + Notes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Reason</label>
+            <label className="eyebrow">Reason</label>
             <select value={reason} onChange={e => setReason(e.target.value)} className="neu-input">
               {REASONS_WHOLESALE.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-2 sm:col-span-1">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Notes (optional)</label>
+            <label className="eyebrow">Notes (optional)</label>
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Add notes here..."
               className="neu-input min-h-[60px] resize-y py-3" />
@@ -436,24 +432,30 @@ export default function Adjustments() {
         )}
 
         <div className="flex justify-center">
-          <button onClick={submitAdjustment} disabled={submitting || wholesaleMinNotMet}
-            className={`glow-btn flex items-center gap-2 ${(submitting || wholesaleMinNotMet) ? 'opacity-50 cursor-not-allowed' : ''}`}
-            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}>
-            <Send className="w-4 h-4" /> {submitting ? 'Submitting...' : 'Submit Adjustment'}
-          </button>
+          <Button
+            size="lg"
+            icon={Send}
+            loading={submitting}
+            disabled={wholesaleMinNotMet}
+            onClick={submitAdjustment}
+            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}
+          >
+            {submitting ? 'Submitting...' : 'Submit Adjustment'}
+          </Button>
         </div>
-      </motion.div>
+      </motion.section>
 
       {/* History */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.35 }}
-        className="glass-card p-4 sm:p-6"
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+        aria-labelledby="history-heading"
+        className="glass-card card-pad"
       >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">
-          Adjustment History {displayTotalRecords > 0 && <span className="text-text-muted/60">({displayTotalRecords})</span>}
-        </h3>
+        <SectionHeader id="history-heading" title="Adjustment history"
+          meta={displayTotalRecords > 0 ? `${displayTotalRecords} records` : undefined}
+          className="mb-2.5" />
 
         {/* Filter Bar */}
         <div className="mb-4 rounded-xl p-2.5"
@@ -467,7 +469,7 @@ export default function Adjustments() {
                 value={searchInput}
                 onChange={e => handleSearchChange(e.target.value)}
                 placeholder="Search notes, dates, days..."
-                className="neu-input w-full pl-10 pr-8 py-[7px] text-xs transition-all duration-200 focus:ring-1 focus:ring-accent-purple/30"
+                className="neu-input w-full pl-10 pr-8 py-[7px] text-xs transition-all duration-200 focus:ring-1 focus:ring-accent-green/30"
               />
               {searchInput && (
                 <button onClick={clearSearch}
@@ -482,7 +484,7 @@ export default function Adjustments() {
               <input type="date" value={searchStartDate}
                 onChange={e => { setSearchStartDate(e.target.value); setPage(1) }}
                 className="neu-input text-xs py-[7px] px-2" />
-              <span className="text-text-muted/40 text-[10px]">–</span>
+              <span className="text-text-muted/40 text-xs">–</span>
               <input type="date" value={searchEndDate}
                 onChange={e => { setSearchEndDate(e.target.value); setPage(1) }}
                 className="neu-input text-xs py-[7px] px-2" />
@@ -512,20 +514,20 @@ export default function Adjustments() {
           {/* Active filter tags */}
           {(searchQuery || searchStartDate || searchEndDate) && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-white/[0.04]">
-              <span className="text-[9px] text-text-muted/50 font-medium uppercase tracking-wider">Filters:</span>
+              <span className="text-xs text-text-muted/50 font-medium uppercase tracking-wider">Filters:</span>
               {searchQuery && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-purple/10 text-accent-purple border border-accent-purple/15">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
                   {searchQuery}
                   <button onClick={clearSearch} className="hover:text-white transition-colors"><X className="w-2 h-2" /></button>
                 </span>
               )}
               {searchStartDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
                   {searchStartDate}
                 </span>
               )}
               {searchEndDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
                   {searchEndDate}
                 </span>
               )}
@@ -543,70 +545,56 @@ export default function Adjustments() {
             </p>
             {(searchQuery || searchStartDate || searchEndDate) && (
               <button onClick={() => { clearSearch(); clearDateFilter() }}
-                className="mt-2 text-xs font-bold text-accent-purple hover:text-accent-purple/80 transition-colors">
+                className="mt-2 text-xs font-bold text-accent-green hover:text-accent-green/80 transition-colors">
                 Clear all filters
               </button>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          /* A ledger, not a stack of cards. Each row was a tinted, bordered box
+             with a 32px coloured icon tile, so a page of them read as fifteen
+             separate panels rather than one history — and three tints (amber,
+             red, green) competing down the page made none of them mean much.
+             The arrow and the sign carry the direction now; the rule carries the
+             separation. */
+          <ul className="list-none m-0 p-0 divide-y divide-rule">
             {displayRecords.map(r => {
               const dir = getDirection(r)
               const displayCount = Math.abs(Number(r.count) || 0)
               const isOut = dir === 'OUT'
               const reasonTag = getReason(r)
               const isDied = reasonTag === 'Died'
+              const Icon = isDied ? Skull : isOut ? ArrowDownRight : ArrowUpRight
+              const tone = isDied ? 'text-attention' : isOut ? 'text-negative' : 'text-positive'
               return (
-                <div key={r.id}
-                  className={`p-3 rounded-xl border transition-colors hover:bg-white/[0.02]
-                    ${isDied ? 'border-accent-amber/20 bg-accent-amber/[0.03]'
-                      : isOut ? 'border-accent-red/20 bg-accent-red/[0.03]'
-                      : 'border-accent-green/20 bg-accent-green/[0.03]'}
-                  `}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0
-                      ${isDied ? 'bg-accent-amber/20'
-                        : isOut ? 'bg-accent-red/20'
-                        : 'bg-accent-green/20'}`}>
-                      {isDied
-                        ? <Skull className="w-4 h-4 text-accent-amber" />
-                        : isOut
-                          ? <ArrowDownRight className="w-4 h-4 text-accent-red" />
-                          : <ArrowUpRight className="w-4 h-4 text-accent-green" />
-                      }
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-text-primary truncate">
-                          {isOut ? '−' : '+'}{displayCount.toLocaleString()} {r.variant}
-                        </p>
-                        {/* One badge only — the reason implies the direction, and the
-                            tint plus arrow already carry it. Falls back to IN/OUT
-                            when a row has no Sold/Died reason. */}
-                        <span className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-                          ${isDied ? 'bg-accent-amber/20 text-accent-amber'
-                            : reasonTag ? 'bg-accent-blue/20 text-accent-blue'
-                            : isOut ? 'bg-accent-red/20 text-accent-red'
-                            : 'bg-accent-green/20 text-accent-green'}`}>
-                          {isDied ? <Skull className="w-2.5 h-2.5" />
-                            : reasonTag ? <ShoppingCart className="w-2.5 h-2.5" /> : null}
-                          {reasonTag || (isOut ? 'OUT' : 'IN')}
-                        </span>
-                      </div>
-                      <p className="text-xs text-text-muted truncate">
-                        {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
+                <li key={r.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5 py-2 px-1
+                  rounded-sm [@media(hover:hover)]:hover:bg-[var(--table-row-hover)]">
+                  <Icon size={14} className={`${tone} shrink-0 mt-0.5`} aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className="text-[13px] font-semibold text-text-primary truncate m-0 tabular-nums">
+                        {isOut ? '−' : '+'}{displayCount.toLocaleString()}
+                        <span className="font-normal text-text-secondary"> {r.variant}</span>
                       </p>
+                      {/* One badge only — the reason implies the direction, and
+                          the arrow already carries it. Falls back to IN/OUT when
+                          a row has no Sold/Died reason. */}
+                      <Badge variant={isDied ? 'warning' : reasonTag ? 'info' : isOut ? 'error' : 'success'}
+                        className="shrink-0 uppercase tracking-wider">
+                        {reasonTag || (isOut ? 'Out' : 'In')}
+                      </Badge>
                     </div>
-                  </div>
-                  {r.notes && (
-                    <p className="text-xs text-text-muted mt-2 pl-11">
-                      {highlightMatch(r.notes, searchQuery)}
+                    <p className="meta truncate m-0">
+                      {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
                     </p>
-                  )}
-                </div>
+                    {r.notes && (
+                      <p className="meta truncate m-0">{highlightMatch(r.notes, searchQuery)}</p>
+                    )}
+                  </div>
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
 
         {/* Pagination Controls */}
@@ -621,7 +609,7 @@ export default function Adjustments() {
               <button key={p} onClick={() => goPage(p)}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all
                   ${p === page
-                    ? 'bg-gradient-to-r from-accent-green to-accent-teal text-white shadow-lg shadow-accent-green/20'
+                    ? 'bg-accent-green text-[var(--on-accent)]'
                     : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
                   }`}>{p}</button>
             ))}
@@ -632,7 +620,8 @@ export default function Adjustments() {
             </button>
           </div>
         )}
-      </motion.div>
+      </motion.section>
+      </div>
 
       {/* Confirmation Modal */}
       <AnimatePresence>
@@ -671,8 +660,8 @@ export default function Adjustments() {
                 {confirmSubmit.items.map((item, i) => (
                   <motion.div key={i}
                     initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.15 }}
                     className="flex items-center justify-between p-2.5 rounded-xl border"
                     style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                     <span className="flex items-center gap-2">
@@ -692,16 +681,17 @@ export default function Adjustments() {
               )}
 
               <div className="flex items-center justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmSubmit(null)}
-                  className="glow-btn glow-btn-secondary text-xs py-2 px-4">
+                <Button variant="secondary" size="sm" onClick={() => setConfirmSubmit(null)}>
                   Cancel
-                </button>
-                <button onClick={executeSubmit}
-                  className={`glow-btn text-xs py-2 px-4 flex items-center gap-1.5 ${
-                    confirmSubmit.reason === 'Died' ? 'glow-btn-red' : 'glow-btn'
-                  }`}>
-                  <Send className="w-3.5 h-3.5" /> Confirm
-                </button>
+                </Button>
+                <Button
+                  variant={confirmSubmit.reason === 'Died' ? 'danger' : 'primary'}
+                  size="sm"
+                  icon={Send}
+                  onClick={executeSubmit}
+                >
+                  Confirm
+                </Button>
               </div>
             </motion.div>
           </div>

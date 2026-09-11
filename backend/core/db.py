@@ -194,16 +194,43 @@ def init_db():
         ''')
         conn.commit()
 
-    dev_token = os.environ.get('DEV_DEVICE_TOKEN')
-    raw = conn._conn.cursor()
-    raw.execute('SELECT COUNT(*) as cnt FROM devices')
-    row = raw.fetchone()
-    devices_count = row['cnt'] if isinstance(row, dict) else row[0]
-    raw.close()
-    if dev_token and devices_count == 0:
-        token_hash = bcrypt.hashpw(dev_token.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        c.execute('INSERT INTO devices (id, name, firmware, secret_hash) VALUES (%s, %s, %s, %s)',
-                  ('test-device', 'dev-test', 'dev', token_hash))
+    if not table_exists('counting_sessions'):
+        c.execute('''
+            CREATE TABLE counting_sessions (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                device_id VARCHAR(255) NULL,
+                user_id BIGINT UNSIGNED NULL,
+                username VARCHAR(120) NULL,
+                variant VARCHAR(255) NULL,
+                started_at DATETIME NOT NULL,
+                ended_at DATETIME NULL,
+                final_count INT NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL DEFAULT 'active',
+                inventory_id INT NULL,
+                INDEX idx_sessions_started (started_at),
+                INDEX idx_sessions_status (status)
+            )
+        ''')
+        conn.commit()
+
+    # The local counter must have a row in `devices` or nothing on the Counter
+    # screen works: reserving it 404s (so Start never fires) and the readings
+    # vision/fish_counter.py posts are rejected as unauthorized (so the count
+    # never moves). This used to seed a hardcoded 'test-device' keyed off
+    # DEV_DEVICE_TOKEN, but the runtime — locks, ingest, sessions — reads
+    # DEVICE_ID/DEVICE_TOKEN, so the seeded row was a different device entirely
+    # and, with DEV_DEVICE_TOKEN unset, was never written at all. Seed from the
+    # same variables the runtime uses so a fresh database, or a re-imaged Pi,
+    # comes up able to count instead of silently dead.
+    device_id = (os.environ.get('DEVICE_ID') or '').strip()
+    device_token = (os.environ.get('DEVICE_TOKEN') or '').strip()
+    if device_id and device_token:
+        token_hash = bcrypt.hashpw(device_token.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        c.execute(
+            'INSERT INTO devices (id, name, firmware, secret_hash) VALUES (%s, %s, %s, %s) '
+            'ON DUPLICATE KEY UPDATE secret_hash = VALUES(secret_hash)',
+            (device_id, os.environ.get('DEVICE_NAME', 'Fish Counter'), 'local', token_hash)
+        )
         conn.commit()
 
     # ── OTP Auth tables ───────────────────────────────────────────────────

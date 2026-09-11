@@ -20,7 +20,6 @@ function SettingsCard({ title, description, children }) {
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
       }}
     >
       {(title || description) && (
@@ -84,7 +83,7 @@ const NOTIF_ITEMS = [
     label:       'Inventory Alerts',
     description: 'Low stock and inventory change notifications',
     icon:        Package,
-    accent:      'var(--accent-cyan)',
+    accent:      'var(--accent-blue)',
   },
   {
     key:         'revenue_alerts',
