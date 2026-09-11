@@ -189,32 +189,57 @@ export default function App() {
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />
-      {/* Mobile top bar */}
-      <div className="fixed top-0 left-0 right-0 z-40 md:hidden flex items-center gap-3 px-4 py-3"
-        style={{ background: 'rgb(var(--bg-primary) / 0.95)', borderBottom: '1px solid var(--glass-border)' }}>
-        <button onClick={() => setMobileMenuOpen(true)}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
-          aria-label="Open menu">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
-        </button>
-        <span className="text-sm font-bold text-text-primary">Kahariam Farms</span>
-      </div>
-      <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain transition-all duration-300">
-        {/* h-full (not min-h-full) is what lets a screen size itself to the pane
-            fill a tall window instead of leaving the bottom third empty. No
-            min-h-0 anywhere in this chain on purpose: a flex item's default
-            min-height:auto is what stops a card being squeezed below its own
-            content, which is the difference between the chart getting smaller
-            and the chart getting cut off. */}
-        <div className="p-4 pt-16 md:pt-6 md:px-6 lg:px-8 lg:py-6 max-w-[1760px] mx-auto
+      <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain transition-all duration-300
+        flex flex-col">
+        {/* ── Mobile top bar ──
+               Sticky inside the scroller, not fixed over it. As `position:
+               fixed` it sat on top of the page and the page was pushed down by
+               a hardcoded pt-16 — 64px, sized for the 36px menu button. The
+               `pointer: coarse` rule then grew that button to a 44px touch
+               target, the bar became 69px, and on every phone the page title
+               started 5px underneath it before anything had scrolled. Sticky
+               reserves its own height in the flow, so there is no number to
+               keep in step with it.
+
+               Opaque, too. At rgb(… / 0.95) with no blur, whatever scrolled
+               beneath the bar showed through it — the page header read as a
+               ghost behind "Kahariam Farms", which is the overlap the phone
+               screenshot showed. ── */}
+        <div className="sticky top-0 z-40 md:hidden shrink-0 flex items-center gap-3 px-4 py-3
+          bg-dark-900 border-b border-[var(--glass-border)]">
+          <button onClick={() => setMobileMenuOpen(true)}
+            className="w-11 h-11 -my-1 -ml-2 rounded-lg flex items-center justify-center text-text-secondary
+              hover:text-text-primary hover:bg-[var(--btn-secondary-bg)] transition-colors
+              focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green"
+            aria-label="Open menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          <span className="text-sm font-bold text-text-primary">Kahariam Farms</span>
+        </div>
+
+        {/* `grow shrink-0`, not min-h-full: with the bar now inside <main>,
+            min-h-full would make the page 100% of the pane *plus* the bar, and
+            every screen that fits a phone exactly would scroll by 69px. As a
+            flex child it fills whatever the bar leaves and still grows past
+            that with its content. No min-h-0 anywhere in this chain on purpose:
+            a flex item's default min-height:auto is what stops a card being
+            squeezed below its own content, which is the difference between the
+            chart getting smaller and the chart getting cut off. */}
+        <div className="p-4 md:pt-6 md:px-6 lg:px-8 lg:py-6 max-w-[1760px] w-full mx-auto
           [@media(max-height:620px)]:md:py-2 [@media(max-height:620px)]:md:px-4
           [@media(max-height:620px)]:md:pb-4
-          min-h-full flex flex-col">
+          grow shrink-0 flex flex-col">
           <AnimatePresence mode="wait">
+            {/* `[&>*]:w-full`: in a flex column a child with auto side margins
+                is not stretched — it shrinks to fit its content instead. So a
+                page written the block way, `max-w-5xl mx-auto`, was exactly as
+                wide as its widest descendant: Inventory measured 726px on a
+                360px phone because its table asked for 700, and the whole page
+                scrolled sideways. Full width first, then the page's own cap. */}
             <motion.div key={tab} variants={pageVariants} initial="initial" animate="animate" exit="exit"
-              className="grow flex flex-col">
+              className="grow flex flex-col [&>*]:w-full">
               <Suspense fallback={<LoadingState rows={4} />}>
                 {tab === 'dashboard' && allowedTabs.has('dashboard') && <Dashboard />}
                 {tab === 'counter' && <Counter />}

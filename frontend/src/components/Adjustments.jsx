@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
 import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
 import { Badge, Button, PageHeader, SectionHeader } from './ui'
+import { formatRecordDate as formatDate } from '../utils/notes'
 
 const REASONS_WHOLESALE = ['Sold', 'Died']
 const VARIANTS = ['SPIN_20']
@@ -131,7 +132,7 @@ export default function Adjustments() {
     const parts = text.split(regex)
     return parts.map((part, i) =>
       regex.test(part)
-        ? <mark key={i} className="bg-accent-amber/25 text-accent-amber rounded-sm px-0.5 font-semibold">{part}</mark>
+        ? <mark key={i}>{part}</mark>
         : part
     )
   }
@@ -293,17 +294,6 @@ export default function Adjustments() {
     if (tx === 'DIED' || n.startsWith('died')) return 'Died'
     if (tx === 'SOLD' || n.startsWith('sold')) return 'Sold'
     return null
-  }
-
-  function formatDate(value) {
-    if (!value) return 'N/A'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return String(value)
-    // Year is noise when every row is the current one; hour:'numeric' drops the
-    // leading zero so this stays short enough not to wrap in a narrow card.
-    const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
-    if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
-    return date.toLocaleDateString('en-US', opts)
   }
 
   function goPage(p) {

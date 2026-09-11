@@ -288,6 +288,17 @@ body {
   color: var(--text-muted);
 }
 
+/* A search match: a tint under the text, not the browser's solid yellow block.
+   The `bg-accent-amber/25` that was meant to replace it never existed — colours
+   defined as var() take no opacity modifier in this Tailwind config — so every
+   match on Inventory and Adjustments rendered as exactly that yellow block.
+   One amber works on both themes at this strength. */
+mark {
+  background: rgba(224, 162, 79, 0.24);
+  color: var(--text-primary);
+  border-radius: 2px;
+}
+
 /* ═══════════════════════════════════════════
    METRIC STRIP
    A row of related figures reading as one panel subdivided by hairlines,
@@ -837,6 +848,15 @@ button.strip-cell:focus-visible {
   background: var(--table-row-hover);
 }
 
+/* The Inventory ledger runs edge to edge inside its panel. Its first and last
+   cells take the panel's own inset, so the dates line up under the search box
+   and the action buttons under the pager — one left edge and one right edge
+   for the whole panel — and they tighten with --pad-card on short screens. */
+.ledger th:first-child,
+.ledger td:first-child { padding-left: var(--pad-card); }
+.ledger th:last-child,
+.ledger td:last-child { padding-right: var(--pad-card); }
+
 /* ═══════════════════════════════════════════
    MODAL
    ═══════════════════════════════════════════ */
@@ -899,11 +919,29 @@ button.strip-cell:focus-visible {
     padding: 0.5rem 0.625rem;
     font-size: 0.75rem;
   }
+}
 
-  .neu-input {
-    padding-block: 0.5rem;
-    padding-right: 0.75rem;
-    font-size: 0.8125rem;
+/* Phone sizing for inputs lives in the same layer as the base rule. Out here
+   it came after Tailwind's utilities and beat them at equal specificity, so on
+   every phone the `pl-10` that clears room for a search icon became 10px and
+   the icon sat on the first letters of the placeholder — on Inventory,
+   Adjustments and the Settings user search alike — and the `pr-9` that clears
+   the show-password button stopped clearing it. Inside the layer, a utility on
+   the element wins at every width, as it always did on the desktop. */
+@layer components {
+  @media (max-width: 767px) {
+    .neu-input {
+      padding-block: 0.5rem;
+      padding-right: 0.75rem;
+      font-size: 0.8125rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .neu-input {
+      padding: 0.5rem 0.625rem;
+      font-size: 0.75rem;
+    }
   }
 }
 
@@ -1056,12 +1094,6 @@ html {
   .dark-table tbody td {
     padding: 0.625rem 0.5rem;
     font-size: 0.6875rem;
-  }
-
-
-  .neu-input {
-    padding: 0.5rem 0.625rem;
-    font-size: 0.75rem;
   }
 
   .theme-pill button {

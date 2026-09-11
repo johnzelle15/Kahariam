@@ -4,7 +4,7 @@ import { io } from 'socket.io-client'
 import { rawApi } from '../utils/api'
 import { Fish, Lightbulb, ChevronDown, AlertTriangle } from 'lucide-react'
 import SalesTrend from './SalesTrend'
-import { getNoteDisplay, getRecordType } from '../utils/notes'
+import { getNoteDisplay, getRecordType, MOVEMENT as ACTIVITY } from '../utils/notes'
 import { avgDailyOutflow, daysOfCover, stockStatus, coverLabel } from '../utils/stock'
 import { dedupeInsights } from '../utils/insights'
 import {
@@ -24,15 +24,6 @@ function MetricSkeleton() {
       <Skeleton width="70%" height={18} />
     </div>
   )
-}
-
-/* Movement types, shown as a word and a colour rather than a signed number. */
-const ACTIVITY = {
-  WHOLESALE_IN: { label: 'Counted', text: 'text-positive' },
-  SOLD:         { label: 'Sold',    text: 'text-info' },
-  DIED:         { label: 'Died',    text: 'text-negative' },
-  UNKNOWN:      { label: 'Moved',   text: 'text-text-muted' },
-  ABORTED:      { label: 'Stopped', text: 'text-text-muted' },
 }
 
 const formatCurrency = formatPeso

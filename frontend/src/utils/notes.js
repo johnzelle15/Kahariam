@@ -51,3 +51,24 @@ export function getRecordType(record) {
   }
   return action || 'UNKNOWN'
 }
+
+/* The word and colour for each movement type, wherever a row is shown — the
+   other half of "never disagree about what a row is". */
+export const MOVEMENT = {
+  WHOLESALE_IN: { label: 'Counted', text: 'text-positive' },
+  SOLD:         { label: 'Sold',    text: 'text-info' },
+  DIED:         { label: 'Died',    text: 'text-negative' },
+  UNKNOWN:      { label: 'Moved',   text: 'text-text-muted' },
+  ABORTED:      { label: 'Stopped', text: 'text-text-muted' },
+}
+
+/* "Aug 24, 2:00 PM". The year only when it isn't this one, and hour:'numeric'
+   drops the leading zero, so the stamp stays short enough for a phone row. */
+export function formatRecordDate(value) {
+  if (!value) return 'N/A'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+  if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
+  return date.toLocaleDateString('en-US', opts)
+}

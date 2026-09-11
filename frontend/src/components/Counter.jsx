@@ -286,12 +286,19 @@ export default function Counter() {
   }
 
   return (
-    /* Sized to the shortest screen this runs on — a 1024x600 Pi panel — so the
-       count and both controls are reachable without scrolling. dvh, not vh: on
-       a phone vh counts the space behind the browser's own address bar, so the
-       Start/Save row sat below the fold until the bar collapsed. */
-    <div className="flex flex-col gap-3 w-full max-w-4xl mx-auto"
-      style={{ minHeight: 'calc(100dvh - 4rem)' }}>
+    /* Fills whatever height the app shell leaves, so the count and both
+       controls are reachable without scrolling on the panel and on a phone.
+
+       `grow`, not the `calc(100dvh - 4rem)` this used to be. That 4rem was the
+       height of the chrome above the screen — the page padding, and on a phone
+       the fixed top bar's 64px offset — restated here as a constant. When the
+       bar became 69px (the 44px touch-target rule grew its menu button) and
+       then sticky, the constant went stale and the Start/Save row's helper line
+       was pushed 29px below the fold on phones. The shell is already h-dvh
+       (dvh, not vh: on a phone vh counts the space behind the address bar), and
+       every level between it and here is a flex column that grows, so filling
+       the parent is the same measurement without a number to keep in step. */
+    <div className="flex flex-col gap-3 w-full max-w-4xl mx-auto grow">
 
       <Modal
         open={confirmSave}
