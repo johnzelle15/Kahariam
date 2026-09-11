@@ -4,6 +4,7 @@
  * Role-based: Staff sees Account + Security; admin sees all 3 tabs.
  */
 import React, { useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { User, Shield, Users, Lock } from 'lucide-react'
 import { Badge, PageHeader } from '../ui'
@@ -22,9 +23,15 @@ const ALL_TABS = [
 /* ── Toast context ──────────────────────────────────────────────────────────── */
 export const ToastContext = React.createContext(null)
 
+/* Portalled to <body>. As a sibling of the page inside the app shell it was
+   caught by the shell's `[&>*]:w-full`: the fixed stack became the full width
+   of the screen, anchored 20px from the right, so its toasts began 20px past
+   the left edge — clipped, and lying across the sidebar. The ground is opaque,
+   as the Inventory snackbar's is; a 10% tint let whatever the toast sat on
+   show through its own text. */
 function ToastContainer({ toasts, dismiss }) {
-  return (
-    <div className="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 pointer-events-none">
+  return createPortal(
+    <div className="fixed bottom-5 right-5 z-[200] flex flex-col items-end gap-2 pointer-events-none">
       <AnimatePresence>
         {toasts.map(t => (
           <motion.div
@@ -34,17 +41,19 @@ function ToastContainer({ toasts, dismiss }) {
             exit={{ opacity: 0, x: 60, scale: 0.9 }}
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
             className={`pointer-events-auto flex items-center gap-3 px-3.5 py-2.5 rounded-lg
-              border text-xs font-medium min-w-[240px] max-w-[380px] shadow-lg ${
-              t.type === 'success' ? 'bg-positive/10 border-positive/30 text-positive'
-              : t.type === 'error' ? 'bg-negative/10 border-negative/30 text-negative'
-              : 'bg-info/10 border-info/30 text-info'}`}
+              border bg-[var(--tooltip-bg)] text-xs font-medium shadow-lg
+              min-w-[240px] max-w-[min(380px,calc(100vw_-_2.5rem))] ${
+              t.type === 'success' ? 'border-positive/30 text-positive'
+              : t.type === 'error' ? 'border-negative/30 text-negative'
+              : 'border-info/30 text-info'}`}
             onClick={() => dismiss(t.id)}
           >
             <span className="flex-1">{t.message}</span>
           </motion.div>
         ))}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -86,10 +95,11 @@ export default function Settings() {
 
   return (
     <ToastContext.Provider value={toast}>
-      {/* Settings is a page of forms, and a form field is unreadable at 1360px.
-          The column is capped at a measure the eye can track along; the pane
-          keeps its own margins around it rather than stretching the inputs. */}
-      <div className="w-full max-w-4xl flex flex-col gap-section">
+      {/* The full pane, not a 4xl column: the cap left a third of a laptop
+          screen empty beside every tab. Account splits into two columns from
+          lg and Security from xl instead, which is what keeps a field at a
+          readable width; Users is tables, and tables want the room. */}
+      <div className="w-full flex flex-col gap-section">
 
         <PageHeader
           title="Settings"
@@ -154,7 +164,7 @@ export default function Settings() {
             role="tabpanel"
             aria-labelledby={`tab-${activeTab}`}
             tabIndex={0}
-            className="mt-4 [@media(max-height:620px)]:mt-2 focus-visible:outline-none"
+            className="mt-3 [@media(max-height:620px)]:mt-2 focus-visible:outline-none"
           >
             <AnimatePresence mode="wait">
               <motion.div

@@ -3,10 +3,10 @@
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { User, Camera, Save, Loader2, Mail, AtSign, Clock } from 'lucide-react'
+import { User, Camera, Save, Loader2, Mail, AtSign, Clock, AlertTriangle } from 'lucide-react'
 import api from '../../utils/api'
 import useAuthStore from '../../store/authStore'
-import { Badge, Button, Field, SettingsSection, SettingsPanel, Skeleton } from '../ui'
+import { Badge, Button, Field, Modal, SettingsSection, SettingsPanel, Skeleton } from '../ui'
 
 /* ── Reusable helpers ────────────────────────────────────────────────────────── */
 /* InputField and RoleBadge used to be defined here: a hand-rolled input whose
@@ -28,6 +28,10 @@ export default function AccountTab({ toast }) {
   })
   const [errors, setErrors] = useState({})
   const fileRef = useRef(null)
+  // What the server last had, so Save can say what it is about to change.
+  const [saved, setSaved] = useState({ fullname: '', email: '' })
+  const [confirming, setConfirming] = useState(false)
+  const closeConfirm = useCallback(() => setConfirming(false), [])
 
   /* Fetch latest profile */
   const fetchProfile = useCallback(async () => {
@@ -42,6 +46,7 @@ export default function AccountTab({ toast }) {
         last_login:    data.last_login || null,
         profile_image: data.profile_image || '',
       })
+      setSaved({ fullname: data.fullname || '', email: data.email || '' })
     } catch {
       toast('Failed to load profile', 'error')
     } finally {
@@ -66,20 +71,36 @@ export default function AccountTab({ toast }) {
     return Object.keys(errs).length === 0
   }
 
-  async function handleSave(e) {
+  const changes = [
+    { label: 'Full name', from: saved.fullname, to: profile.fullname },
+    { label: 'Email address', from: saved.email, to: profile.email },
+  ].filter(c => c.from !== c.to)
+  const emailChanged = saved.email !== profile.email
+
+  /* Save asks first and shows what will change. It used to write on the
+     click, and a changed email is not a small edit here: it is where the
+     sign-in codes go, so a typo in it locks the account out at next login. */
+  function handleSave(e) {
     e.preventDefault()
     if (!validate()) return
+    if (changes.length === 0) { toast('No changes to save', 'info'); return }
+    setConfirming(true)
+  }
+
+  async function doSave() {
     setSaving(true)
     try {
       await api.put('/settings/profile', {
         fullname: profile.fullname,
         email:    profile.email,
       })
+      setSaved({ fullname: profile.fullname, email: profile.email })
       toast('Profile updated successfully', 'success')
     } catch (err) {
       toast(err.response?.data?.error || 'Failed to update profile', 'error')
     } finally {
       setSaving(false)
+      setConfirming(false)
     }
   }
 
@@ -129,7 +150,9 @@ export default function AccountTab({ toast }) {
     : (profile.username?.[0] || '?').toUpperCase()
 
   return (
-    <SettingsPanel>
+    /* Profile beside the form from lg: on its own the form was a 672px column
+       inside a card twice that wide. */
+    <SettingsPanel className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:divide-y-0 lg:divide-x">
 
       {/* ── Identity ──
              A person's own account, so it opens with who you are signed in as.
@@ -211,14 +234,14 @@ export default function AccountTab({ toast }) {
       </SettingsSection>
 
       {/* ── Edit Form ──
-             Two columns at most, and capped: three inputs spread across 1360px
-             put the label of one field further from its box than from the next
-             field's box. Errors now belong to their field through <Field>'s
-             aria-describedby rather than floating as loose paragraphs between
-             grid cells. */}
+             Two columns at most. The cap is the panel's column now rather than
+             a max-width: from lg the form has two thirds of the card beside
+             Profile, so three inputs never spread across the whole screen.
+             Errors belong to their field through <Field>'s aria-describedby
+             rather than floating as loose paragraphs between grid cells. */}
       <SettingsSection title="Personal information" description="name and contact email">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex flex-col gap-1.5">
                 <Skeleton width="40%" height={11} />
@@ -227,7 +250,7 @@ export default function AccountTab({ toast }) {
             ))}
           </div>
         ) : (
-          <form onSubmit={handleSave} noValidate className="max-w-2xl">
+          <form onSubmit={handleSave} noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field
                 label="Full name"
@@ -261,13 +284,44 @@ export default function AccountTab({ toast }) {
               />
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-3 flex justify-end">
               <Button type="submit" variant="primary" size="sm" icon={Save} loading={saving}>
                 {saving ? 'Saving…' : 'Save profile'}
               </Button>
             </div>
           </form>
         )}
+
+        <Modal open={confirming} onClose={closeConfirm} title="Save profile changes?" size="sm"
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeConfirm} disabled={saving}>Cancel</Button>
+              <Button variant="primary" icon={Save} loading={saving} onClick={doSave}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+            </>
+          }>
+          <dl className="m-0">
+            {changes.map(c => (
+              <div key={c.label} className="py-2 border-t border-rule first:border-t-0">
+                <dt className="meta">{c.label}</dt>
+                <dd className="m-0 text-xs break-words">
+                  <span className="text-text-muted">{c.from || '—'}</span>
+                  <span className="text-text-muted" aria-hidden="true"> → </span>
+                  <span className="sr-only"> changes to </span>
+                  <span className="font-medium text-text-primary">{c.to || '—'}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {emailChanged && (
+            <p role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-attention/30
+              bg-attention/10 px-3 py-2 text-xs leading-snug text-attention">
+              <AlertTriangle size={14} className="shrink-0 mt-px" aria-hidden="true" />
+              Sign-in codes will be sent to the new address. If it is wrong, you will not be able to sign in.
+            </p>
+          )}
+        </Modal>
       </SettingsSection>
     </SettingsPanel>
   )

@@ -287,17 +287,19 @@ export default function SecurityTab({ toast }) {
 
   return (
     <>
-      <SettingsPanel>
+      {/* From xl the password form takes the left of the panel and the three
+          logs stack on the right, still opening in place. The form's measure
+          is that column now, not a max-w-xl that left the rest of a
+          full-width card empty beside it. Not from lg: at 1024px the login
+          table no longer fit its column and scrolled sideways. */}
+      <SettingsPanel className="xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] xl:divide-y-0 xl:divide-x">
 
-        {/* ── Change Password ──
-               Capped at a measure: a password box stretched to 1360px gives the
-               eye a metre of empty field to cross between the label and the
-               first character typed into it. ── */}
+        {/* ── Change Password ── */}
         <SettingsSection
           title="Change password"
           description="the only credential on this account"
         >
-          <form onSubmit={handleSubmit} noValidate className="max-w-xl">
+          <form onSubmit={handleSubmit} noValidate>
             <div className="flex flex-col gap-3">
               <Field
                 reveal
@@ -310,7 +312,9 @@ export default function SecurityTab({ toast }) {
                 error={fieldErrors.current}
               />
 
-              <div className="grid sm:grid-cols-2 gap-3">
+              {/* One box per row again beside the logs: in that column two
+                  password boxes side by side cut their own placeholders off. */}
+              <div className="grid sm:grid-cols-2 xl:grid-cols-1 gap-3">
                 <div>
                   <Field
                     reveal
@@ -354,241 +358,243 @@ export default function SecurityTab({ toast }) {
           </form>
         </SettingsSection>
 
-        {/* ── Login History ─────────────────────────────────────────── */}
-        <SettingsSection
-          collapsible
-          count={historyTotal || history.length || undefined}
-          title="Login history"
-          description="recent sign-in events"
-        >
-          {historyLoading ? (
-            <div className="flex flex-col gap-2">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} height={44} />)}
-            </div>
-          ) : history.length === 0 ? (
-            <div className="flex flex-col items-center py-8 gap-2"
-              style={{ color: 'var(--text-muted)' }}>
-              <Monitor className="w-8 h-8 opacity-40" />
-              <p className="text-sm">No login history yet</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto -mx-1">
-                <table className="w-full text-sm min-w-[460px]">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--table-border)' }}>
-                      {['Time', 'IP Address', 'Device / Browser', 'Status'].map(h => (
-                        <th key={h} className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide"
-                          style={{ color: 'var(--text-muted)' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map(row => (
-                      <tr key={row.id}
-                        className="transition-colors"
-                        style={{ borderBottom: '1px solid var(--table-border)' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--table-row-hover)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <td className="py-2.5 px-3 text-xs whitespace-nowrap"
-                          style={{ color: 'var(--text-secondary)' }}>
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-3 h-3 flex-shrink-0" />
-                            {formatDate(row.login_time)}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-xs font-mono"
-                          style={{ color: 'var(--text-secondary)' }}>
-                          {row.ip_address || '—'}
-                        </td>
-                        <td className="py-2.5 px-3 text-xs max-w-[180px] truncate"
-                          style={{ color: 'var(--text-muted)', maxWidth: '180px' }}
-                          title={row.device}>
-                          {row.device || '—'}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {row.status === 'success'
-                            ? <span className="inline-flex items-center gap-1 text-xs font-medium"
-                                style={{ color: 'var(--accent-green)' }}>
-                                <CheckCircle className="w-3.5 h-3.5" /> Success
-                              </span>
-                            : <span className="inline-flex items-center gap-1 text-xs font-medium"
-                                style={{ color: 'var(--accent-red)' }}>
-                                <XCircle className="w-3.5 h-3.5" /> Failed
-                              </span>
-                          }
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <div className="divide-y divide-rule">
+          {/* ── Login History ─────────────────────────────────────────── */}
+          <SettingsSection
+            collapsible
+            count={historyTotal || history.length || undefined}
+            title="Login history"
+            description="recent sign-in events"
+          >
+            {historyLoading ? (
+              <div className="flex flex-col gap-2">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} height={44} />)}
               </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-3 pt-3"
-                  style={{ borderTop: '1px solid var(--table-border)' }}>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Page {historyPage} of {totalPages} ({historyTotal} events)
-                  </span>
-                  <div className="flex gap-1">
-                    {[
-                      { label: '←', disabled: historyPage <= 1, onClick: () => setHistoryPage(p => Math.max(1, p - 1)) },
-                      { label: '→', disabled: historyPage >= totalPages, onClick: () => setHistoryPage(p => Math.min(totalPages, p + 1)) },
-                    ].map(btn => (
-                      <button
-                        key={btn.label}
-                        onClick={btn.onClick}
-                        disabled={btn.disabled}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-medium
-                          border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        style={{
-                          background: 'var(--btn-secondary-bg)',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        {btn.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </SettingsSection>
-
-        {/* ── Recent Security Activity ─────────────────────────────── */}
-        <SettingsSection
-          collapsible
-          count={activity.length || undefined}
-          title="Security activity"
-          description="account-related actions"
-        >
-          {activityLoading ? (
-            <div className="flex flex-col gap-2">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} height={40} />)}
-            </div>
-          ) : activity.length === 0 ? (
-            <div className="flex flex-col items-center py-8 gap-2"
-              style={{ color: 'var(--text-muted)' }}>
-              <ShieldCheck className="w-8 h-8 opacity-40" />
-              <p className="text-sm">No security events recorded</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {/* A log, not thirteen cards. Every entry also carried an amber
-                  warning triangle — including "UPDATE PROFILE", which is
-                  somebody editing their own name. An audit trail is a record of
-                  what happened; if everything in it is flagged as a warning,
-                  nothing in it is. */}
-              <ul className="list-none m-0 p-0 divide-y divide-rule">
-                {(showAllActivity ? activity : activity.slice(0, ACTIVITY_VISIBLE)).map(ev => (
-                  <li key={ev.id} className="flex items-baseline justify-between gap-3 py-1.5">
-                    <span className="min-w-0">
-                      <span className="block text-xs font-medium text-text-primary">
-                        {ev.action.replace(/_/g, ' ').toLowerCase().replace(/^./, c => c.toUpperCase())}
-                      </span>
-                      {ev.details && <span className="block meta truncate">{ev.details}</span>}
-                    </span>
-                    <time className="meta whitespace-nowrap shrink-0 tabular-nums">
-                      {formatDate(ev.created_at)}
-                    </time>
-                  </li>
-                ))}
-              </ul>
-
-              {activity.length > ACTIVITY_VISIBLE && (
-                /* Not .insight-more-btn: that class exists to disappear above
-                   640px, where the dashboard's insight rows all fit. Here the
-                   toggle has to stay whatever the width. */
-                <Button variant="ghost" size="sm" className="mt-1"
-                  onClick={() => setShowAllActivity(v => !v)}
-                  aria-expanded={showAllActivity}>
-                  {showAllActivity
-                    ? 'Show less'
-                    : `Show ${activity.length - ACTIVITY_VISIBLE} more`}
-                </Button>
-              )}
-            </div>
-          )}
-        </SettingsSection>
-
-        {/* ── Active Sessions ───────────────────────────────────── */}
-        <SettingsSection
-          collapsible
-          count={sessions.length || undefined}
-          title="Active sessions"
-          description="devices signed in to your account"
-        >
-          {sessionsLoading ? (
-            <div className="flex flex-col gap-2">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} height={56} />)}
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="flex flex-col items-center py-8 gap-2" style={{ color: 'var(--text-muted)' }}>
-              <Globe className="w-8 h-8 opacity-40" />
-              <p className="text-sm">No session data available yet</p>
-              <p className="text-xs opacity-60">Session tracking starts from your next login</p>
-            </div>
-          ) : (
-            <>
-              {/* Twenty sessions as twenty bordered cards is a wall of boxes.
-                  rgba(52,211,153) — Tailwind emerald-400 — marked the current
-                  one; it is now the palette's own positive, and it is carried by
-                  a badge rather than by tinting the whole row. */}
-              <ul className="list-none m-0 p-0 divide-y divide-rule mb-3">
-                {sessions.map(sess => {
-                  const { name: devName, type: devType } = parseDeviceString(sess.device)
-                  const DevIcon = devType === 'mobile' ? Smartphone : Monitor
-                  return (
-                    <li key={sess.id} className="flex items-center gap-2.5 py-2">
-                      <DevIcon size={14} aria-hidden="true"
-                        className={`shrink-0 ${sess.is_current ? 'text-positive' : 'text-text-muted'}`} />
-                      <div className="flex-1 min-w-0">
-                        <span className="flex items-baseline gap-2 flex-wrap">
-                          <span className="text-xs font-medium text-text-primary truncate">
-                            {devName || 'Unknown browser'}
-                          </span>
-                          {sess.is_current && <Badge variant="success">This device</Badge>}
-                        </span>
-                        <span className="meta flex items-center gap-2.5 flex-wrap">
-                          <span className="tabular-nums">{sess.ip_address}</span>
-                          <span>Last seen {formatDate(sess.last_seen)}</span>
-                        </span>
-                      </div>
-                      {!sess.is_current && (
-                        <button
-                          onClick={() => handleRevokeSession(sess.id)}
-                          disabled={revokingId === sess.id}
-                          aria-label={`Revoke the session on ${devName || 'this device'}`}
-                          className="icon-btn icon-btn-danger shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            ) : history.length === 0 ? (
+              <div className="flex flex-col items-center py-8 gap-2"
+                style={{ color: 'var(--text-muted)' }}>
+                <Monitor className="w-8 h-8 opacity-40" />
+                <p className="text-sm">No login history yet</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto -mx-1">
+                  <table className="w-full text-sm min-w-[460px]">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--table-border)' }}>
+                        {['Time', 'IP Address', 'Device / Browser', 'Status'].map(h => (
+                          <th key={h} className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide"
+                            style={{ color: 'var(--text-muted)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map(row => (
+                        <tr key={row.id}
+                          className="transition-colors"
+                          style={{ borderBottom: '1px solid var(--table-border)' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--table-row-hover)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
-                          {revokingId === sess.id
-                            ? <Loader2 size={13} className="animate-spin" />
-                            : <Trash2 size={13} />
-                          }
-                        </button>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-
-              {/* Logout all other devices */}
-              {sessions.filter(s => !s.is_current).length > 0 && (
-                <div className="flex justify-end pt-1"
-                  style={{ borderTop: '1px solid var(--glass-border)' }}>
-                  <Button variant="danger" size="sm" icon={LogOut}
-                    onClick={() => setShowLogoutAllConfirm(true)}
-                    disabled={logoutAllLoading}>
-                    Sign out other devices
-                  </Button>
+                          <td className="py-2.5 px-3 text-xs whitespace-nowrap"
+                            style={{ color: 'var(--text-secondary)' }}>
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3 h-3 flex-shrink-0" />
+                              {formatDate(row.login_time)}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-xs font-mono"
+                            style={{ color: 'var(--text-secondary)' }}>
+                            {row.ip_address || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-xs max-w-[180px] truncate"
+                            style={{ color: 'var(--text-muted)', maxWidth: '180px' }}
+                            title={row.device}>
+                            {row.device || '—'}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {row.status === 'success'
+                              ? <span className="inline-flex items-center gap-1 text-xs font-medium"
+                                  style={{ color: 'var(--accent-green)' }}>
+                                  <CheckCircle className="w-3.5 h-3.5" /> Success
+                                </span>
+                              : <span className="inline-flex items-center gap-1 text-xs font-medium"
+                                  style={{ color: 'var(--accent-red)' }}>
+                                  <XCircle className="w-3.5 h-3.5" /> Failed
+                                </span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </>
-          )}
-        </SettingsSection>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-3 pt-3"
+                    style={{ borderTop: '1px solid var(--table-border)' }}>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Page {historyPage} of {totalPages} ({historyTotal} events)
+                    </span>
+                    <div className="flex gap-1">
+                      {[
+                        { label: '←', disabled: historyPage <= 1, onClick: () => setHistoryPage(p => Math.max(1, p - 1)) },
+                        { label: '→', disabled: historyPage >= totalPages, onClick: () => setHistoryPage(p => Math.min(totalPages, p + 1)) },
+                      ].map(btn => (
+                        <button
+                          key={btn.label}
+                          onClick={btn.onClick}
+                          disabled={btn.disabled}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-medium
+                            border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          style={{
+                            background: 'var(--btn-secondary-bg)',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </SettingsSection>
+
+          {/* ── Recent Security Activity ─────────────────────────────── */}
+          <SettingsSection
+            collapsible
+            count={activity.length || undefined}
+            title="Security activity"
+            description="account-related actions"
+          >
+            {activityLoading ? (
+              <div className="flex flex-col gap-2">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} height={40} />)}
+              </div>
+            ) : activity.length === 0 ? (
+              <div className="flex flex-col items-center py-8 gap-2"
+                style={{ color: 'var(--text-muted)' }}>
+                <ShieldCheck className="w-8 h-8 opacity-40" />
+                <p className="text-sm">No security events recorded</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {/* A log, not thirteen cards. Every entry also carried an amber
+                    warning triangle — including "UPDATE PROFILE", which is
+                    somebody editing their own name. An audit trail is a record of
+                    what happened; if everything in it is flagged as a warning,
+                    nothing in it is. */}
+                <ul className="list-none m-0 p-0 divide-y divide-rule">
+                  {(showAllActivity ? activity : activity.slice(0, ACTIVITY_VISIBLE)).map(ev => (
+                    <li key={ev.id} className="flex items-baseline justify-between gap-3 py-1.5">
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium text-text-primary">
+                          {ev.action.replace(/_/g, ' ').toLowerCase().replace(/^./, c => c.toUpperCase())}
+                        </span>
+                        {ev.details && <span className="block meta truncate">{ev.details}</span>}
+                      </span>
+                      <time className="meta whitespace-nowrap shrink-0 tabular-nums">
+                        {formatDate(ev.created_at)}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+
+                {activity.length > ACTIVITY_VISIBLE && (
+                  /* Not .insight-more-btn: that class exists to disappear above
+                     640px, where the dashboard's insight rows all fit. Here the
+                     toggle has to stay whatever the width. */
+                  <Button variant="ghost" size="sm" className="mt-1"
+                    onClick={() => setShowAllActivity(v => !v)}
+                    aria-expanded={showAllActivity}>
+                    {showAllActivity
+                      ? 'Show less'
+                      : `Show ${activity.length - ACTIVITY_VISIBLE} more`}
+                  </Button>
+                )}
+              </div>
+            )}
+          </SettingsSection>
+
+          {/* ── Active Sessions ───────────────────────────────────── */}
+          <SettingsSection
+            collapsible
+            count={sessions.length || undefined}
+            title="Active sessions"
+            description="devices signed in to your account"
+          >
+            {sessionsLoading ? (
+              <div className="flex flex-col gap-2">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} height={56} />)}
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="flex flex-col items-center py-8 gap-2" style={{ color: 'var(--text-muted)' }}>
+                <Globe className="w-8 h-8 opacity-40" />
+                <p className="text-sm">No session data available yet</p>
+                <p className="text-xs opacity-60">Session tracking starts from your next login</p>
+              </div>
+            ) : (
+              <>
+                {/* Twenty sessions as twenty bordered cards is a wall of boxes.
+                    rgba(52,211,153) — Tailwind emerald-400 — marked the current
+                    one; it is now the palette's own positive, and it is carried by
+                    a badge rather than by tinting the whole row. */}
+                <ul className="list-none m-0 p-0 divide-y divide-rule mb-3">
+                  {sessions.map(sess => {
+                    const { name: devName, type: devType } = parseDeviceString(sess.device)
+                    const DevIcon = devType === 'mobile' ? Smartphone : Monitor
+                    return (
+                      <li key={sess.id} className="flex items-center gap-2.5 py-2">
+                        <DevIcon size={14} aria-hidden="true"
+                          className={`shrink-0 ${sess.is_current ? 'text-positive' : 'text-text-muted'}`} />
+                        <div className="flex-1 min-w-0">
+                          <span className="flex items-baseline gap-2 flex-wrap">
+                            <span className="text-xs font-medium text-text-primary truncate">
+                              {devName || 'Unknown browser'}
+                            </span>
+                            {sess.is_current && <Badge variant="success">This device</Badge>}
+                          </span>
+                          <span className="meta flex items-center gap-2.5 flex-wrap">
+                            <span className="tabular-nums">{sess.ip_address}</span>
+                            <span>Last seen {formatDate(sess.last_seen)}</span>
+                          </span>
+                        </div>
+                        {!sess.is_current && (
+                          <button
+                            onClick={() => handleRevokeSession(sess.id)}
+                            disabled={revokingId === sess.id}
+                            aria-label={`Revoke the session on ${devName || 'this device'}`}
+                            className="icon-btn icon-btn-danger shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {revokingId === sess.id
+                              ? <Loader2 size={13} className="animate-spin" />
+                              : <Trash2 size={13} />
+                            }
+                          </button>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+
+                {/* Logout all other devices */}
+                {sessions.filter(s => !s.is_current).length > 0 && (
+                  <div className="flex justify-end pt-1"
+                    style={{ borderTop: '1px solid var(--glass-border)' }}>
+                    <Button variant="danger" size="sm" icon={LogOut}
+                      onClick={() => setShowLogoutAllConfirm(true)}
+                      disabled={logoutAllLoading}>
+                      Sign out other devices
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </SettingsSection>
+        </div>
 
       </SettingsPanel>
 
