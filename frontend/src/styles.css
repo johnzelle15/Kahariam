@@ -26,7 +26,7 @@
      a grid. Three values, because those are the three distances that actually
      recur; everything else is a one-off and stays a utility class. */
   --pad-card: 0.875rem;
-  --gap-section: 1.125rem;
+  --gap-section: 1rem;
   --gap-grid: 0.75rem;
 
   /* Figures. --fig-hero is the one number on the page that carries the screen. */
@@ -215,12 +215,17 @@ body {
   background: rgb(var(--bg-primary));
   color: var(--text-primary);
   margin: 0;
+  /* dvh, not vh. On a phone vh is the height with the address bar hidden, so
+     a 100vh body stood one bar taller than the screen the app shell fills: the
+     document itself could scroll by that much, and when it did it carried the
+     menu bar off the top of the screen, and the navigation with it. */
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   transition: background 0.35s ease, color 0.35s ease;
 }
 
-#root { padding: 0; min-height: 100vh; }
+#root { padding: 0; min-height: 100vh; min-height: 100dvh; }
 
 /* ═══════════════════════════════════════════
    CARD — the single card definition.
@@ -289,10 +294,10 @@ body {
 }
 
 /* A search match: a tint under the text, not the browser's solid yellow block.
-   The `bg-accent-amber/25` that was meant to replace it never existed — colours
-   defined as var() take no opacity modifier in this Tailwind config — so every
-   match on Inventory and Adjustments rendered as exactly that yellow block.
-   One amber works on both themes at this strength. */
+   The `bg-accent-amber/25` that was meant to replace it never generated (see
+   `mixable` in tailwind.config.js), so every match on Inventory and
+   Adjustments rendered as exactly that yellow block. One amber works on both
+   themes at this strength. */
 mark {
   background: rgba(224, 162, 79, 0.24);
   color: var(--text-primary);
@@ -871,7 +876,7 @@ button.strip-cell:focus-visible {
 }
 
 .dark-table thead th {
-  padding: 0.75rem 0.625rem;
+  padding: 0.5rem 0.625rem;
   text-align: left;
   font-weight: 600;
   font-size: 0.75rem;
@@ -886,8 +891,8 @@ button.strip-cell:focus-visible {
 }
 
 .dark-table tbody td {
-  padding: 0.75rem 0.625rem;
-  font-size: 0.875rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--table-border);
   /* Under table-fixed an over-long value spills into the next column instead of
@@ -896,11 +901,13 @@ button.strip-cell:focus-visible {
   text-overflow: ellipsis;
 }
 
-/* Roomier cells once there is width to spare. */
+/* More side room once there is width to spare — not more height. At 12px top
+   and bottom a desktop row was 45px tall, which is most of why the ledger
+   showed five records on a laptop screen with room for ten. */
 @media (min-width: 640px) {
   .dark-table thead th,
   .dark-table tbody td {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.875rem;
   }
 }
 
@@ -931,11 +938,21 @@ button.strip-cell:focus-visible {
 /* The rows scroll inside their own box, so a long log never lengthens the page
    past everything below it. */
 .report-scroll {
-  max-height: min(24rem, 55dvh);
+  max-height: min(24rem, 50dvh);
   overflow: auto;
   overscroll-behavior: contain;
 }
 @media (max-height: 620px) { .report-scroll { max-height: max(9rem, 50dvh); } }
+
+/* Chart beside Details (Reports, xl). Details is out of flow there, so the
+   chart sets the row's height: the plot gives up its fixed height to fill its
+   card, and the rows fill theirs and scroll. Compound selectors, because these
+   single-class rules come after Tailwind's utilities and would otherwise beat
+   an `xl:` class on the same element. */
+@media (min-width: 1280px) {
+  .report-split .report-chart { height: auto; flex: 1 1 0%; min-height: 11rem; }
+  .report-split .report-scroll { max-height: none; flex: 1 1 0%; min-height: 0; }
+}
 
 /* Compact rows on touch screens too: nothing in a report row is a tap target,
    so the 44px rhythm the ledger keeps for its Archive buttons would only cost
@@ -962,7 +979,7 @@ button.strip-cell:focus-visible {
   font-size: 0.8125rem;
   font-weight: 600;
 }
-@media (min-width: 640px) { .report-table tfoot td { padding-inline: 1rem; } }
+@media (min-width: 640px) { .report-table tfoot td { padding-inline: 0.875rem; } }
 @media (max-height: 620px) {
   .dark-table.report-table tbody td,
   .dark-table.report-table thead th { padding-block: 0.375rem; }
@@ -981,8 +998,11 @@ button.strip-cell:focus-visible {
   font-size: 0.8125rem;
   line-height: 1.45;
 }
+/* Wraps on a phone, so the generated stamp drops under the farm's name rather
+   than squeezing it onto four lines. An A4 page never wraps it. */
 .report-paper-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   padding-bottom: 0.75rem;
@@ -1005,6 +1025,8 @@ button.strip-cell:focus-visible {
 }
 .report-paper-chart { margin: 0 0 1rem; }
 .report-paper table { width: 100%; border-collapse: collapse; }
+/* On a phone the table pans inside the paper instead of running off its edge. */
+.report-paper-table { overflow-x: auto; }
 .report-paper th {
   padding: 0.375rem 0.5rem;
   text-align: left;
@@ -1044,6 +1066,9 @@ button.strip-cell:focus-visible {
   body > *:not(.print-root) { display: none !important; }
   .print-root { display: block; }
   .print-root .report-paper { border: none; border-radius: 0; padding: 0; }
+  /* A scroll box does not break across pages: left scrollable, a long table
+     would print as its first page and stop. */
+  .report-paper-table { overflow: visible; }
   /* Column heads repeat on every page; the totals print once, at the end. */
   .report-paper thead { display: table-header-group; }
   .report-paper tfoot { display: table-row-group; }
@@ -1176,12 +1201,14 @@ html {
     min-height: 44px;
   }
 
+  /* The 44px row comes from the Archive and Edit buttons in it; padding past
+     that only made each row taller than its own target. */
   .dark-table tbody td {
-    padding: 0.875rem 0.75rem;
+    padding: 0.625rem 0.75rem;
   }
 
   .dark-table thead th {
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
   }
 }
 

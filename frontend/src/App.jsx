@@ -232,7 +232,7 @@ export default function App() {
             a flex item's default min-height:auto is what stops a card being
             squeezed below its own content, which is the difference between the
             chart getting smaller and the chart getting cut off. */}
-        <div className="p-4 md:pt-6 md:px-6 lg:px-8 lg:py-6 max-w-[1760px] w-full mx-auto
+        <div className="p-4 md:p-5 lg:px-6 max-w-[1760px] w-full mx-auto
           [@media(max-height:620px)]:md:py-2 [@media(max-height:620px)]:md:px-4
           [@media(max-height:620px)]:md:pb-4
           grow shrink-0 flex flex-col">

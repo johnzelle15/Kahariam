@@ -145,7 +145,7 @@ export default function Sidebar({ tab, setTab, collapsed, onToggle, mobileOpen, 
   const navContent = (isMobile) => (
     <>
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-5 py-6 [@media(max-height:620px)]:py-2 shrink-0 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
+      <div className={`flex items-center gap-3 px-4 py-4 [@media(max-height:620px)]:py-2 shrink-0 ${!isMobile && collapsed ? 'justify-center px-3' : ''}`}
         style={{ borderBottom: '1px solid var(--glass-border)' }}>
         {/* object-contain, not cover: the mark is wider than it is tall, so
             cover was cropping its sides off inside the square. The SVG is

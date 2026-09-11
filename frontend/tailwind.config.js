@@ -1,3 +1,13 @@
+/* A colour held in a CSS variable takes no opacity modifier by itself:
+   Tailwind cannot split var(--negative) into channels, so `bg-negative/10`
+   generated nothing and every tinted band and badge in the app rendered with
+   no ground at all. color-mix gives the modifier something to act on; with no
+   modifier the colour is the plain variable, exactly as before. */
+const mixable = v => ({ opacityValue }) =>
+  opacityValue === undefined || String(opacityValue).startsWith('var(')
+    ? `var(${v})`
+    : `color-mix(in srgb, var(${v}) ${opacityValue * 100}%, transparent)`
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -20,23 +30,23 @@ export default {
           hover: 'var(--glass-bg-hover)',
         },
         accent: {
-          green: 'var(--accent-green)',
-          blue: 'var(--accent-blue)',
-          amber: 'var(--accent-amber)',
-          red: 'var(--accent-red)',
-          purple: 'var(--accent-purple)',
+          green: mixable('--accent-green'),
+          blue: mixable('--accent-blue'),
+          amber: mixable('--accent-amber'),
+          red: mixable('--accent-red'),
+          purple: mixable('--accent-purple'),
         },
         text: {
-          primary: 'var(--text-primary)',
-          secondary: 'var(--text-secondary)',
-          muted: 'var(--text-muted)',
+          primary: mixable('--text-primary'),
+          secondary: mixable('--text-secondary'),
+          muted: mixable('--text-muted'),
         },
         /* Meaning, not hue. `text-positive` survives a palette change;
            `text-accent-green` quietly becomes a lie. */
-        positive: 'var(--positive)',
-        negative: 'var(--negative)',
-        attention: 'var(--attention)',
-        info: 'var(--info)',
+        positive: mixable('--positive'),
+        negative: mixable('--negative'),
+        attention: mixable('--attention'),
+        info: mixable('--info'),
         rule: 'var(--rule)',
       },
       fontFamily: {
