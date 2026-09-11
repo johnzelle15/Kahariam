@@ -300,6 +300,35 @@ mark {
 }
 
 /* ═══════════════════════════════════════════
+   WATERMARK
+   The farm's mark, faint, centred in the working pane. It lies over the
+   content rather than under it: every panel here is a solid surface, so a
+   layer beneath showed only in the 16px gaps between cards, as stripes. At
+   this strength it costs no measurable contrast, and it never takes a tap
+   (pointer-events) or a screen-reader stop (aria-hidden on the element).
+   ═══════════════════════════════════════════ */
+.watermark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(32rem, 76%);
+  height: min(32rem, 76%);
+  background: url('./assets/logo.svg') center / contain no-repeat;
+  /* The drawing fills only the upper part of its 64px square (y 6–44), so
+     the square is lowered to centre the sun and hills rather than the box. */
+  transform: translateY(11%);
+  opacity: 0.1;
+  /* Blended, not laid on top. Plain 5% of green over the Counter's white
+     digit greyed it by ten levels and drew the hill line across the glyph.
+     `screen` can only lighten: on the dark theme the mark still shows on dark
+     surfaces and white stays white. On the light theme `multiply` can only
+     darken: it shows on the white cards and dark text stays dark. */
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.theme-light .watermark { mix-blend-mode: multiply; }
+
+/* ═══════════════════════════════════════════
    METRIC STRIP
    A row of related figures reading as one panel subdivided by hairlines,
    rather than as N separate floating cards. This is the shape that lets the
@@ -715,6 +744,41 @@ button.strip-cell:focus-visible {
 .chart-btn:focus-visible {
   outline: 2px solid var(--accent-green);
   outline-offset: 1px;
+}
+
+/* An icon toggle set inside a line of text — the eye beside "Today's revenue".
+   A glyph in the label's own muted colour, not a chip: it is a setting on the
+   figures, and should not compete with them. On touch it keeps a 44px target,
+   and the negative margins take the extra height back out of the line, so the
+   strip is exactly as tall as it was — on the 7" panel that is the difference
+   between the dashboard fitting and scrolling. */
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: -4px -4px -4px 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.inline-toggle:hover { color: var(--text-primary); }
+.inline-toggle:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .inline-toggle {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    margin: -15px -14px;
+  }
 }
 
 /* ═══════════════════════════════════════════

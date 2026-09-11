@@ -189,6 +189,10 @@ export default function App() {
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />
+      {/* The pane is its own positioned box so the watermark can sit centred in
+          it and stay put. <main> is the scroller, and anything placed inside it
+          would travel up the screen with the content. */}
+      <div className="relative flex-1 min-w-0 flex">
       <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain transition-all duration-300
         flex flex-col">
         {/* ── Mobile top bar ──
@@ -251,6 +255,8 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+      <div aria-hidden="true" className="watermark" />
+      </div>
       </motion.div>
     </MotionConfig>
   )

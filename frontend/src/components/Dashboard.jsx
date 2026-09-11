@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { io } from 'socket.io-client'
 import { rawApi } from '../utils/api'
-import { Fish, Lightbulb, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Fish, Lightbulb, ChevronDown, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import SalesTrend from './SalesTrend'
 import { getNoteDisplay, getRecordType, MOVEMENT as ACTIVITY } from '../utils/notes'
 import { avgDailyOutflow, daysOfCover, stockStatus, coverLabel } from '../utils/stock'
@@ -842,6 +842,33 @@ export default function Dashboard() {
      not current stock — so the loudest thing on the dashboard was whichever
      number happened to be longest. Stock on hand is the question the farm
      actually opens this screen to answer. */
+  /* ── Hiding the takings ──
+     One switch for every peso figure the farm's revenue can be read from at a
+     glance: the five in the revenue strip, plus today's revenue where it is
+     repeated under "Sold today" and in that cell's dialog — hiding it in one
+     place and leaving it two cards up would hide nothing. The mask is the
+     same length whatever the amount, so it doesn't give away the size of the
+     number either. Remembered on this device, because a kiosk that reloads
+     shouldn't come back up showing what the operator had hidden. */
+  const HIDE_KEY = 'fc_hide_amounts'
+  const [hideAmounts, setHideAmounts] = useState(() => {
+    try { return localStorage.getItem(HIDE_KEY) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try {
+      if (hideAmounts) localStorage.setItem(HIDE_KEY, '1')
+      else localStorage.removeItem(HIDE_KEY)
+    } catch { /* storage unavailable: the choice lasts until reload */ }
+  }, [hideAmounts])
+
+  const MASK = '₱••••'
+  // Dialog text needs a string; the strip gets a word for screen readers
+  // instead of four bullets read out one at a time.
+  const moneyText = v => (hideAmounts ? MASK : formatCurrency(v))
+  const amount = text => (hideAmounts
+    ? <><span aria-hidden="true">{MASK}</span><span className="sr-only">hidden</span></>
+    : text)
+
   const stockCells = stats ? [
     {
       key: 'stock_on_hand', label: 'Stock on Hand', value: stockOnHand.toLocaleString(),
@@ -853,7 +880,7 @@ export default function Dashboard() {
     },
     {
       key: 'sold_today', label: 'Sold today', value: soldToday.toLocaleString(),
-      sub: formatCurrency(stats.today_revenue), rawValue: Number(stats.today_revenue || 0),
+      sub: amount(formatCurrency(stats.today_revenue)), rawValue: Number(stats.today_revenue || 0),
     },
     {
       key: 'total_fish', label: 'Stocked all time', value: Number(stats.additions_total || 0).toLocaleString(),
@@ -874,24 +901,24 @@ export default function Dashboard() {
   const revenueCells = [
     {
       key: 'today', label: "Today's revenue", size: 'md',
-      value: formatPeso(stats?.today_revenue), sub: dateSpan(todayIso, todayIso),
+      value: amount(formatPeso(stats?.today_revenue)), sub: dateSpan(todayIso, todayIso),
     },
     {
       key: 'week', label: 'This week',
-      value: formatPesoShort(rev.week), sub: dateSpan(rev.weekStart, todayIso),
+      value: amount(formatPesoShort(rev.week)), sub: dateSpan(rev.weekStart, todayIso),
     },
     {
       key: 'month', label: 'This month',
-      value: formatPesoShort(rev.month), sub: dateSpan(rev.monthStart, todayIso),
+      value: amount(formatPesoShort(rev.month)), sub: dateSpan(rev.monthStart, todayIso),
     },
     {
       key: 'total', label: 'Total sales',
-      value: formatPesoShort(global.total_revenue),
+      value: amount(formatPesoShort(global.total_revenue)),
       sub: salesCount > 0 ? `${salesCount.toLocaleString()} recorded sales` : 'no sales recorded',
     },
     {
       key: 'avg', label: 'Average sale',
-      value: avgSale === null ? '—' : formatPesoShort(avgSale),
+      value: amount(avgSale === null ? '—' : formatPesoShort(avgSale)),
       sub: avgSale === null
         ? 'needs a recorded sale'
         : pricePerFish ? `at ₱${pricePerFish.toFixed(2)}/fish` : 'per recorded sale',
@@ -960,13 +987,13 @@ export default function Dashboard() {
     } else if (card.key === 'sold_today') {
       details = {
         title: 'Sold Today',
-        subtitle: `${soldToday.toLocaleString()} fish · ${formatCurrency(card.rawValue)}`,
+        subtitle: `${soldToday.toLocaleString()} fish · ${moneyText(card.rawValue)}`,
         rows: [
           { label: 'Units sold today', color: 'var(--positive)', value: `${soldToday.toLocaleString()} fish` },
           ...(pricePerFish ? [{ label: 'Price per fish', color: 'var(--info)', value: `₱${pricePerFish.toFixed(2)} (wholesale)` }] : []),
-          { label: 'Revenue today', color: 'var(--attention)', value: formatCurrency(card.rawValue) },
+          { label: 'Revenue today', color: 'var(--attention)', value: moneyText(card.rawValue) },
         ],
-        extra: `Yesterday: ${formatCurrency(Number(yday.today_revenue || 0))}`
+        extra: `Yesterday: ${moneyText(Number(yday.today_revenue || 0))}`
       }
     }
     setKpiModal({ ...card, details })
@@ -1065,7 +1092,12 @@ export default function Dashboard() {
           meta={pricePerFish ? `wholesale · ₱${pricePerFish.toFixed(2)} per fish` : 'wholesale'}
           className="mb-1.5 [@media(max-height:620px)]:hidden"
         />
-        <div className="strip strip-compact grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+        {/* Today's column is wider from md, as Stock on Hand's is in the band
+            above: it carries the larger figure and the eye. At an equal fifth
+            of the 7" panel the two didn't fit on one line — the label wrapped
+            and dropped today's figure below the other four. */}
+        <div className="strip strip-compact grid-cols-2 sm:grid-cols-3
+          md:[grid-template-columns:minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
           {revLoading
             ? Array.from({ length: 5 }).map((_, i) => <MetricSkeleton key={i} />)
             : revenueCells.map(cell => (
@@ -1076,6 +1108,20 @@ export default function Dashboard() {
                 sub={cell.sub}
                 size={cell.size || 'sm'}
                 className={cell.key === 'today' ? 'col-span-2 sm:col-span-1' : undefined}
+                /* The eye sits beside the leading figure, where a banking app
+                   puts it beside the balance, not in the section header: that
+                   header is hidden on the 7" panel so the dashboard fits, and
+                   the panel is where hiding the takings matters most. */
+                action={cell.key === 'today' ? (
+                  <button type="button" className="inline-toggle"
+                    onClick={() => setHideAmounts(h => !h)}
+                    aria-pressed={hideAmounts} aria-label="Hide revenue amounts"
+                    title={hideAmounts ? 'Show amounts' : 'Hide amounts'}>
+                    {hideAmounts
+                      ? <EyeOff size={13} aria-hidden="true" />
+                      : <Eye size={13} aria-hidden="true" />}
+                  </button>
+                ) : undefined}
               />
             ))}
         </div>

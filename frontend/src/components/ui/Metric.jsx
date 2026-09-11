@@ -38,6 +38,10 @@ export default function Metric({
   size = 'sm',
   hint,
   onClick,
+  /* A small control that belongs to the figure, set after its label — the
+     revenue strip's show/hide toggle. Not with onClick: that cell is itself a
+     button, and a button inside a button is invalid. */
+  action,
   className,
 }) {
   const Tag = onClick ? 'button' : 'div'
@@ -52,6 +56,7 @@ export default function Metric({
         {/* The label wraps rather than truncating: on a phone two of these share
             a 390px screen, and "Stock on Hand" came out as "STOCK ON HA…". */}
         <span className="min-w-0">{label}</span>
+        {action}
       </span>
 
       <span className={clsx(SIZES[size], 'truncate')}>{value}</span>
