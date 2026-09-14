@@ -25,9 +25,9 @@ import Button from './ui/Button'
    worked; Settings is neither. Five flat items gave no clue that Counter is
    used hourly and Settings monthly. */
 const ALL_NAV_ITEMS = [
-  { id: 'dashboard',   group: 'Daily',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'Stock, revenue & activity',  adminOnly: true },
+  { id: 'dashboard',   group: 'Daily',   label: 'Dashboard',   icon: LayoutDashboard, tooltip: 'Counts, sales & activity',   adminOnly: true },
   { id: 'counter',     group: 'Daily',   label: 'Counter',     icon: ScanLine,        tooltip: 'Live fish counting',         adminOnly: false },
-  { id: 'inventory',   group: 'Records', label: 'Inventory',   icon: Package,         tooltip: 'Manage stock records',       adminOnly: true },
+  { id: 'inventory',   group: 'Records', label: 'Inventory',   icon: Package,         tooltip: 'Count & sales records',      adminOnly: true },
   { id: 'adjustments', group: 'Records', label: 'Adjustments', icon: Settings2,       tooltip: 'Record sales & adjustments', adminOnly: true },
   { id: 'reports',     group: 'Records', label: 'Reports',     icon: FileChartColumn, tooltip: 'Summaries, charts & exports', adminOnly: true },
   { id: 'settings',    group: 'System',  label: 'Settings',    icon: Settings,        tooltip: 'Account & system settings',  adminOnly: false },

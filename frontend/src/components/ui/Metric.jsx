@@ -6,10 +6,9 @@ import clsx from 'clsx'
    between a row of related readings and the four floating tiles this replaced.
 
    `size` is the hierarchy control, and it is deliberately the only one — the
-   dashboard has exactly three tiers of figure (the stock count that carries
-   the screen, the headline revenue, and everything supporting them) and giving
-   a caller a free-form font size is how a fourth tier gets invented by
-   accident.
+   dashboard has exactly two tiers of figure (the leading readings, and
+   everything supporting them) and giving a caller a free-form font size is how
+   a third tier gets invented by accident.
 */
 
 const TONE_TEXT = {
@@ -25,7 +24,6 @@ const TONE_DOT = {
 }
 
 const SIZES = {
-  hero: 'figure figure-hero',
   md: 'figure',
   sm: 'figure figure-sm',
 }
@@ -54,7 +52,7 @@ export default function Metric({
       <span className="eyebrow flex items-center gap-1.5">
         {tone && <span className={clsx('h-1.5 w-1.5 rounded-full shrink-0', TONE_DOT[tone])} />}
         {/* The label wraps rather than truncating: on a phone two of these share
-            a 390px screen, and "Stock on Hand" came out as "STOCK ON HA…". */}
+            a 390px screen, and "Counted in today" came out as "COUNTED IN T…". */}
         <span className="min-w-0">{label}</span>
         {action}
       </span>

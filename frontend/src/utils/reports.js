@@ -1,22 +1,22 @@
 /**
  * The Reports tab, built in the browser from one payload.
  *
- * /api/reports/data returns the stock on hand before the range plus every
- * inventory row and counting session inside it. Each report is a view of that
+ * /api/reports/data returns every inventory row and counting session inside
+ * the range. Each report is a view of that
  * payload, returned as one model — columns, rows, totals, summary figures and a
  * chart spec. The on-screen table, the printable document, the workbook and the
  * CSV are all drawn from the model, so an export cannot disagree with the
  * screen it was taken from.
  *
  * Rows are classified by getRecordType, the rule the Inventory ledger uses: a
- * death is never a sale, and a legacy TANK_IN row is stock counted in.
+ * death is never a sale, and a legacy TANK_IN row is a count.
  */
 import { isoDay, startOfWeek, startOfMonth, formatPeso } from './revenue.js'
 import { getRecordType, getNoteDisplay, MOVEMENT, formatRecordDate } from './notes.js'
 
 export const REPORTS = [
   { id: 'sales',        label: 'Sales & revenue',   title: 'Sales & Revenue Report',   grouped: true },
-  { id: 'stock',        label: 'Stock movement',    title: 'Stock Movement Report',    grouped: true },
+  { id: 'counts',       label: 'Counts & sales',    title: 'Counts & Sales Report',    grouped: true },
   { id: 'transactions', label: 'Transactions',      title: 'Transaction Log',          grouped: false },
   { id: 'sessions',     label: 'Counting sessions', title: 'Counting Sessions Report', grouped: false },
 ]
@@ -155,12 +155,15 @@ function sales({ data, records, price, group }) {
       { label: 'Average per day', value: int(Math.round(totals.sold / days)) },
       { label: `Best ${group}`, value: best ? int(best.sold) : '—', sub: best?.label },
     ],
-    chart: { type: 'bar', key: 'sold', name: 'Fish sold', detail: { key: 'revenue', name: 'Revenue', kind: 'peso' } },
+    chart: { key: 'sold', name: 'Fish sold', detail: { key: 'revenue', name: 'Revenue', kind: 'peso' } },
   }
 }
 
-function stock({ data, records, group }) {
-  const { list: rows, at } = periodRows(data, group, () => ({ opening: 0, in: 0, sold: 0, died: 0, closing: 0 }))
+/* What was counted, sold and died per period. No opening or closing balance:
+   the farm holds no stock between counting and selling, so a running total of
+   counted − sold − died would describe a pool that doesn't exist. */
+function counts({ data, records, group }) {
+  const { list: rows, at } = periodRows(data, group, () => ({ in: 0, sold: 0, died: 0 }))
   for (const r of records) {
     const row = at.get(bucketKey(r.date, group))
     if (!row) continue
@@ -168,43 +171,32 @@ function stock({ data, records, group }) {
     else if (r.type === 'DIED') row.died += r.count
     else if (r.type === 'WHOLESALE_IN') row.in += r.count
   }
-  let running = Number(data.opening_stock) || 0
-  for (const row of rows) {
-    row.opening = running
-    running += row.in - row.sold - row.died
-    row.closing = running
-  }
 
-  const totals = {
-    label: 'Total', opening: rows[0]?.opening ?? running,
-    in: sum(rows, 'in'), sold: sum(rows, 'sold'), died: sum(rows, 'died'), closing: running,
-  }
-  const base = totals.opening + totals.in
-  const mortality = base > 0 ? totals.died / base : null
+  const totals = { label: 'Total', in: sum(rows, 'in'), sold: sum(rows, 'sold'), died: sum(rows, 'died') }
+  const days = periodsBetween(data.start_date, data.end_date, 'day').length || 1
+  const best = rows.reduce((b, r) => (r.in > (b?.in || 0) ? r : b), null)
 
   return {
     columns: [
       { key: 'label', label: PERIOD_HEAD[group], kind: 'text' },
-      { key: 'opening', label: 'Opening', kind: 'int' },
       { key: 'in', label: 'Counted in', kind: 'int' },
       { key: 'sold', label: 'Sold', kind: 'int' },
       { key: 'died', label: 'Died', kind: 'int' },
-      { key: 'closing', label: 'Closing', kind: 'int' },
     ],
     rows,
     totals,
     summary: [
-      { label: 'Opening stock', value: int(totals.opening) },
       { label: 'Counted in', value: int(totals.in) },
       { label: 'Sold', value: int(totals.sold) },
       {
         label: 'Died', value: int(totals.died),
-        sub: mortality == null ? undefined : `${formatCell('pct', mortality)} mortality`,
+        sub: totals.in > 0 ? `${formatCell('pct', totals.died / totals.in)} of counted` : undefined,
         tone: totals.died > 0 ? 'warning' : undefined,
       },
-      { label: 'Closing stock', value: int(totals.closing) },
+      { label: 'Counted per day', value: int(Math.round(totals.in / days)) },
+      { label: `Best ${group}`, value: best ? int(best.in) : '—', sub: best?.label },
     ],
-    chart: { type: 'area', key: 'closing', name: 'Closing stock' },
+    chart: { key: 'in', name: 'Fish counted' },
   }
 }
 
@@ -284,7 +276,7 @@ function sessions({ data }) {
   }
 }
 
-const BUILDERS = { sales, stock, transactions, sessions }
+const BUILDERS = { sales, counts, transactions, sessions }
 
 const UNIT = { peso: 'PHP', duration: 'min' }
 
@@ -299,7 +291,7 @@ export function exportTable(model) {
 
 /**
  * The model for one report over one payload.
- * `group` is day | week | month (sales, stock); `txType` narrows the log.
+ * `group` is day | week | month (sales, counts); `txType` narrows the log.
  */
 export function buildReport(type, data, { group = 'day', txType = '' } = {}) {
   const meta = REPORTS.find(r => r.id === type)

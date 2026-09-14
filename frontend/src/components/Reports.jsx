@@ -1,12 +1,12 @@
-import { cloneElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { cloneElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  BarChart, Bar, AreaChart, Area,
+  BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import * as XLSX from 'xlsx'
 import {
-  RefreshCw, Eye, AlertCircle, Coins, Boxes, ScrollText, ScanLine,
+  RefreshCw, Eye, AlertCircle, Coins, ClipboardList, ScrollText, ScanLine,
   FileText, FileSpreadsheet, FileDown,
 } from 'lucide-react'
 import { rawApi } from '../utils/api'
@@ -19,16 +19,16 @@ import { formatPeso } from '../utils/revenue'
 import { Button, PageHeader, SectionHeader, EmptyState, Metric, Modal, Skeleton, DateInput } from './ui'
 import logoImg from '../assets/logo.svg'
 
-const ICONS = { sales: Coins, stock: Boxes, transactions: ScrollText, sessions: ScanLine }
+const ICONS = { sales: Coins, counts: ClipboardList, transactions: ScrollText, sessions: ScanLine }
 
 /* Each chart draws one series, so it needs no legend — the card's title names
    it. Fish sold keeps the sales trend's green. The accent tokens, not the
    status aliases: these colours say which series, not good or bad. */
-const SERIES_COLOR = { sales: 'var(--accent-green)', stock: 'var(--accent-blue)' }
+const SERIES_COLOR = { sales: 'var(--accent-green)', counts: 'var(--accent-blue)' }
 
 const EMPTY = {
   sales: ['No sales in this period', 'Sales recorded in Adjustments appear here.'],
-  stock: ['No stock movements in this period', 'Saved counts, sales and deaths appear here.'],
+  counts: ['No counts or sales in this period', 'Saved counts, sales and deaths appear here.'],
   transactions: ['No records in this period', 'Saved counts, sales and deaths appear here.'],
   sessions: ['No counting sessions in this period', 'Sessions run on the Counter appear here.'],
 }
@@ -58,12 +58,12 @@ const tickFmt = n => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n /
 function isEmpty(model) {
   const t = model.totals
   if (model.id === 'sales') return !t.sold
-  if (model.id === 'stock') return !(t.in || t.sold || t.died)
+  if (model.id === 'counts') return !(t.in || t.sold || t.died)
   return model.rows.length === 0
 }
 
 function filterText(model, group, txType) {
-  if (model.id === 'sales' || model.id === 'stock') return `Grouped ${BY[group]}`
+  if (model.id === 'sales' || model.id === 'counts') return `Grouped ${BY[group]}`
   if (model.id === 'transactions') return TX_TYPES.find(t => t.id === txType)?.label || 'All types'
   return 'All sessions'
 }
@@ -146,10 +146,9 @@ function ChartTooltip({ active, payload, chart }) {
    renders it at a fixed size with animation off — off-screen there is nothing
    for a ResponsiveContainer to measure. The marks are drawn in currentColor, so
    the same chart takes the app's theme on screen and the paper's light theme in
-   the document. One axis, starting at zero: a bar or an area encodes its value
-   as a length from the baseline. */
+   the document. One axis, starting at zero: a bar encodes its value as a
+   length from the baseline. */
 function ReportChart({ model, width, height, animate = true }) {
-  const gradientId = `report-fill-${useId().replace(/:/g, '')}`
   const { chart, rows } = model
   const margin = { top: 8, right: 8, left: 0, bottom: 4 }
   // Solid hairlines: a dashed grid reads as a threshold or a projection.
@@ -164,29 +163,15 @@ function ReportChart({ model, width, height, animate = true }) {
   )
   const tooltip = animate && (
     <Tooltip content={<ChartTooltip chart={chart} />}
-      cursor={chart.type === 'bar' ? { fill: 'var(--table-row-hover)' } : { stroke: 'var(--glass-border)', strokeWidth: 1 }} />
+      cursor={{ fill: 'var(--table-row-hover)' }} />
   )
 
-  const plot = chart.type === 'bar' ? (
+  const plot = (
     <BarChart data={rows} margin={margin} barCategoryGap="20%">
       {grid}{xAxis}{yAxis}{tooltip}
       <Bar dataKey={chart.key} name={chart.name} fill="currentColor" radius={[4, 4, 0, 0]} maxBarSize={28}
         isAnimationActive={animate} animationDuration={450} />
     </BarChart>
-  ) : (
-    <AreaChart data={rows} margin={margin}>
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity={0.18} />
-          <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      {grid}{xAxis}{yAxis}{tooltip}
-      <Area type="linear" dataKey={chart.key} name={chart.name} stroke="currentColor" strokeWidth={2}
-        fill={`url(#${gradientId})`} dot={false}
-        activeDot={{ r: 4, fill: 'currentColor', stroke: 'var(--glass-bg)', strokeWidth: 2 }}
-        isAnimationActive={animate} animationDuration={450} />
-    </AreaChart>
   )
 
   if (width) return cloneElement(plot, { width, height })

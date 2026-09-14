@@ -13,26 +13,27 @@ export default function LoginScreen() {
   const otpPending = useAuthStore(s => s.otpPending)
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
-      style={{ background: 'rgb(var(--bg-primary))' }}>
+    // theme-dark: the card sits on a photo, so it is always the dark-green
+    // surface whatever theme the app itself is set to.
+    // m-auto rather than items-center: if the card is ever taller than the
+    // screen (an error line on the panel), it scrolls instead of losing its top.
+    <div className="theme-dark farm-ground fixed inset-0 z-[9999] flex overflow-y-auto p-3 [@media(max-height:520px)]:p-2">
 
-      {/* Ambient */}
-      {/* One soft brand glow. The three drifting orbs and twenty floating
-          particles were decoration that animated forever behind a login form. */}
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 0%, rgba(124,179,66,0.10), transparent 70%)' }} />
+      <div className="farm-overlay fixed inset-0 pointer-events-none" />
 
       {/* Glass Card */}
       <motion.div
-        className="relative z-10 w-full max-w-md mx-4"
+        className="relative z-10 w-full max-w-md [@media(max-height:520px)]:max-w-2xl m-auto"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.2 }}
       >
-        <div className="glass-card relative p-8 sm:p-10 overflow-hidden"
-          style={{ boxShadow: '0 24px 48px rgba(0,0,0,0.28)' }}>
+        <div className="glass-card farm-glass relative p-8 sm:p-10 [@media(max-height:520px)]:p-4 overflow-hidden">
 
-          <div className="relative flex flex-col items-center text-center">
+          {/* Short screens (the 7" panel) are wide but not tall: brand beside
+              the form, so nothing has to be dropped to fit. */}
+          <div className="relative flex flex-col items-center text-center [@media(max-height:520px)]:flex-row [@media(max-height:520px)]:gap-8">
+            <div className="flex flex-col items-center shrink-0 [@media(max-height:520px)]:w-44">
             {/* Fish icon */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -61,13 +62,15 @@ export default function LoginScreen() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
-              className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-6"
+              className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-6 [@media(max-height:520px)]:mb-0"
               style={{ color: 'var(--text-primary)' }}
             >
               {otpPending ? 'Enter OTP' : showForgot ? 'Reset Password' : 'Sign In'}
             </motion.h1>
+            </div>
 
             {/* Form */}
+            <div className="w-full min-w-0">
             <AnimatePresence mode="wait">
               {otpPending ? (
                 <motion.div key="otp" className="w-full"
@@ -95,6 +98,7 @@ export default function LoginScreen() {
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
           </div>
         </div>
       </motion.div>

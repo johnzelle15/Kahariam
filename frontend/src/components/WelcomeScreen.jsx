@@ -14,18 +14,15 @@ export default function WelcomeScreen({ onEnter }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
-      style={{ background: 'rgb(var(--bg-primary))' }}
+      className="theme-dark farm-ground fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
     >
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 0%, rgba(124,179,66,0.10), transparent 70%)' }} />
+      <div className="farm-overlay absolute inset-0 pointer-events-none" />
 
-      <div className="glass-card relative z-10 w-full max-w-md mx-4 p-8 sm:p-10 flex flex-col items-center text-center"
-        style={{ boxShadow: '0 24px 48px rgba(0,0,0,0.28)' }}>
+      <div className="glass-card farm-glass relative z-10 w-full max-w-md mx-4 p-8 sm:p-10 flex flex-col items-center text-center">
         <div className="w-14 h-14 mb-4 rounded-xl flex items-center justify-center"
           style={{ background: 'var(--glass-bg-hover)', border: '1px solid var(--glass-border)' }}>
           <img src={logoSvg} alt="" className="w-9 h-9" />

@@ -3,8 +3,8 @@
 Both run against a throwaway SQLite file standing in for MariaDB, so nothing
 here reads or writes live farm data.
 
-  * /api/reports/data is admin-only, rejects a malformed date, and returns the
-    opening stock plus every row in the range. The Reports tab builds all four
+  * /api/reports/data is admin-only, rejects a malformed date, and returns
+    every row in the range. The Reports tab builds all four
     of its reports from that one payload.
   * /api/daily-trend used to decide what was a death by looking for a 'Died.'
     note prefix that nothing writes — deaths are stored as
@@ -108,7 +108,7 @@ def test_daily_trend_counts_a_death_against_stock_but_not_as_a_sale():
     assert row['stock_wholesale'] == 870, row
 
 
-def test_reports_data_returns_opening_stock_and_the_rows_in_range():
+def test_reports_data_returns_the_rows_in_range():
     _seed([
         (1000, day(-5), 'stocked', 'WHOLESALE_IN', 0),
         (-50, day(-4), 'earlier order', 'SOLD', 0),
@@ -126,7 +126,7 @@ def test_reports_data_returns_opening_stock_and_the_rows_in_range():
     assert r.status_code == 200, r.get_data(as_text=True)
     body = r.get_json()
     assert (body['start_date'], body['end_date']) == (D.isoformat(), end.isoformat()), body
-    assert body['opening_stock'] == 950, body
+    assert 'opening_stock' not in body, body
     assert [(x['transaction_type'], x['count']) for x in body['records']] == [('SOLD', 100), ('DIED', 30)], body
     assert [s['username'] for s in body['sessions']] == ['ana'], body
     assert body['price_per_fish'] == inventory.PRICE_PER_FISH, body

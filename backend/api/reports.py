@@ -4,8 +4,8 @@ Reports API — the rows behind the Reports tab.
 Routes:
   GET /api/reports/data?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD   — [Admin]
 
-Returns the stock on hand before the range plus every inventory row and
-counting session inside it. The browser builds all four reports from this one
+Returns every inventory row and counting session inside the range. The
+browser builds all four reports from this one
 payload (frontend/src/utils/reports.js), so the tab costs one round trip and a
 report's table, chart and exports are all views of the same rows.
 """
@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, jsonify, request
 
 from backend.api.auth_otp import require_auth
-from backend.api.inventory import PRICE_PER_FISH, _row_scalar, _serialize_inventory_row
+from backend.api.inventory import PRICE_PER_FISH, _serialize_inventory_row
 from backend.api.settings import require_admin
 from backend.core.db import get_db
 
@@ -23,9 +23,8 @@ reports_bp = Blueprint('reports', __name__)
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
-# The live stock pool — the same rows /get_wholesale_stock sums. Archived rows
-# still count; deleted ones never do.
-_STOCK_ROWS = "deleted = 0 AND (action='WHOLESALE' OR action='INVENTORY')"
+# Counted, sold and died rows. Archived rows still count; deleted ones never do.
+_RECORD_ROWS = "deleted = 0 AND (action='WHOLESALE' OR action='INVENTORY')"
 
 
 def _parse_range(args):
@@ -63,12 +62,7 @@ def report_data():
     try:
         c = conn.cursor()
         c.execute(
-            f"SELECT COALESCE(SUM(count), 0) AS stock FROM inventory WHERE {_STOCK_ROWS} AND DATE(date) < ?",
-            (start,))
-        opening = int(_row_scalar(c.fetchone(), 'stock') or 0)
-
-        c.execute(
-            f"SELECT * FROM inventory WHERE {_STOCK_ROWS} AND DATE(date) BETWEEN ? AND ? ORDER BY date, id",
+            f"SELECT * FROM inventory WHERE {_RECORD_ROWS} AND DATE(date) BETWEEN ? AND ? ORDER BY date, id",
             (start, end))
         records = [_serialize_inventory_row(row) for row in c.fetchall()]
 
@@ -92,7 +86,6 @@ def report_data():
         'end_date': end,
         'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
         'price_per_fish': PRICE_PER_FISH,
-        'opening_stock': opening,
         'records': records,
         'sessions': sessions,
     })

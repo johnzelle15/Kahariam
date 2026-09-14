@@ -10,7 +10,7 @@ const rec = (id, date, type, count, notes = '') =>
   ({ id, date, transaction_type: type, action: 'WHOLESALE', count, notes, variant: 'SPIN_20' })
 const payload = (records, extra = {}) => ({
   start_date: '2026-09-07', end_date: '2026-09-13',
-  price_per_fish: 0.4, opening_stock: 1000, records, sessions: [], ...extra,
+  price_per_fish: 0.4, records, sessions: [], ...extra,
 })
 
 test('presetRange: 7D, last month across a month end and a year end, this year', () => {
@@ -49,22 +49,25 @@ test('sales: a death is not a sale, revenue is count × price, zero days listed'
   assert.deepEqual([r.totals.orders, r.totals.sold, r.totals.revenue], [2, 150, 60])
 })
 
-test('stock: opening + in − sold − died = closing, carried period to period', () => {
-  const r = buildReport('stock', payload([
+test('counts: counted, sold and died per period, no running balance', () => {
+  const r = buildReport('counts', payload([
     rec(1, '2026-09-07 08:00', 'WHOLESALE_IN', 500),
     rec(2, '2026-09-08 09:00', 'SOLD', 200),
     rec(3, '2026-09-13 10:00', 'DIED', 30),
+    rec(4, '2026-09-13 11:00', 'WHOLESALE_IN', 200),
   ]), { group: 'day' })
-  assert.deepEqual([r.rows[0].opening, r.rows[0].closing], [1000, 1500])
-  assert.deepEqual([r.rows[1].opening, r.rows[1].closing], [1500, 1300])
-  assert.equal(r.rows.at(-1).closing, 1270)
-  assert.deepEqual(
-    [r.totals.opening, r.totals.in, r.totals.sold, r.totals.died, r.totals.closing],
-    [1000, 500, 200, 30, 1270])
+  assert.deepEqual(r.rows.map(x => [x.in, x.sold, x.died]),
+    [[500, 0, 0], [0, 200, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [200, 0, 30]])
+  assert.deepEqual([r.totals.in, r.totals.sold, r.totals.died], [700, 200, 30])
+  assert.deepEqual(r.columns.map(c => c.key), ['label', 'in', 'sold', 'died'])
+  const died = r.summary.find(s => s.label === 'Died')
+  assert.equal(died.sub, '4.3% of counted')
+  assert.equal(r.summary.find(s => s.label === 'Counted per day').value, '100')
+  assert.equal(r.summary.find(s => s.label === 'Best day').value, '500')
 })
 
-test('stock by week: a Sunday-night sale lands in the week that began on Monday', () => {
-  const r = buildReport('stock',
+test('counts by week: a Sunday-night sale lands in the week that began on Monday', () => {
+  const r = buildReport('counts',
     payload([rec(1, '2026-09-13 23:00', 'SOLD', 10)], { end_date: '2026-09-14' }),
     { group: 'week' })
   assert.deepEqual(r.rows.map(x => [x.key, x.sold]), [['2026-09-07', 10], ['2026-09-14', 0]])
