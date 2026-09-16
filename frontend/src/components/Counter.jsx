@@ -1,282 +1,475 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
-import { rawApi } from '../utils/api'
-import { Play, Square, Save, Lock, Loader2, CheckCircle2, XCircle } from 'lucide-react'
-import { Button, Card, Modal, PageHeader, StatusIndicator } from './ui'
+import { io } from 'socket.io-client'
+import api, { rawApi } from '../utils/api'
+import { Play, Square, Save, Lock, CheckCircle2, XCircle, WifiOff, Undo2 } from 'lucide-react'
+import { Button, Modal, StatusIndicator } from './ui'
+import useAuthStore from '../store/authStore'
+
+const VARIANT = 'SPIN_20'
+const UNDO_WINDOW_MS = 10000
 
 /* ──────────────────────────────────────────────────────────────
-   Toast Notification
+   Toast — carries an optional Undo, because the save it confirms
+   is otherwise irreversible from this screen.
    ────────────────────────────────────────────────────────────── */
-function Toast({ toast, onDismiss }) {
-  if (!toast) return null
-  const isError = toast.type === 'error'
+function Toast({ toast, onUndo }) {
   return (
     <AnimatePresence>
-      <motion.div
-        key={toast.id}
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5
-          px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl border
-          ${isError
-            ? 'bg-red-500/10 border-red-500/20 text-red-400'
-            : 'bg-accent-green/10 border-accent-green/20 text-accent-green'
-          }`}
-      >
-        {isError
-          ? <XCircle className="w-4.5 h-4.5 shrink-0" />
-          : <CheckCircle2 className="w-4.5 h-4.5 shrink-0" />}
-        {toast.message}
-      </motion.div>
+      {toast && (
+        <motion.div
+          key={toast.id}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.15 }}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
+            px-5 py-3 rounded-xl text-sm font-semibold border shadow-lg
+            ${toast.type === 'error'
+              ? 'bg-accent-red/10 border-accent-red/25 text-accent-red'
+              : 'bg-accent-green/10 border-accent-green/25 text-accent-green'}`}
+        >
+          {toast.type === 'error'
+            ? <XCircle className="w-4 h-4 shrink-0" />
+            : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+          {toast.message}
+          {toast.undoId != null && (
+            <button
+              onClick={onUndo}
+              className="ml-1 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1
+                text-xs font-bold border border-current/30 hover:bg-current/10 transition-colors"
+            >
+              <Undo2 className="w-3.5 h-3.5" /> Undo
+            </button>
+          )}
+        </motion.div>
+      )}
     </AnimatePresence>
   )
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Counter Component
-   ────────────────────────────────────────────────────────────── */
+/* Elapsed wall-clock for the running session, as mm:ss or h:mm:ss. */
+function formatElapsed(ms) {
+  if (ms == null || ms < 0) return '—'
+  const total = Math.floor(ms / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = n => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
+}
+
 export default function Counter() {
-  const DEVICE_ID = 'test-device'
+  const user = useAuthStore(s => s.user)
 
-  function getUserId() {
-    let uid = localStorage.getItem('fc_user_id')
-    if (!uid) {
-      uid = 'user-' + Math.random().toString(36).substr(2, 9)
-      localStorage.setItem('fc_user_id', uid)
-    }
-    return uid
-  }
-
-  const [lockWarning, setLockWarning] = useState('')
-  const [variant, setVariant] = useState('SPIN_20')
   const [count, setCount] = useState(0)
   const [active, setActive] = useState(false)
-  const [socketConnected, setSocketConnected] = useState(false)
+  // Starts false so the disconnected banner never flashes on a normal load;
+  // it appears only once a connection has actually dropped or failed.
+  const [offline, setOffline] = useState(false)
+  const [device, setDevice] = useState({ id: null, name: null })
+  const [session, setSession] = useState(null)
+  const [lockWarning, setLockWarning] = useState('')
+  const [loadError, setLoadError] = useState('')
 
-  // Save flow state
   const [isSaving, setIsSaving] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
-  const [confirmDialog, setConfirmDialog] = useState(false)
+  const [confirmSave, setConfirmSave] = useState(false)
+  const [confirmStart, setConfirmStart] = useState(false)
   const [toast, setToast] = useState(null)
+  const [now, setNow] = useState(Date.now())
 
-  const showToast = useCallback((message, type = 'success') => {
+  // Rate is derived from observed count deltas rather than asked of the
+  // backend: the operator needs to see the line moving, not an exact figure.
+  const rateRef = useRef({ lastCount: 0, lastAt: null, perMin: null })
+  const [rate, setRate] = useState(null)
+  const toastTimer = useRef(null)
+
+  const userId = user?.id != null ? String(user.id) : 'unknown'
+
+  const showToast = useCallback((message, type = 'success', undoId = null) => {
     const id = Date.now()
-    setToast({ id, message, type })
-    setTimeout(() => setToast(prev => prev?.id === id ? null : prev), 3500)
+    setToast({ id, message, type, undoId })
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(
+      () => setToast(prev => (prev?.id === id ? null : prev)),
+      undoId != null ? UNDO_WINDOW_MS : 3500
+    )
   }, [])
+
+  const fetchState = useCallback(async () => {
+    try {
+      // In parallel: these two do not depend on each other, and on the panel
+      // three chained round-trips every poll is what made the screen feel slow.
+      const [res, r2] = await Promise.all([
+        rawApi.get('/get_state'),
+        rawApi.get('/get_count'),
+      ])
+      const d = res.data || {}
+      setActive(!!d.active)
+      setDevice({ id: d.device_id || null, name: d.device_name || null })
+      setSession(d.session || null)
+      setLoadError('')
+      setCount(r2.data.count || 0)
+
+      if (d.device_id) {
+        try {
+          const ls = await api.get(`/devices/${d.device_id}/lock_status`)
+          const data = ls?.data
+          if (data?.locked && data.locked_by !== userId) {
+            setLockWarning('In use by another user')
+          } else setLockWarning('')
+        } catch { /* lock status is advisory; never block the screen on it */ }
+      }
+    } catch (e) {
+      setLoadError(e.response?.data?.message || 'Could not reach the counter service.')
+    }
+  }, [userId])
 
   useEffect(() => {
     fetchState()
-    if (typeof window !== 'undefined' && window.io) {
-      const socket = window.io()
-      socket.on('connect', () => { setSocketConnected(true); fetchState() })
-      socket.on('disconnect', () => setSocketConnected(false))
-      socket.on('reading', data => {
-        if (data && typeof data.count !== 'undefined') setCount(data.count)
-      })
-      socket.on('counting_state', d => {
-        setActive(!!d.active)
-        if (!d.active) setLockWarning('')
-      })
-      const interval = setInterval(fetchState, 5000)
-      return () => {
-        clearInterval(interval)
-        socket.off('reading')
-        socket.off('counting_state')
-        socket.disconnect()
-      }
-    }
-  }, [])
+    const socket = io()
+    socket.on('connect', () => { setOffline(false); fetchState() })
+    socket.on('disconnect', () => setOffline(true))
+    socket.on('connect_error', () => setOffline(true))
+    socket.on('reading', data => {
+      if (data && typeof data.count !== 'undefined') setCount(data.count)
+    })
+    socket.on('counting_state', d => {
+      setActive(!!d.active)
+      if (!d.active) setLockWarning('')
+      fetchState()
+    })
+    // Belt and braces behind the live feed: the panel must keep advancing even
+    // if the socket is wedged.
+    const poll = setInterval(fetchState, 5000)
+    return () => { clearInterval(poll); socket.disconnect() }
+  }, [fetchState])
 
-  async function fetchState() {
-    try {
-      const res = await rawApi.get('/get_state')
-      setActive(!!res.data.active)
-      const r2 = await rawApi.get('/get_count')
-      setCount(r2.data.count || 0)
-      try {
-        const uid = getUserId()
-        const ls = await axios.get(`/api/v1/devices/${DEVICE_ID}/lock_status`)
-        const data = ls?.data
-        if (!data || typeof data !== 'object') { setLockWarning('') }
-        else if (data.locked) {
-          setLockWarning(data.locked_by === uid ? 'You have the lock' : `Device locked by ${data.locked_by}`)
-        } else { setLockWarning('') }
-      } catch { /* ignore */ }
-    } catch (e) { console.error(e) }
-  }
+  // Ticks the elapsed clock while a run is open.
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active])
+
+  // Track throughput across count updates.
+  useEffect(() => {
+    if (!active) {
+      rateRef.current = { lastCount: count, lastAt: null, perMin: null }
+      setRate(null)
+      return
+    }
+    const r = rateRef.current
+    const at = Date.now()
+    if (r.lastAt && count > r.lastCount) {
+      const minutes = (at - r.lastAt) / 60000
+      if (minutes > 0.02) {
+        const instant = (count - r.lastCount) / minutes
+        // Smoothed: raw per-tick rates swing too hard to read at a glance.
+        r.perMin = r.perMin == null ? instant : r.perMin * 0.7 + instant * 0.3
+        setRate(Math.round(r.perMin))
+        r.lastCount = count
+        r.lastAt = at
+      }
+    } else if (!r.lastAt) {
+      r.lastCount = count
+      r.lastAt = at
+    }
+  }, [count, active])
+
+  const startedAt = session?.started_at
+    ? new Date(session.started_at.replace(' ', 'T')).getTime()
+    : null
+  const elapsed = active && startedAt ? now - startedAt : null
 
   async function start() {
     try {
-      const uid = getUserId()
-      const lockRes = await axios.post(`/api/v1/devices/${DEVICE_ID}/lock`, { user_id: uid })
-      if (lockRes?.data?.status === 'ok') {
-        setLockWarning(`Locked by ${uid}`)
-        await rawApi.get('/start')
-        setActive(true)
-        showToast('Started counting…')
-        // Reset save state for a new counting session
-        setIsSaved(false)
-        poll()
-      } else { showToast('Failed to acquire lock', 'error') }
-    } catch (e) {
-      const err = e.response?.data
-      if (err?.status === 'locked') {
-        showToast('Device is locked by another user', 'error')
-        setLockWarning(`Locked by ${err.locked_by || 'someone'}`)
-      } else { showToast(e.response?.data?.message || 'Failed to start', 'error') }
-    }
-  }
-
-  async function stop() {
-    try {
-      await rawApi.get('/stop')
-      setActive(false)
-      const r = await rawApi.get('/get_count')
-      setCount(r.data.count || 0)
-      showToast('Stopped')
-      setLockWarning('')
-      try {
-        const uid = getUserId()
-        await axios.post(`/api/v1/devices/${DEVICE_ID}/unlock`, { user_id: uid })
-      } catch { /* ignore */ }
-    } catch (e) {
+      if (device.id) {
+        // Advisory, exactly as in fetchState. Only a real conflict — someone
+        // else mid-run (423) — stops the operator. Any other reservation
+        // failure is bookkeeping, and bookkeeping must never leave a dead
+        // Start button in front of someone with fish to count.
+        try {
+          await api.post(`/devices/${device.id}/lock`)
+        } catch (e) {
+          if (e.response?.status === 423) {
+            showToast('Another user is counting right now', 'error')
+            setLockWarning('In use by another user')
+            return
+          }
+        }
+      }
+      await rawApi.get(`/start?variant=${encodeURIComponent(VARIANT)}`)
+      setActive(true)
+      showToast('Counting started')
       fetchState()
-      showToast(e.response?.data?.message || 'Failed to stop', 'error')
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Could not start counting', 'error')
     }
   }
 
-  async function poll() {
-    if (!active) return
+  async function stopCounting() {
+    await rawApi.get('/stop')
+    setActive(false)
+    if (device.id) {
+      try { await api.post(`/devices/${device.id}/unlock`) }
+      catch { /* advisory */ }
+    }
+  }
+
+  /* Ending a run must never depend on having something worth saving. Stop was
+     previously only reachable through "Stop & Save", which is disabled until
+     the count passes zero — so a run started by mistake could not be ended at
+     all until a fish happened to cross the line. Stopping keeps the count
+     (the backend clears it on the next start, not on stop), so this discards
+     nothing and Save stays available afterwards. */
+  async function handleStop() {
     try {
-      const r = await rawApi.get('/get_count')
-      setCount(r.data.count || 0)
-    } catch { /* ignore */ }
-    setTimeout(poll, 1000)
+      await stopCounting()
+      showToast(count > 0 ? 'Stopped — the count is kept until you save it' : 'Stopped')
+      fetchState()
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Could not stop counting', 'error')
+    }
   }
 
-  // ── Save handlers with confirmation ────────────────────────
-
-  function requestSave() {
-    if (isSaving || isSaved) return
-    setConfirmDialog(true)
-  }
-
-  async function handleConfirmSave() {
-    if (isSaving || isSaved || !confirmDialog) return
+  /* One action. Stopping and saving used to be two steps with a disabled
+     button in between and nothing on screen explaining why. */
+  async function handleStopAndSave() {
     setIsSaving(true)
     try {
-      await rawApi.post('/save_inventory', { count, variant, notes: '', action: 'WHOLESALE' })
-      showToast('Saved to inventory')
-      // Reset count on backend and locally so re-saving is impossible even after tab switch
-      try { await rawApi.post('/update_count', { count: 0 }) } catch { /* ignore */ }
+      if (active) await stopCounting()
+      const fresh = (await rawApi.get('/get_count')).data.count || 0
+      const toSave = fresh || count
+      if (toSave <= 0) {
+        showToast('Nothing counted to save', 'error')
+        return
+      }
+
+      const res = await rawApi.post('/save_inventory',
+        { count: toSave, variant: VARIANT, notes: '', action: 'WHOLESALE' })
+      try { await rawApi.post('/update_count', { count: 0 }) } catch { /* best effort */ }
       setCount(0)
-      setIsSaved(true)
-    } catch {
-      showToast('Save failed', 'error')
+      showToast(`Saved ${toSave.toLocaleString()} ${VARIANT}`, 'success', res.data?.id ?? null)
+      fetchState()
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Save failed', 'error')
     } finally {
       setIsSaving(false)
-      setConfirmDialog(false)
+      setConfirmSave(false)
     }
   }
 
-  const saveDisabled = count <= 0 || isSaving || isSaved || active
+  async function handleUndo() {
+    const id = toast?.undoId
+    if (id == null) return
+    setToast(null)
+    try {
+      await rawApi.post(`/undo_save/${id}`)
+      showToast('Save undone')
+      fetchState()
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Could not undo', 'error')
+    }
+  }
+
+  const canSave = count > 0 && !isSaving
+
+  /* A count on screen that has not been saved yet. Start zeroes the counter
+     (backend/api/counting.py sets runtime.fish_count = 0), so from here Start
+     is the destructive control and Save is the one the operator wants. */
+  const unsaved = !active && count > 0
+
+  function handleStartClick() {
+    if (unsaved) { setConfirmStart(true); return }
+    start()
+  }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      {/* Save confirmation modal */}
+    /* Fills whatever height the app shell leaves, so the count and both
+       controls are reachable without scrolling on the panel and on a phone.
+
+       `grow`, not the `calc(100dvh - 4rem)` this used to be. That 4rem was the
+       height of the chrome above the screen — the page padding, and on a phone
+       the fixed top bar's 64px offset — restated here as a constant. When the
+       bar became 69px (the 44px touch-target rule grew its menu button) and
+       then sticky, the constant went stale and the Start/Save row's helper line
+       was pushed 29px below the fold on phones. The shell is already h-dvh
+       (dvh, not vh: on a phone vh counts the space behind the address bar), and
+       every level between it and here is a flex column that grows, so filling
+       the parent is the same measurement without a number to keep in step. */
+    <div className="flex flex-col gap-3 w-full max-w-4xl mx-auto grow">
+
       <Modal
-        open={!!confirmDialog}
-        onClose={() => !isSaving && setConfirmDialog(false)}
-        title="Save to Inventory?"
+        open={confirmSave}
+        onClose={() => !isSaving && setConfirmSave(false)}
+        title="Save this count?"
         size="sm"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setConfirmDialog(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button variant="primary" icon={Save} loading={isSaving} onClick={handleConfirmSave}>
-              {isSaving ? 'Saving…' : 'Confirm'}
+            <Button variant="ghost" onClick={() => setConfirmSave(false)} disabled={isSaving}>Cancel</Button>
+            <Button variant="primary" icon={Save} loading={isSaving} onClick={handleStopAndSave}>
+              {isSaving ? 'Saving…' : 'Save'}
             </Button>
           </>
         }
       >
         <p className="text-sm text-text-secondary">
-          Are you sure you want to save {count} {variant} fish to inventory? This cannot be undone.
+          {count.toLocaleString()} {VARIANT} will be added to inventory.
+          You can undo this for a short time afterwards.
         </p>
       </Modal>
 
-      {/* Toast */}
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
-
-      <PageHeader
-        title="AI Fish Counter"
-        actions={
-          <StatusIndicator
-            status={socketConnected ? 'active' : 'idle'}
-            label={socketConnected ? 'Live Connected' : 'Disconnected'}
-          />
+      <Modal
+        open={confirmStart}
+        onClose={() => setConfirmStart(false)}
+        title="Discard the counted fish?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmStart(false)}>Cancel</Button>
+            <Button variant="danger" icon={Play}
+              onClick={() => { setConfirmStart(false); start() }}>
+              Discard and start
+            </Button>
+          </>
         }
-      />
+      >
+        <p className="text-sm text-text-secondary">
+          {count.toLocaleString()} {VARIANT} have been counted but not saved.
+          Starting a new run resets the counter to zero.
+        </p>
+      </Modal>
 
-      {lockWarning && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 rounded-xl border border-accent-amber/20 bg-accent-amber/10
-            px-4 py-2 text-sm font-semibold text-accent-amber"
-        >
-          <Lock className="w-4 h-4 shrink-0" /> {lockWarning}
-        </motion.div>
+      <Toast toast={toast} onUndo={handleUndo} />
+
+      {/* ── Context strip ──
+             What this run is, on what, by whom. These were three bare values
+             in a row — "SPIN_20  Fish Counter  admin" — with nothing saying
+             which was the product, which the machine and which the person, so
+             the top line of the kiosk screen read as three unrelated words.
+             Elapsed time has moved out of here and under the count, where the
+             operator is already looking. ── */}
+      <dl className="glass-card card-pad py-2 flex flex-wrap items-center gap-x-5 gap-y-1 shrink-0 m-0">
+        <div className="flex items-baseline gap-1.5">
+          <dt className="eyebrow">Variant</dt>
+          <dd className="m-0 text-xs font-semibold text-text-primary">{VARIANT}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <dt className="eyebrow">Counter</dt>
+          <dd className="m-0 text-xs text-text-secondary truncate">
+            {device.name || (device.id ? device.id.slice(0, 8) : 'none detected')}
+          </dd>
+        </div>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <dt className="eyebrow">Operator</dt>
+          <dd className="m-0 text-xs text-text-secondary truncate">
+            {session?.username || user?.username || '—'}
+          </dd>
+        </div>
+        <span className="ml-auto">
+          <StatusIndicator status={active ? 'active' : 'idle'} label={active ? 'Counting' : 'Idle'} />
+        </span>
+      </dl>
+
+      {offline && (
+        <div className="flex items-center gap-2 rounded-lg border border-accent-amber/25 bg-accent-amber/10
+          px-4 py-2 text-xs font-semibold text-accent-amber shrink-0">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          Live updates disconnected — the count may be behind. Reconnecting…
+        </div>
       )}
 
-      {/* Controls */}
-      <Card>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-2 basis-full sm:basis-auto sm:min-w-[160px]">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variant</label>
-            <select value={variant} onChange={e => setVariant(e.target.value)} className="neu-input w-full">
-              <option>SPIN_20</option>
-            </select>
-          </div>
-          <Button className="flex-1 sm:flex-none" variant="primary" size="lg" icon={Play} disabled={active} onClick={start}>
-            Start
-          </Button>
-          <Button className="flex-1 sm:flex-none" variant="danger" size="lg" icon={Square} disabled={!active} onClick={stop}>
-            Stop
-          </Button>
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent-red/25 bg-accent-red/10
+          px-4 py-2 text-xs font-semibold text-accent-red shrink-0">
+          {loadError}
+          <button onClick={fetchState} className="underline underline-offset-2 hover:no-underline">Retry</button>
         </div>
-      </Card>
+      )}
 
-      {/* Count Display */}
-      <Card className="text-center">
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Current Count</h3>
-        <div className="relative">
-          <p className="text-6xl sm:text-8xl font-black text-accent-green leading-none">
-            {count}
-          </p>
-          {active && (
-            <div className="absolute -inset-4 rounded-2xl"
-              style={{ boxShadow: '0 0 30px rgba(124, 179, 66, 0.12)' }} />
-          )}
+      {lockWarning && (
+        <div className="flex items-center gap-2 rounded-lg border border-accent-amber/25 bg-accent-amber/10
+          px-4 py-2 text-xs font-semibold text-accent-amber shrink-0">
+          <Lock className="w-4 h-4 shrink-0" /> {lockWarning}
         </div>
+      )}
 
-        <div className="mt-6 flex items-center justify-center">
-          <Button
-            variant="primary"
-            size="lg"
-            icon={isSaved ? CheckCircle2 : Save}
-            loading={isSaving}
-            disabled={saveDisabled}
-            className={isSaved ? 'opacity-40 cursor-not-allowed saturate-0' : ''}
-            onClick={requestSave}
-          >
-            {isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save to Inventory'}
-          </Button>
-        </div>
-      </Card>
+      {/* ── The count fills the frame. It is the only thing on this screen
+             anyone reads from across a room. ── */}
+      <div className="glass-card count-frame flex-1 min-h-0 overflow-hidden
+        flex flex-col items-center justify-center gap-2 p-4">
+        <p className="eyebrow">Fish counted</p>
+        {/* Sizing lives in .count-value, which needs to know how wide the
+            number is: a six-figure count has to step down or it runs past the
+            edge of the frame. Leading is tightened so the glyph fills the
+            space rather than its line box. */}
+        {/* pb reserves the comma's descender. leading-[0.85] deliberately makes
+            the line box shorter than the glyphs so the digits fill the frame,
+            which means anything below the baseline spills out of the box — at
+            181px the comma in "300,000" was landing on top of the status line
+            underneath it. Padding in em keeps that reservation proportional at
+            every size the clamp produces. */}
+        {/* Set in the primary text colour, not the brand green. This is the one
+            glyph on the system that has to be read from the other side of a
+            wet-floored shed, and on the dark ground #7cb342 measures about
+            6.4:1 against the card while the primary off-white measures about
+            13.8:1 — more than double the contrast, for a number whose whole job
+            is to be legible at distance. Green stays where it means something:
+            the status dot, and a figure that has gone up. */}
+        <p
+          className="count-value font-bold tabular-nums leading-[0.85] pb-[0.14em] text-text-primary"
+          aria-live="polite"
+          style={{ '--count-chars': count.toLocaleString().length }}
+        >
+          {count.toLocaleString()}
+        </p>
+        {/* Both pieces of run telemetry sit here rather than in 12px grey at the
+            top of the screen: while a run is open this line is directly under
+            the number the operator is already watching. Fixed height so the
+            count does not jump when the wording changes. */}
+        <p className="text-sm text-text-secondary tabular-nums h-5">
+          {active
+            ? (
+              <>
+                <span>{formatElapsed(elapsed)} elapsed</span>
+                <span className="text-text-muted"> · </span>
+                <span>{rate != null ? `${rate.toLocaleString()} fish/min` : 'measuring rate…'}</span>
+              </>
+            )
+            : count > 0 ? 'Stopped — ready to save' : 'Press Start to begin'}
+        </p>
+      </div>
+
+      {/* ── Actions pinned to the bottom, thumb height, always in the same place ── */}
+      <div className="grid grid-cols-2 gap-3 shrink-0">
+        {/* Secondary whenever there is a count worth losing: two identical
+             green slabs, one of which quietly discards the run, is not a choice
+             anyone should have to read twice on a touch panel. */}
+        <Button
+          variant={active || unsaved ? 'secondary' : 'primary'}
+          icon={active ? Square : Play}
+          onClick={active ? handleStop : handleStartClick}
+          className="!py-0 h-16 text-sm sm:text-base font-bold"
+        >
+          {active ? 'Stop' : unsaved ? 'Start over' : 'Start'}
+        </Button>
+        <Button
+          variant={canSave ? 'primary' : 'secondary'}
+          icon={Save}
+          loading={isSaving}
+          disabled={!canSave}
+          onClick={() => setConfirmSave(true)}
+          className="!py-0 h-16 text-sm sm:text-base font-bold"
+        >
+          {active ? 'Stop & Save' : 'Save'}
+        </Button>
+      </div>
+      {!canSave && !active && count === 0 && (
+        <p className="meta text-center shrink-0 -mt-1">
+          Save becomes available once fish have been counted.
+        </p>
+      )}
     </div>
   )
 }

@@ -21,7 +21,6 @@ function SettingsCard({ title, description, children, action }) {
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
       }}
     >
       <div className="flex items-start justify-between gap-2 mb-5">
@@ -47,7 +46,7 @@ function StatChip({ label, value, color }) {
   return (
     <div className="flex flex-col gap-0.5 px-4 py-3 rounded-xl"
       style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
-      <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+      <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
         {label}
       </span>
       <span className="text-xl font-bold" style={{ color: color || 'var(--text-primary)' }}>
@@ -371,7 +370,7 @@ export default function SystemTab({ toast }) {
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 <StatChip label="DB Version"   value={status.db_version?.split('-')[0] || '—'} color="var(--accent-blue)" />
-                <StatChip label="DB Size"      value={`${status.db_size_mb} MB`} color="var(--accent-cyan)" />
+                <StatChip label="DB Size"      value={`${status.db_size_mb} MB`} color="var(--accent-blue)" />
                 <StatChip label="Active Users" value={status.active_users} color="var(--accent-green)" />
                 <StatChip label="Uptime"       value={formatUptime(status.uptime_seconds)} color="var(--accent-purple)" />
               </div>
@@ -490,7 +489,7 @@ export default function SystemTab({ toast }) {
                             <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                               {member.fullname || member.username}
                             </p>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                               @{member.username}
                             </p>
                           </div>
@@ -498,7 +497,7 @@ export default function SystemTab({ toast }) {
                       </td>
                       <td className="py-2.5 px-3">
                         <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
                           style={{
                             background: member.role === 'admin'
                               ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
@@ -595,7 +594,7 @@ export default function SystemTab({ toast }) {
                           @{log.username}
                         </td>
                         <td className="py-2.5 px-3">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold"
+                          <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
                             style={{
                               background: 'rgba(139,92,246,0.10)',
                               color: 'var(--accent-purple)',

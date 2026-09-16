@@ -3,106 +3,16 @@
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { User, Camera, Save, Loader2, Mail, AtSign, Clock, Shield, Lock } from 'lucide-react'
+import { User, Camera, Save, Loader2, Mail, AtSign, Clock, AlertTriangle } from 'lucide-react'
 import api from '../../utils/api'
 import useAuthStore from '../../store/authStore'
+import { Badge, Button, Field, Modal, SettingsSection, SettingsPanel, Skeleton } from '../ui'
 
 /* ── Reusable helpers ────────────────────────────────────────────────────────── */
-function SettingsCard({ title, description, children }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className="rounded-2xl p-5 md:p-6"
-      style={{
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
-      }}
-    >
-      {(title || description) && (
-        <div className="mb-5">
-          {title && (
-            <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {title}
-            </h3>
-          )}
-          {description && (
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {description}
-            </p>
-          )}
-        </div>
-      )}
-      {children}
-    </motion.div>
-  )
-}
-
-function InputField({ label, id, value, onChange, type = 'text', placeholder, disabled, icon: Icon }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-        {label}
-      </label>
-      <div className="relative">
-        {Icon && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: 'var(--text-muted)' }}>
-            <Icon className="w-4 h-4" />
-          </span>
-        )}
-        <input
-          id={id}
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-150"
-          style={{
-            paddingLeft: Icon ? '2.25rem' : undefined,
-            background: 'var(--input-bg)',
-            border: '1px solid var(--input-border)',
-            color: 'var(--text-primary)',
-            boxShadow: 'var(--input-shadow)',
-            opacity: disabled ? 0.5 : 1,
-            cursor: disabled ? 'not-allowed' : 'auto',
-          }}
-          onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-purple)'; e.currentTarget.style.boxShadow = 'var(--input-focus-shadow)' }}
-          onBlur={e => { e.currentTarget.style.borderColor = 'var(--input-border)'; e.currentTarget.style.boxShadow = 'var(--input-shadow)' }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function RoleBadge({ role }) {
-  const isAdmin = role === 'admin'
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider"
-      style={{
-        background: isAdmin ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
-        color:      isAdmin ? 'var(--accent-purple)'   : 'var(--accent-blue)',
-        border:     `1px solid ${isAdmin ? 'rgba(167,139,250,0.25)' : 'rgba(96,165,250,0.2)'}`,
-      }}
-    >
-      <Shield className="w-2.5 h-2.5" />
-      {role}
-    </span>
-  )
-}
-
-function Skeleton({ width = '100%', height = 16, className = '' }) {
-  return (
-    <div
-      className={`rounded-lg animate-pulse ${className}`}
-      style={{ width, height, background: 'var(--skeleton-via)' }}
-    />
-  )
-}
+/* InputField and RoleBadge used to be defined here: a hand-rolled input whose
+   focus ring was painted purple by an inline onFocus handler, and a role chip
+   built from rgba() literals left over from the pre-olive palette. Both are now
+   the shared <Field> and <Badge>. */
 
 /* ── AccountTab ─────────────────────────────────────────────────────────────── */
 export default function AccountTab({ toast }) {
@@ -118,6 +28,10 @@ export default function AccountTab({ toast }) {
   })
   const [errors, setErrors] = useState({})
   const fileRef = useRef(null)
+  // What the server last had, so Save can say what it is about to change.
+  const [saved, setSaved] = useState({ fullname: '', email: '' })
+  const [confirming, setConfirming] = useState(false)
+  const closeConfirm = useCallback(() => setConfirming(false), [])
 
   /* Fetch latest profile */
   const fetchProfile = useCallback(async () => {
@@ -132,6 +46,7 @@ export default function AccountTab({ toast }) {
         last_login:    data.last_login || null,
         profile_image: data.profile_image || '',
       })
+      setSaved({ fullname: data.fullname || '', email: data.email || '' })
     } catch {
       toast('Failed to load profile', 'error')
     } finally {
@@ -156,20 +71,36 @@ export default function AccountTab({ toast }) {
     return Object.keys(errs).length === 0
   }
 
-  async function handleSave(e) {
+  const changes = [
+    { label: 'Full name', from: saved.fullname, to: profile.fullname },
+    { label: 'Email address', from: saved.email, to: profile.email },
+  ].filter(c => c.from !== c.to)
+  const emailChanged = saved.email !== profile.email
+
+  /* Save asks first and shows what will change. It used to write on the
+     click, and a changed email is not a small edit here: it is where the
+     sign-in codes go, so a typo in it locks the account out at next login. */
+  function handleSave(e) {
     e.preventDefault()
     if (!validate()) return
+    if (changes.length === 0) { toast('No changes to save', 'info'); return }
+    setConfirming(true)
+  }
+
+  async function doSave() {
     setSaving(true)
     try {
       await api.put('/settings/profile', {
         fullname: profile.fullname,
         email:    profile.email,
       })
+      setSaved({ fullname: profile.fullname, email: profile.email })
       toast('Profile updated successfully', 'success')
     } catch (err) {
       toast(err.response?.data?.error || 'Failed to update profile', 'error')
     } finally {
       setSaving(false)
+      setConfirming(false)
     }
   }
 
@@ -219,52 +150,57 @@ export default function AccountTab({ toast }) {
     : (profile.username?.[0] || '?').toUpperCase()
 
   return (
-    <div className="flex flex-col gap-5">
+    /* Profile beside the form from lg: on its own the form was a 672px column
+       inside a card twice that wide. */
+    <SettingsPanel className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:divide-y-0 lg:divide-x">
 
-      {/* ── Profile Image + Identity ─────────────────────────────────── */}
-      <SettingsCard title="Profile" description="Your public identity in the system">
+      {/* ── Identity ──
+             A person's own account, so it opens with who you are signed in as.
+             The avatar tile carried a violet-to-blue gradient and violet
+             initials — two colours from the palette this app replaced, on the
+             one element that is meant to read as a photograph's stand-in. */}
+      <SettingsSection title="Profile" description="your identity in the system">
         {loading ? (
-          <div className="flex items-center gap-5">
-            <Skeleton width={80} height={80} className="rounded-full" />
+          <div className="flex items-center gap-4">
+            <Skeleton width={56} height={56} className="!rounded-lg" />
             <div className="flex-1 flex flex-col gap-2">
-              <Skeleton width="60%" height={20} />
-              <Skeleton width="40%" height={14} />
+              <Skeleton width="45%" height={16} />
+              <Skeleton width="30%" height={12} />
             </div>
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+          <div className="flex items-center gap-4">
             {/* Avatar */}
-            <div className="relative flex-shrink-0">
+            <div className="relative shrink-0">
               <div
-                className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center text-2xl font-bold select-none"
-                style={{
-                  background: profile.profile_image
-                    ? 'transparent'
-                    : 'linear-gradient(135deg, rgba(139,92,246,0.3), rgba(96,165,250,0.2))',
-                  border: '2px solid var(--glass-border)',
-                  color: 'var(--accent-purple)',
-                }}
+                className="w-14 h-14 [@media(max-height:620px)]:w-11 [@media(max-height:620px)]:h-11
+                  rounded-lg overflow-hidden flex items-center justify-center
+                  text-lg [@media(max-height:620px)]:text-sm font-semibold select-none
+                  bg-[var(--btn-secondary-bg)] border border-[var(--glass-border)] text-text-secondary"
               >
                 {profile.profile_image
-                  ? <img src={profile.profile_image} alt="avatar" className="w-full h-full object-cover" />
+                  ? <img src={profile.profile_image} alt="" className="w-full h-full object-cover" />
                   : initials
                 }
               </div>
-              {/* Upload overlay */}
+              {/* Upload overlay. Given a focus-visible ring: it was reachable by
+                  Tab but invisible until hovered, so a keyboard user landed on a
+                  control they could not see. */}
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={imgSaving}
                 onDragOver={e => e.preventDefault()}
                 onDrop={handleDrop}
-                className="absolute inset-0 rounded-2xl flex items-center justify-center
-                  opacity-0 hover:opacity-100 transition-opacity duration-200 cursor-pointer border-none"
-                style={{ background: 'rgba(0,0,0,0.55)' }}
+                className="absolute inset-0 rounded-lg flex items-center justify-center border-none
+                  cursor-pointer bg-black/55 opacity-0 hover:opacity-100 focus-visible:opacity-100
+                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green
+                  transition-opacity duration-150"
                 title="Change profile picture"
                 aria-label="Change profile picture"
               >
                 {imgSaving
-                  ? <Loader2 className="w-5 h-5 animate-spin text-white" />
-                  : <Camera className="w-5 h-5 text-white" />
+                  ? <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  : <Camera className="w-4 h-4 text-white" />
                 }
               </button>
               <input
@@ -277,105 +213,116 @@ export default function AccountTab({ toast }) {
             </div>
 
             {/* Identity info */}
-            <div className="flex-1 flex flex-col gap-1.5 text-center sm:text-left">
-              <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
-                <span className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <span className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-text-primary truncate">
                   {profile.fullname || profile.username}
                 </span>
-                <RoleBadge role={profile.role} />
-              </div>
-              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>@{profile.username}</span>
-              <div className="flex items-center gap-1.5 justify-center sm:justify-start mt-1"
-                style={{ color: 'var(--text-muted)' }}>
-                <Clock className="w-3.5 h-3.5" />
-                <span className="text-xs">Last login: {formatDate(profile.last_login)}</span>
-              </div>
+                <Badge variant={profile.role === 'admin' ? 'info' : 'neutral'}
+                  className="uppercase tracking-wider">
+                  {profile.role}
+                </Badge>
+              </span>
+              <span className="meta">@{profile.username}</span>
+              <span className="meta flex items-center gap-1.5">
+                <Clock size={11} aria-hidden="true" />
+                Last login {formatDate(profile.last_login)}
+              </span>
             </div>
           </div>
         )}
-      </SettingsCard>
+      </SettingsSection>
 
-      {/* ── Edit Form ─────────────────────────────────────────────────── */}
-      <SettingsCard title="Personal Information" description="Update your name and contact email">
+      {/* ── Edit Form ──
+             Two columns at most. The cap is the panel's column now rather than
+             a max-width: from lg the form has two thirds of the card beside
+             Profile, so three inputs never spread across the whole screen.
+             Errors belong to their field through <Field>'s aria-describedby
+             rather than floating as loose paragraphs between grid cells. */}
+      <SettingsSection title="Personal information" description="name and contact email">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex flex-col gap-1.5">
-                <Skeleton width="40%" height={12} />
-                <Skeleton height={40} />
+                <Skeleton width="40%" height={11} />
+                <Skeleton height={36} />
               </div>
             ))}
           </div>
         ) : (
           <form onSubmit={handleSave} noValidate>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField
-                label="Full Name"
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field
+                label="Full name"
                 id="fullname"
                 value={profile.fullname}
                 onChange={e => setProfile(p => ({ ...p, fullname: e.target.value }))}
                 placeholder="John Doe"
                 icon={User}
+                error={errors.fullname}
               />
-              {errors.fullname && (
-                <p className="sm:col-span-2 -mt-2 text-xs" style={{ color: 'var(--accent-red)' }}>
-                  {errors.fullname}
-                </p>
-              )}
 
-              <InputField
+              <Field
                 label="Username"
                 id="username"
                 value={profile.username}
                 disabled
                 icon={AtSign}
+                hint={isAdmin ? undefined : 'Only an administrator can change this.'}
               />
-              {/* Explain why username is locked */}
-              {!isAdmin && (
-                <div className="sm:col-span-2 -mt-2 flex items-center gap-1.5 text-[11px]"
-                  style={{ color: 'var(--text-muted)' }}>
-                  <Lock className="w-3 h-3 flex-shrink-0" />
-                  Username can only be changed by an administrator.
-                </div>
-              )}
 
-              <div className="flex flex-col gap-1.5">
-                <InputField
-                  label="Email Address"
-                  id="email"
-                  type="email"
-                  value={profile.email}
-                  onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
-                  placeholder="you@example.com"
-                  icon={Mail}
-                />
-                {errors.email && (
-                  <p className="text-xs" style={{ color: 'var(--accent-red)' }}>{errors.email}</p>
-                )}
-              </div>
+              <Field
+                label="Email address"
+                id="email"
+                type="email"
+                value={profile.email}
+                onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
+                placeholder="you@example.com"
+                icon={Mail}
+                error={errors.email}
+                className="sm:col-span-2"
+              />
             </div>
 
-            <div className="mt-5 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-                  transition-all duration-200 border-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{
-                  background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                  color: '#fff',
-                  boxShadow: '0 4px 14px rgba(139,92,246,0.25)',
-                }}
-                onMouseEnter={e => { if (!saving) e.currentTarget.style.boxShadow = '0 4px 20px rgba(139,92,246,0.4)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(139,92,246,0.25)' }}
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {saving ? 'Saving…' : 'Save Profile'}
-              </button>
+            <div className="mt-3 flex justify-end">
+              <Button type="submit" variant="primary" size="sm" icon={Save} loading={saving}>
+                {saving ? 'Saving…' : 'Save profile'}
+              </Button>
             </div>
           </form>
         )}
-      </SettingsCard>
-    </div>
+
+        <Modal open={confirming} onClose={closeConfirm} title="Save profile changes?" size="sm"
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeConfirm} disabled={saving}>Cancel</Button>
+              <Button variant="primary" icon={Save} loading={saving} onClick={doSave}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+            </>
+          }>
+          <dl className="m-0">
+            {changes.map(c => (
+              <div key={c.label} className="py-2 border-t border-rule first:border-t-0">
+                <dt className="meta">{c.label}</dt>
+                <dd className="m-0 text-xs break-words">
+                  <span className="text-text-muted">{c.from || '—'}</span>
+                  <span className="text-text-muted" aria-hidden="true"> → </span>
+                  <span className="sr-only"> changes to </span>
+                  <span className="font-medium text-text-primary">{c.to || '—'}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {emailChanged && (
+            <p role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-attention/30
+              bg-attention/10 px-3 py-2 text-xs leading-snug text-attention">
+              <AlertTriangle size={14} className="shrink-0 mt-px" aria-hidden="true" />
+              Sign-in codes will be sent to the new address. If it is wrong, you will not be able to sign in.
+            </p>
+          )}
+        </Modal>
+      </SettingsSection>
+    </SettingsPanel>
   )
 }

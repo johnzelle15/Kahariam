@@ -13,57 +13,19 @@ import {
   Check, AlertCircle,
 } from 'lucide-react'
 import api from '../../utils/api'
+import { Badge, Button, EmptyState, Field, SettingsSection, SettingsPanel, Skeleton } from '../ui'
 
-/* ── Shared primitives ──────────────────────────────────────────────────────── */
-function SettingsCard({ title, description, children, action }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className="rounded-2xl p-5 md:p-6"
-      style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(16px)' }}
-    >
-      <div className="flex items-start justify-between gap-2 mb-5">
-        <div>
-          {title && <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>}
-          {description && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{description}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </motion.div>
-  )
+/* Live username / email availability, expressed as the field's own message.
+   AvailBadge used to render this as a chip beside the label, built from
+   rgba(16,185,129) and rgba(239,68,68) — emerald-500 and red-500, from the
+   palette this app replaced. */
+const AVAIL = {
+  checking:  { hint: 'Checking…' },
+  available: { hint: 'Available', ok: true },
+  taken:     { error: 'Already taken' },
+  invalid:   { error: 'Invalid format' },
 }
-
-function Skeleton({ height = 40 }) {
-  return <div className="rounded-lg animate-pulse" style={{ height, background: 'var(--skeleton-via)' }} />
-}
-
-/* ── Availability indicator ─────────────────────────────────────────────────── */
-function AvailBadge({ state }) {
-  if (state === 'checking') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-      <Loader2 className="w-3 h-3 animate-spin" /> Checking…
-    </span>
-  )
-  if (state === 'available') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--accent-green)' }}>
-      <CheckCircle className="w-3 h-3" /> Available
-    </span>
-  )
-  if (state === 'taken') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--accent-red)' }}>
-      <XCircle className="w-3 h-3" /> Already exists
-    </span>
-  )
-  if (state === 'invalid') return (
-    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--accent-amber)' }}>
-      <AlertCircle className="w-3 h-3" /> Invalid format
-    </span>
-  )
-  return null
-}
+const avail = (state, fallbackHint) => ({ hint: fallbackHint, ...(AVAIL[state] || {}) })
 
 /* ── Confirm Dialog ─────────────────────────────────────────────────────────── */
 function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
@@ -87,10 +49,7 @@ function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
         }}
       >
         <div className="flex flex-col items-center text-center gap-3 mb-5">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-            style={{ background: 'rgba(139,92,246,0.12)' }}>
-            <Users className="w-7 h-7" style={{ color: 'var(--accent-purple)' }} />
-          </div>
+          <Users size={22} className="text-info" aria-hidden="true" />
           <div>
             <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               Create this account?
@@ -104,22 +63,10 @@ function ConfirmDialog({ form, onConfirm, onCancel, saving }) {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer"
-            style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
-            Cancel
-          </button>
-          <button onClick={onConfirm} disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
-              border-none cursor-pointer disabled:opacity-60"
-            style={{
-              background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-              color: '#fff',
-              boxShadow: '0 4px 12px rgba(139,92,246,0.3)',
-            }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          <Button variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" className="flex-1" icon={Check} loading={saving} onClick={onConfirm}>
             {saving ? 'Creating…' : 'Yes, create'}
-          </button>
+          </Button>
         </div>
       </motion.div>
     </div>
@@ -230,12 +177,6 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
     }
   }
 
-  const inputStyle = (hasErr) => ({
-    background: 'var(--input-bg)',
-    border: `1px solid ${hasErr ? 'var(--accent-red)' : 'var(--input-border)'}`,
-    color: 'var(--text-primary)',
-  })
-
   return (
     <>
       <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -259,120 +200,76 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: 'rgba(139,92,246,0.12)' }}>
-                <Users className="w-4.5 h-4.5" style={{ color: 'var(--accent-purple)' }} />
-              </div>
-              <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {isEdit ? 'Edit Account' : 'Create New Account'}
-              </h3>
-            </div>
-            <button onClick={onClose} className="border-none bg-transparent cursor-pointer p-1"
-              style={{ color: 'var(--text-muted)' }}>
-              <X className="w-5 h-5" />
+            <h3 className="text-sm font-semibold text-text-primary">
+              {isEdit ? 'Edit account' : 'New staff account'}
+            </h3>
+            <button onClick={onClose} aria-label="Close"
+              className="-m-1 p-1 rounded border-none bg-transparent cursor-pointer text-text-muted
+                hover:text-text-primary focus-visible:outline focus-visible:outline-2
+                focus-visible:outline-accent-green">
+              <X size={16} />
             </button>
           </div>
 
           <div className="flex flex-col gap-4">
             {/* ── Username (create only) ── */}
             {!isEdit && (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                    Username <span style={{ color: 'var(--accent-red)' }}>*</span>
-                  </label>
-                  <AvailBadge state={unameState} />
-                </div>
-                <input
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value.replace(/\s/g, '') }))}
-                  placeholder="4-20 characters, letters/numbers/underscore"
-                  maxLength={20}
-                  className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all"
-                  style={{
-                    ...inputStyle(unameState === 'taken' || unameState === 'invalid'),
-                    boxShadow: unameState === 'available' ? '0 0 0 2px rgba(16,185,129,0.2)' :
-                               unameState === 'taken'     ? '0 0 0 2px rgba(239,68,68,0.2)' : 'none',
-                  }}
-                />
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  Only letters, numbers, and underscore _ allowed
-                </p>
-              </div>
+              <Field
+                label="Username"
+                required
+                value={form.username}
+                onChange={e => setForm(f => ({ ...f, username: e.target.value.replace(/\s/g, '') }))}
+                placeholder="4–20 characters"
+                maxLength={20}
+                {...avail(unameState, 'Letters, numbers and underscore only.')}
+              />
             )}
 
             {/* ── Full Name ── */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Full Name</label>
-              <input
-                value={form.fullname}
-                onChange={e => setForm(f => ({ ...f, fullname: e.target.value }))}
-                placeholder="e.g. Jane Dela Cruz"
-                className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
-                style={inputStyle(false)}
-              />
-            </div>
+            <Field
+              label="Full name"
+              value={form.fullname}
+              onChange={e => setForm(f => ({ ...f, fullname: e.target.value }))}
+              placeholder="e.g. Jane Dela Cruz"
+            />
 
             {/* ── Email ── */}
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Email {!isEdit && <span style={{ color: 'var(--accent-red)' }}>*</span>}
-                </label>
-                <AvailBadge state={emailState} />
-              </div>
-              <input
+              <Field
+                label="Email"
                 type="email"
+                required={!isEdit}
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value.trim() }))}
                 placeholder="staff@example.com"
-                className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all"
-                style={{
-                  ...inputStyle(emailState === 'taken' || emailState === 'invalid'),
-                  boxShadow: emailState === 'available' ? '0 0 0 2px rgba(16,185,129,0.2)' :
-                             emailState === 'taken'     ? '0 0 0 2px rgba(239,68,68,0.2)' : 'none',
-                }}
+                {...avail(emailState, isEdit
+                  ? undefined
+                  : 'A random password is generated and emailed to this address.')}
               />
-              {!isEdit && (
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  A random password will be generated and emailed to this address.
-                </p>
-              )}
               {isEdit && (
-                <button type="button"
+                <Button type="button" variant="secondary" size="sm" icon={Mail}
+                  className="self-start"
                   onClick={() => staff?.email && onResendCredentials?.(staff)}
                   disabled={!staff?.email}
-                  className="self-start flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-lg text-[11px] font-medium
-                    border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  style={{ background: 'rgba(96,165,250,0.10)', color: 'var(--accent-blue)' }}
                   title={staff?.email ? undefined : 'No email on file'}>
-                  <Mail className="w-3 h-3" /> Resend credentials
-                </button>
+                  Resend credentials
+                </Button>
               )}
             </div>
 
             {/* ── Role ── */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Role</label>
-              <div className="flex gap-2">
+              {/* The app's segmented control. This was two buttons whose
+                   selected state was a different colour per option — violet for
+                   admin, blue for staff — so "which is selected" and "which one
+                   is admin" were carried by the same signal. */}
+              <div className="segmented self-start" role="group" aria-label="Role">
                 {['staff', 'admin'].map(r => (
                   <button key={r} type="button"
                     onClick={() => setForm(f => ({ ...f, role: r }))}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm
-                      font-medium border-none cursor-pointer transition-all duration-200"
-                    style={{
-                      background: form.role === r
-                        ? (r === 'admin' ? 'rgba(139,92,246,0.15)' : 'rgba(96,165,250,0.12)')
-                        : 'var(--btn-secondary-bg)',
-                      color: form.role === r
-                        ? (r === 'admin' ? 'var(--accent-purple)' : 'var(--accent-blue)')
-                        : 'var(--text-muted)',
-                      border: `1px solid ${form.role === r
-                        ? (r === 'admin' ? 'rgba(139,92,246,0.35)' : 'rgba(96,165,250,0.3)')
-                        : 'transparent'}`,
-                    }}>
-                    <Shield className="w-3.5 h-3.5" />
+                    aria-pressed={form.role === r}
+                    data-active={form.role === r}>
                     {r.charAt(0).toUpperCase() + r.slice(1)}
                   </button>
                 ))}
@@ -388,41 +285,29 @@ function StaffModal({ mode, staff, onClose, onSaved, onResendCredentials, toast 
                 { ok: unameState === 'available', label: 'Username' },
                 { ok: emailState === 'available', label: 'Email' },
               ].map(({ ok, label }) => (
-                <span key={label} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                  style={{
-                    background: ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.06)',
-                    color:      ok ? 'var(--accent-green)'   : 'var(--text-muted)',
-                    border:     `1px solid ${ok ? 'rgba(16,185,129,0.2)' : 'var(--glass-border)'}`,
-                  }}>
-                  {ok ? <Check className="w-2.5 h-2.5" /> : <div className="w-2.5 h-2.5 rounded-full" style={{ border: '1.5px solid currentColor' }} />}
+                <Badge key={label} variant={ok ? 'success' : 'neutral'} className="gap-1">
+                  {ok
+                    ? <Check size={10} aria-hidden="true" />
+                    : <span aria-hidden="true" className="w-2.5 h-2.5 rounded-full border border-current" />}
                   {label}
-                </span>
+                </Badge>
               ))}
             </div>
           )}
 
           {/* ── Actions ── */}
           <div className="flex justify-end gap-2 mt-5">
-            <button onClick={onClose}
-              className="px-4 py-2 rounded-xl text-sm font-medium border-none cursor-pointer"
-              style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmitClick}
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button
+              variant="primary"
+              icon={Save}
+              loading={saving}
               disabled={!canSubmit}
+              onClick={handleSubmitClick}
               title={!canSubmit && !isEdit ? 'Complete all requirements above' : undefined}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold
-                border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                color: '#fff',
-                boxShadow: canSubmit ? '0 4px 12px rgba(139,92,246,0.3)' : 'none',
-              }}
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {isEdit ? 'Save Changes' : 'Create Account'}
-            </button>
+            </Button>
           </div>
         </motion.div>
       </div>
@@ -521,100 +406,96 @@ export default function UsersTab({ toast }) {
 
   return (
     <>
-      <div className="flex flex-col gap-5">
+      <SettingsPanel>
 
         {/* ── Staff Accounts ── */}
-        <SettingsCard
-          title="Staff Accounts"
-          description="Create and manage user access"
+        <SettingsSection
+          count={staff.length || undefined}
+          title="Staff accounts"
+          description="who can sign in"
           action={
-            <button
-              onClick={() => setStaffModal({ mode: 'create' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                border-none cursor-pointer transition-all duration-200"
-              style={{
-                background: 'linear-gradient(135deg, #8B5CF6, #6366f1)',
-                color: '#fff',
-                boxShadow: '0 2px 8px rgba(139,92,246,0.25)',
-              }}
-            >
-              <Plus className="w-3.5 h-3.5" /> New Staff
-            </button>
+            <Button variant="primary" size="sm" icon={Plus} onClick={() => setStaffModal({ mode: 'create' })}>
+              New staff
+            </Button>
           }
         >
           {staffLoading ? (
-            <div className="flex flex-col gap-2">{[...Array(3)].map((_, i) => <Skeleton key={i} height={56} />)}</div>
+            <div className="flex flex-col gap-2">{[...Array(3)].map((_, i) => <Skeleton key={i} height={44} />)}</div>
           ) : staff.length === 0 ? (
-            <div className="flex flex-col items-center py-8 gap-2" style={{ color: 'var(--text-muted)' }}>
-              <Users className="w-8 h-8 opacity-40" />
-              <p className="text-sm">No accounts yet</p>
-            </div>
+            <EmptyState compact icon={Users} title="No accounts yet"
+              message="Staff you add will be able to sign in and run the counter." />
           ) : (
+            /* The app's own table styling, so this reads like Inventory and
+               Adjustments rather than a fifth table invented in this file. The
+               row hover was two inline mouse handlers mutating background; it is
+               a CSS rule in .dark-table. */
             <div className="overflow-x-auto -mx-1">
-              <table className="w-full text-sm min-w-[480px]">
+              <table className="dark-table table-fixed w-full min-w-[620px]">
+                <colgroup>
+                  <col />
+                  <col className="w-[92px]" />
+                  <col className="w-[104px]" />
+                  <col className="w-[168px]" />
+                  <col className="w-[100px]" />
+                </colgroup>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--table-border)' }}>
-                    {['User', 'Role', 'Status', 'Last Login', ''].map(h => (
-                      <th key={h} className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide"
-                        style={{ color: 'var(--text-muted)' }}>{h}</th>
-                    ))}
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last login</th>
+                    <th><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   {staff.map(member => (
-                    <tr key={member.id} className="transition-colors"
-                      style={{ borderBottom: '1px solid var(--table-border)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--table-row-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
-                            style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(96,165,250,0.15))', color: 'var(--accent-purple)' }}>
+                    <tr key={member.id}>
+                      <td>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* The initial tile carried a violet-to-blue gradient
+                              and violet text — the pre-olive palette, surviving
+                              only here and on the profile avatar. */}
+                          <span aria-hidden="true"
+                            className="w-7 h-7 [@media(max-height:620px)]:w-6 [@media(max-height:620px)]:h-6
+                              rounded-md flex items-center justify-center text-[11px] font-semibold shrink-0
+                              bg-[var(--btn-secondary-bg)] border border-[var(--glass-border)] text-text-secondary">
                             {(member.fullname || member.username)?.[0]?.toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-xs font-medium text-text-primary truncate">
                               {member.fullname || member.username}
-                            </p>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>@{member.username}</p>
-                          </div>
+                            </span>
+                            <span className="block meta truncate">@{member.username}</span>
+                          </span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                          style={{
-                            background: member.role === 'admin' ? 'rgba(167,139,250,0.12)' : 'rgba(96,165,250,0.10)',
-                            color: member.role === 'admin' ? 'var(--accent-purple)' : 'var(--accent-blue)',
-                          }}>
-                          <Shield className="w-2.5 h-2.5" />{member.role}
-                        </span>
+                      <td>
+                        <Badge variant={member.role === 'admin' ? 'info' : 'neutral'}
+                          className="uppercase tracking-wider">
+                          {member.role}
+                        </Badge>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className="flex items-center gap-1 text-xs"
-                          style={{ color: member.active ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                      <td>
+                        <span className={`flex items-center gap-1 text-xs ${
+                          member.active ? 'text-positive' : 'text-text-muted'}`}>
                           {member.active
-                            ? <><CheckCircle className="w-3.5 h-3.5" /> Active</>
-                            : <><XCircle    className="w-3.5 h-3.5" /> Inactive</>}
+                            ? <><CheckCircle size={12} aria-hidden="true" /> Active</>
+                            : <><XCircle size={12} aria-hidden="true" /> Inactive</>}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                        {formatDate(member.last_login, 'Never logged in')}
+                      <td className="meta whitespace-nowrap">
+                        {formatDate(member.last_login, 'Never')}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5 justify-end">
+                      <td>
+                        <div className="flex items-center gap-1 justify-end">
                           <button onClick={() => setStaffModal({ mode: 'edit', staff: member })}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
-                            style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }} title="Edit">
-                            <Edit2 className="w-3.5 h-3.5" />
+                            className="icon-btn" aria-label={`Edit ${member.username}`}>
+                            <Edit2 size={13} aria-hidden="true" />
                           </button>
                           <button onClick={() => setToggleConfirm(member)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg border-none cursor-pointer"
-                            style={{
-                              background: member.active ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)',
-                              color: member.active ? 'var(--accent-red)' : 'var(--accent-green)',
-                            }}
-                            title={member.active ? 'Deactivate' : 'Activate'}>
-                            <Power className="w-3.5 h-3.5" />
+                            className={`icon-btn ${member.active ? 'icon-btn-danger' : 'icon-btn-positive'}`}
+                            aria-label={`${member.active ? 'Deactivate' : 'Activate'} ${member.username}`}>
+                            <Power size={13} aria-hidden="true" />
                           </button>
                         </div>
                       </td>
@@ -624,10 +505,10 @@ export default function UsersTab({ toast }) {
               </table>
             </div>
           )}
-        </SettingsCard>
+        </SettingsSection>
 
         {/* ── Audit Logs ── */}
-        <SettingsCard title="Audit Logs" description="System-wide action history">
+        <SettingsSection collapsible count={logsTotal || undefined} title="Audit log" description="system-wide action history">
           {logsLoading ? (
             <div className="flex flex-col gap-2">{[...Array(5)].map((_, i) => <Skeleton key={i} height={40} />)}</div>
           ) : logs.length === 0 ? (
@@ -659,11 +540,8 @@ export default function UsersTab({ toast }) {
                         <td className="py-2.5 px-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
                           @{log.username}
                         </td>
-                        <td className="py-2.5 px-3">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold"
-                            style={{ background: 'rgba(139,92,246,0.10)', color: 'var(--accent-purple)' }}>
-                            {log.action}
-                          </span>
+                        <td className="py-2.5 [@media(max-height:620px)]:py-1.5 px-3">
+                          <Badge variant="neutral">{log.action}</Badge>
                         </td>
                         <td className="py-2.5 px-3 text-xs max-w-[200px] truncate"
                           style={{ color: 'var(--text-muted)' }} title={log.details}>
@@ -696,8 +574,8 @@ export default function UsersTab({ toast }) {
               )}
             </>
           )}
-        </SettingsCard>
-      </div>
+        </SettingsSection>
+      </SettingsPanel>
 
       {/* Staff Modal */}
       <AnimatePresence>
@@ -736,10 +614,8 @@ export default function UsersTab({ toast }) {
               }}
             >
               <div className="flex flex-col items-center text-center gap-3 mb-5">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                  style={{ background: toggleConfirm.active ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)' }}>
-                  <Power className="w-7 h-7" style={{ color: toggleConfirm.active ? 'var(--accent-red)' : 'var(--accent-green)' }} />
-                </div>
+                <Power size={22} aria-hidden="true"
+                  className={toggleConfirm.active ? 'text-negative' : 'text-positive'} />
                 <div>
                   <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {toggleConfirm.active ? 'Deactivate this account?' : 'Activate this account?'}
@@ -752,23 +628,18 @@ export default function UsersTab({ toast }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setToggleConfirm(null)} disabled={toggling}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer disabled:opacity-60"
-                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
+                <Button variant="ghost" className="flex-1" onClick={() => setToggleConfirm(null)} disabled={toggling}>
                   Cancel
-                </button>
-                <button onClick={() => toggleStaff(toggleConfirm)} disabled={toggling}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
-                    border-none cursor-pointer disabled:opacity-60"
-                  style={{
-                    background: toggleConfirm.active
-                      ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                      : 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#fff',
-                  }}>
-                  {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant={toggleConfirm.active ? 'danger' : 'primary'}
+                  className="flex-1"
+                  icon={Check}
+                  loading={toggling}
+                  onClick={() => toggleStaff(toggleConfirm)}
+                >
                   {toggling ? 'Saving…' : toggleConfirm.active ? 'Yes, deactivate' : 'Yes, activate'}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>
@@ -797,10 +668,7 @@ export default function UsersTab({ toast }) {
               }}
             >
               <div className="flex flex-col items-center text-center gap-3 mb-5">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                  style={{ background: 'rgba(96,165,250,0.10)' }}>
-                  <Mail className="w-7 h-7" style={{ color: 'var(--accent-blue)' }} />
-                </div>
+                <Mail size={22} className="text-info" aria-hidden="true" />
                 <div>
                   <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
                     Resend credentials?
@@ -813,21 +681,12 @@ export default function UsersTab({ toast }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setResendConfirm(null)} disabled={resending}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border-none cursor-pointer disabled:opacity-60"
-                  style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-secondary)' }}>
+                <Button variant="ghost" className="flex-1" onClick={() => setResendConfirm(null)} disabled={resending}>
                   Cancel
-                </button>
-                <button onClick={() => resendCredentials(resendConfirm)} disabled={resending}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold
-                    border-none cursor-pointer disabled:opacity-60"
-                  style={{
-                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                    color: '#fff',
-                  }}>
-                  {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                </Button>
+                <Button variant="primary" className="flex-1" icon={Mail} loading={resending} onClick={() => resendCredentials(resendConfirm)}>
                   {resending ? 'Sending…' : 'Yes, resend'}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>

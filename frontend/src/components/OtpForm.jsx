@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { ShieldCheck, AlertCircle, Loader2, ArrowLeft, Clock } from 'lucide-react'
+import { ShieldCheck, AlertCircle, Loader2, ArrowLeft, Clock, RotateCcw } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 
 const ease = [0.16, 1, 0.3, 1]
@@ -10,11 +10,39 @@ export default function OtpForm() {
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(''))
   const inputRefs = useRef([])
 
-  const { verifyOtp, cancelOtp, otpEmailHint, otpExpiresIn, loading, error, clearError } = useAuthStore()
+  const { verifyOtp, resendOtp, cancelOtp, otpEmailHint, otpExpiresIn, loading, error, clearError } = useAuthStore()
+  const [resending, setResending] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
 
   // Countdown timer
   const [secondsLeft, setSecondsLeft] = useState(otpExpiresIn || 300)
   const [expired, setExpired] = useState(false)
+
+  // A resend issues a new code, so the countdown starts again.
+  useEffect(() => {
+    setSecondsLeft(otpExpiresIn || 300)
+    setExpired(false)
+  }, [otpExpiresIn])
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const id = setInterval(() => setCooldown(c => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(id)
+  }, [cooldown])
+
+  async function handleResend() {
+    if (resending || cooldown > 0) return
+    setResending(true)
+    const res = await resendOtp()
+    if (res.ok) {
+      setDigits(Array(OTP_LENGTH).fill(''))
+      setCooldown(60)
+      inputRefs.current[0]?.focus()
+    } else if (res.retryAfter) {
+      setCooldown(res.retryAfter)
+    }
+    setResending(false)
+  }
 
   useEffect(() => {
     if (secondsLeft <= 0) {
@@ -107,8 +135,8 @@ export default function OtpForm() {
           transition={{ duration: 0.5, ease, delay: 0.3 }}
           className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
           style={{
-            background: 'linear-gradient(135deg, rgba(96,165,250,0.12), rgba(167,139,250,0.1))',
-            border: '1px solid rgba(96,165,250,0.12)',
+            background: 'var(--glass-bg-hover)',
+            border: '1px solid var(--glass-border)',
           }}
         >
           <ShieldCheck className="w-7 h-7" style={{ color: 'var(--accent-blue)' }} />
@@ -151,18 +179,18 @@ export default function OtpForm() {
               className="w-11 h-13 sm:w-12 sm:h-14 rounded-xl text-center text-xl font-bold outline-none transition-all duration-200 disabled:opacity-40"
               style={{
                 background: 'var(--input-bg)',
-                border: digit ? '1.5px solid rgba(96,165,250,0.4)' : '1px solid var(--input-border)',
+                border: digit ? '1.5px solid var(--accent-green)' : '1px solid var(--input-border)',
                 color: 'var(--text-primary)',
-                boxShadow: digit ? '0 0 12px rgba(96,165,250,0.08)' : 'var(--input-shadow)',
+                boxShadow: digit ? 'var(--input-focus-shadow)' : 'var(--input-shadow)',
                 caretColor: 'var(--accent-blue)',
               }}
               onFocus={(e) => {
-                e.target.style.borderColor = 'rgba(96,165,250,0.5)'
+                e.target.style.borderColor = 'var(--accent-green)'
                 e.target.style.boxShadow = 'var(--input-focus-shadow)'
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = digit ? 'rgba(96,165,250,0.4)' : 'var(--input-border)'
-                e.target.style.boxShadow = digit ? '0 0 12px rgba(96,165,250,0.08)' : 'var(--input-shadow)'
+                e.target.style.borderColor = digit ? 'var(--accent-green)' : 'var(--input-border)'
+                e.target.style.boxShadow = digit ? 'var(--input-focus-shadow)' : 'var(--input-shadow)'
               }}
             />
           ))}
@@ -195,9 +223,8 @@ export default function OtpForm() {
           style={{
             background: expired
               ? 'rgba(100,100,120,0.3)'
-              : 'linear-gradient(135deg, #2563eb, #60a5fa)',
-            boxShadow: expired ? 'none' : '0 0 20px rgba(96,165,250,0.15), 0 4px 12px rgba(0,0,0,0.2)',
-            border: '1px solid rgba(96,165,250,0.2)',
+              : 'var(--accent-green)',
+            color: 'var(--on-accent)',
           }}
         >
           {loading ? (
@@ -208,6 +235,19 @@ export default function OtpForm() {
           {loading ? 'Verifying...' : expired ? 'Code Expired' : 'Verify OTP'}
         </motion.button>
       </form>
+
+      <button
+        onClick={handleResend}
+        disabled={resending || cooldown > 0}
+        className="w-full flex items-center justify-center gap-1.5 py-2 mb-1 text-xs font-semibold
+          rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{ color: expired ? 'var(--accent-green)' : 'var(--text-muted)' }}
+      >
+        {resending
+          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          : <RotateCcw className="w-3.5 h-3.5" />}
+        {resending ? 'Sending…' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Send a new code'}
+      </button>
 
       {/* Back to Login */}
       <button

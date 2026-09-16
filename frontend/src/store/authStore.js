@@ -9,7 +9,7 @@ const useAuthStore = create((set, get) => ({
 
   // OTP flow state
   otpPending: false,
-  otpUserId: null,
+  otpToken: null,
   otpEmailHint: '',
   otpExpiresIn: 300, // seconds
 
@@ -26,7 +26,7 @@ const useAuthStore = create((set, get) => ({
       const { data } = await api.post('/auth/login', { username, password })
       set({
         otpPending: true,
-        otpUserId: data.user_id,
+        otpToken: data.otp_token,
         otpEmailHint: data.email_hint || '',
         otpExpiresIn: data.expires_in || 300,
         loading: false,
@@ -42,12 +42,26 @@ const useAuthStore = create((set, get) => ({
   /**
    * Step 2 — Verify OTP → receive JWT.
    */
+  resendOtp: async () => {
+    const { otpToken } = get()
+    if (!otpToken) return { ok: false, error: 'No sign-in in progress.' }
+    try {
+      const { data } = await api.post('/auth/resend-otp', { otp_token: otpToken })
+      set({ otpExpiresIn: data.expires_in || 300, error: null })
+      return { ok: true }
+    } catch (e) {
+      const d = e.response?.data || {}
+      set({ error: d.error || 'Could not resend the code.' })
+      return { ok: false, error: d.error, retryAfter: d.retry_after }
+    }
+  },
+
   verifyOtp: async (otp) => {
-    const { otpUserId } = get()
+    const { otpToken } = get()
     set({ loading: true, error: null })
     try {
       const { data } = await api.post('/auth/verify-otp', {
-        user_id: otpUserId,
+        otp_token: otpToken,
         otp,
       })
       const { token, user } = data
@@ -58,7 +72,7 @@ const useAuthStore = create((set, get) => ({
         user,
         isAuthenticated: true,
         otpPending: false,
-        otpUserId: null,
+        otpToken: null,
         loading: false,
       })
       return data
@@ -81,7 +95,7 @@ const useAuthStore = create((set, get) => ({
       token: null,
       isAuthenticated: false,
       otpPending: false,
-      otpUserId: null,
+      otpToken: null,
       error: null,
     })
   },
@@ -92,7 +106,7 @@ const useAuthStore = create((set, get) => ({
   cancelOtp: () => {
     set({
       otpPending: false,
-      otpUserId: null,
+      otpToken: null,
       otpEmailHint: '',
       error: null,
     })

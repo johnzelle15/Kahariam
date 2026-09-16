@@ -4,13 +4,27 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kahariam Farms — Fish Counter</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+    <!-- Browser tab -->
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+
+    <!-- Home screen: makes this installable on the tablets and phones staff
+         actually open it on, instead of a nameless browser tab. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Kahariam" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Tints the Android browser chrome to match the app ground. -->
+    <meta name="theme-color" content="#161c16" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf7f1" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
   </head>
   <body class="antialiased">
     <div id="root"></div>
-    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
