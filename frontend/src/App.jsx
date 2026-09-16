@@ -16,10 +16,11 @@ import useAuthStore from './store/authStore'
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const Inventory = lazy(() => import('./components/Inventory'))
 const Adjustments = lazy(() => import('./components/Adjustments'))
+const Feed = lazy(() => import('./components/Feed'))
 const Reports = lazy(() => import('./components/Reports'))
 const Settings = lazy(() => import('./components/Settings/index'))
 
-const ADMIN_TABS = new Set(['dashboard', 'counter', 'inventory', 'adjustments', 'reports', 'settings'])
+const ADMIN_TABS = new Set(['dashboard', 'counter', 'inventory', 'adjustments', 'feed', 'reports', 'settings'])
 const STAFF_TABS = new Set(['counter', 'settings'])
 const STORAGE_KEY = 'fc_entered'
 
@@ -250,6 +251,7 @@ export default function App() {
                 {tab === 'counter' && <Counter />}
                 {tab === 'inventory' && allowedTabs.has('inventory') && <Inventory />}
                 {tab === 'adjustments' && allowedTabs.has('adjustments') && <Adjustments />}
+                {tab === 'feed' && allowedTabs.has('feed') && <Feed />}
                 {tab === 'reports' && allowedTabs.has('reports') && <Reports />}
                 {tab === 'settings' && allowedTabs.has('settings') && <Settings />}
               </Suspense>

@@ -213,6 +213,19 @@ def init_db():
         ''')
         conn.commit()
 
+    if not table_exists('feed_purchases'):
+        c.execute('''
+            CREATE TABLE feed_purchases (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                purchased_on DATE NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                notes VARCHAR(255) NULL,
+                deleted TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+        ''')
+        conn.commit()
+
     # The local counter must have a row in `devices` or nothing on the Counter
     # screen works: reserving it 404s (so Start never fires) and the readings
     # vision/fish_counter.py posts are rejected as unauthorized (so the count

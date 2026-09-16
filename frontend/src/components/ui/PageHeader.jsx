@@ -15,7 +15,11 @@ export default function PageHeader({ title, meta, actions }) {
         <span className="truncate">{title}</span>
         {meta && <span className="meta font-normal shrink-0">{meta}</span>}
       </h1>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {/* Free to shrink and wrap once it has a line of its own: the dashboard's
+          feed alert is wider than a phone, and at shrink-0 it pushed the page
+          sideways instead of wrapping. Sharing a line with the title, it keeps
+          its full width — a flex line breaks before it shrinks anything. */}
+      {actions && <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">{actions}</div>}
     </div>
   )
 }

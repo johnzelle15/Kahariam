@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { io } from 'socket.io-client'
-import { rawApi } from '../utils/api'
+import api, { rawApi } from '../utils/api'
 import { Fish, Lightbulb, ChevronDown, Eye, EyeOff } from 'lucide-react'
 import SalesTrend from './SalesTrend'
+import FeedAlert from './FeedAlert'
 import { getNoteDisplay, getRecordType, MOVEMENT as ACTIVITY } from '../utils/notes'
 import { dedupeInsights } from '../utils/insights'
 import {
@@ -620,6 +621,7 @@ export default function Dashboard() {
      that silently becomes "last 90 days" is worse than no card at all. */
   const [revRows, setRevRows] = useState(null)
   const [pricePerFish, setPricePerFish] = useState(null)
+  const [feedStatus, setFeedStatus] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -653,15 +655,27 @@ export default function Dashboard() {
 
   useEffect(() => {
     reload()
+    loadFeedStatus()
+    /* The countdown is in days, so the panel — left on overnight — has to ask
+       again for the new day to reach the band. A purchase recorded on any
+       device arrives sooner, over the socket. */
+    const feedTimer = setInterval(loadFeedStatus, 30 * 60 * 1000)
     const socket = io()
     socket.on('connect', () => setSocketConnected(true))
     socket.on('disconnect', () => setSocketConnected(false))
     socket.on('reading', () => reload())
     socket.on('counting_state', () => reload())
-    return () => { socket.disconnect() }
+    socket.on('feed_purchases', loadFeedStatus)
+    return () => { clearInterval(feedTimer); socket.disconnect() }
   }, [])
 
   function reload() { loadStats(); loadSessions() }
+
+  function loadFeedStatus() {
+    api.get('/feed/status')
+      .then(res => setFeedStatus(res.data))
+      .catch(() => { /* supplementary; the band keeps its last reading */ })
+  }
 
   async function loadSessions() {
     try { setSessions((await rawApi.get('/api/sessions?limit=15')).data.sessions || []) }
@@ -915,10 +929,25 @@ export default function Dashboard() {
         title="Farm Overview"
         meta={new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
         actions={
-          <StatusIndicator
-            status={socketConnected ? 'active' : 'idle'}
-            label={socketConnected ? 'Live' : 'Reconnecting'}
-          />
+          <>
+            {/* ── Feed purchasing ──
+                   Only when there is something to do; on schedule the countdown
+                   lives on the Feed page. A link, since it goes to a tab — and on
+                   touch its 44px target is padding cancelled by margin, so the
+                   target doesn't make the header line taller. */}
+            {feedStatus && feedStatus.status !== 'normal' && (
+              <FeedAlert compact status={feedStatus} action={
+                <a href="#feed" className="font-medium underline underline-offset-2 hover:no-underline
+                  [@media(pointer:coarse)]:py-3.5 [@media(pointer:coarse)]:-my-3.5">
+                  Record purchase
+                </a>
+              } />
+            )}
+            <StatusIndicator
+              status={socketConnected ? 'active' : 'idle'}
+              label={socketConnected ? 'Live' : 'Reconnecting'}
+            />
+          </>
         }
       />
 

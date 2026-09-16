@@ -62,6 +62,7 @@ def register_blueprints(app: Flask) -> None:
     from backend.api.auth_otp import auth_bp
     from backend.api.settings import settings_bp
     from backend.api.reports import reports_bp
+    from backend.api.feed import feed_bp
 
     app.register_blueprint(locks_bp)
     app.register_blueprint(devices_bp)
@@ -71,6 +72,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(auth_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(feed_bp)
 
 
 def register_frontend_routes(app: Flask) -> None:
