@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { rawApi } from '../utils/api'
-import { Send, ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Package, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
+import { Send, ArrowDownRight, ArrowUpRight, AlertCircle, Plus, X, Skull, ShoppingCart, Search } from 'lucide-react'
+import { Badge, Button, DateInput, EmptyState, PageHeader, Pager, SectionHeader } from './ui'
+import { formatRecordDate as formatDate } from '../utils/notes'
 
 const REASONS_WHOLESALE = ['Sold', 'Died']
 const VARIANTS = ['SPIN_20']
@@ -122,6 +124,12 @@ export default function Adjustments() {
     setPage(1)
   }
 
+  function clearAll() {
+    clearSearch()
+    clearDateFilter()
+    setHistoryVariant('')
+  }
+
   // Highlight matching text in notes
   function highlightMatch(text, query) {
     if (!query || !text) return text
@@ -130,7 +138,7 @@ export default function Adjustments() {
     const parts = text.split(regex)
     return parts.map((part, i) =>
       regex.test(part)
-        ? <mark key={i} className="bg-accent-purple/30 text-accent-purple rounded-sm px-0.5 font-semibold">{part}</mark>
+        ? <mark key={i}>{part}</mark>
         : part
     )
   }
@@ -294,56 +302,40 @@ export default function Adjustments() {
     return null
   }
 
-  function formatDate(value) {
-    if (!value) return 'N/A'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return String(value)
-    // Year is noise when every row is the current one; hour:'numeric' drops the
-    // leading zero so this stays short enough not to wrap in a narrow card.
-    const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
-    if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
-    return date.toLocaleDateString('en-US', opts)
-  }
-
-  function goPage(p) {
-    if (p < 1 || p > displayTotalPages) return
-    setPage(p)
-  }
-
-  function pageNumbers() {
-    const pages = []
-    const maxVisible = 5
-    let start = Math.max(1, page - Math.floor(maxVisible / 2))
-    let end = Math.min(displayTotalPages, start + maxVisible - 1)
-    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
-    for (let i = start; i <= end; i++) pages.push(i)
-    return pages
-  }
+  const filtered = !!(searchQuery || searchStartDate || searchEndDate || historyVariant)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-      {/* Adjust Stock Form */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="glass-card p-4 sm:p-6"
-      >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-6 flex items-center gap-2">
-          <Package className="w-4 h-4 text-accent-blue" /> Adjust Stock (Sold / Died)
-        </h3>
+    <div className="flex flex-col gap-section grow">
+      <PageHeader title="Adjustments" meta="record sales and losses against stock" />
 
-        {/* Batch Items */}
-        <div className="space-y-3 mb-4">
-          <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Variants &amp; Counts</label>
+      {/* Side by side from lg, not xl: between 1024 and 1280 the form ran the
+          full width of the pane and pushed the history below it. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] gap-grid items-start">
+      {/* Adjust Stock Form */}
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+        aria-labelledby="adjust-heading"
+        className="glass-card card-pad lg:sticky lg:top-0"
+      >
+        <SectionHeader id="adjust-heading" title="Adjust stock" meta="sold or died" className="mb-3" />
+
+        {/* Batch Items — plain rows. Each sat in its own tinted, bordered box:
+            a card inside the card, around one select and one stepper. */}
+        <div className="space-y-2 mb-3">
+          <label className="eyebrow">Variants &amp; Counts</label>
           {batchItems.map((item, idx) => {
             const stock = source === 'wholesale' && reason === 'Sold' ? (wholesaleStock[item.variant] ?? null) : null
             return (
-              <div key={idx} className="flex flex-wrap items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                <div className="flex-1 min-w-0 sm:min-w-[130px]">
-                  <select value={item.variant}
+              <div key={idx} className="flex flex-wrap items-center gap-2">
+                {/* Capped so the variant picker stops sprawling to ~1000px on a
+                    desktop screen while its quantity stepper hugs the far right
+                    edge — they read as one control at any width this way. */}
+                <div className="flex-1 min-w-0 sm:min-w-[130px] sm:max-w-md">
+                  <select value={item.variant} aria-label="Variant"
                     onChange={e => updateBatchItem(idx, 'variant', e.target.value)}
-                    className="neu-input w-full text-sm">
+                    className="neu-input w-full py-1.5 text-[13px]">
                     <option value="">Select variant</option>
                     {availableVariants(idx).map(v => (
                       <option key={v} value={v}>{v}
@@ -359,13 +351,13 @@ export default function Adjustments() {
                   </select>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => updateBatchItem(idx, 'count', Math.max(1, item.count - 1))}
-                    className="w-8 h-8 rounded-lg bg-white/5 text-text-primary hover:bg-white/10 flex items-center justify-center text-sm font-bold transition-colors">−</button>
-                  <input type="number" min="1" value={item.count}
+                  <button type="button" onClick={() => updateBatchItem(idx, 'count', Math.max(1, item.count - 1))}
+                    aria-label="Decrease count" className="icon-btn text-sm font-bold">−</button>
+                  <input type="number" min="1" value={item.count} aria-label="Count"
                     onChange={e => updateBatchItem(idx, 'count', Math.max(1, Number(e.target.value) || 1))}
-                    className="neu-input w-20 text-center text-sm" />
-                  <button onClick={() => updateBatchItem(idx, 'count', item.count + 1)}
-                    className="w-8 h-8 rounded-lg bg-white/5 text-text-primary hover:bg-white/10 flex items-center justify-center text-sm font-bold transition-colors">+</button>
+                    className="neu-input w-20 text-center py-1.5 text-[13px]" />
+                  <button type="button" onClick={() => updateBatchItem(idx, 'count', item.count + 1)}
+                    aria-label="Increase count" className="icon-btn text-sm font-bold">+</button>
                 </div>
                 {stock !== null && item.variant && (
                   <span className={`text-xs font-semibold min-w-[60px] text-right ${
@@ -408,231 +400,168 @@ export default function Adjustments() {
         </div>
 
         {/* Reason + Notes */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Reason</label>
-            <select value={reason} onChange={e => setReason(e.target.value)} className="neu-input">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div className="flex flex-col gap-1">
+            <label className="eyebrow">Reason</label>
+            <select value={reason} onChange={e => setReason(e.target.value)} className="neu-input py-1.5 text-[13px]">
               {REASONS_WHOLESALE.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-          <div className="flex flex-col gap-2 sm:col-span-1">
-            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Notes (optional)</label>
+          <div className="flex flex-col gap-1 sm:col-span-1">
+            <label className="eyebrow">Notes (optional)</label>
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Add notes here..."
-              className="neu-input min-h-[60px] resize-y py-3" />
+              className="neu-input min-h-[60px] resize-y py-2 text-[13px]" />
           </div>
         </div>
 
-        {/* Error / Success Messages */}
+        {/* Error / Success Messages — the dashboard's alert band. */}
         {formError && (
-          <div className="mb-4 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-accent-red text-sm flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" /> {formError}
+          <div role="alert" className="mb-3 flex items-center gap-2 rounded-lg border border-negative/25
+            bg-negative/10 px-3 py-2 text-xs font-medium text-negative">
+            <AlertCircle size={14} className="shrink-0" aria-hidden="true" /> {formError}
           </div>
         )}
         {formSuccess && (
-          <div className="mb-4 p-3 rounded-xl bg-accent-green/10 border border-accent-green/20 text-accent-green text-sm">
+          <div role="status" className="mb-3 rounded-lg border border-positive/25 bg-positive/10
+            px-3 py-2 text-xs font-medium text-positive">
             {formSuccess}
           </div>
         )}
 
-        <div className="flex justify-center">
-          <button onClick={submitAdjustment} disabled={submitting || wholesaleMinNotMet}
-            className={`glow-btn flex items-center gap-2 ${(submitting || wholesaleMinNotMet) ? 'opacity-50 cursor-not-allowed' : ''}`}
-            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}>
-            <Send className="w-4 h-4" /> {submitting ? 'Submitting...' : 'Submit Adjustment'}
-          </button>
+        <div className="flex justify-end">
+          <Button
+            icon={Send}
+            loading={submitting}
+            disabled={wholesaleMinNotMet}
+            onClick={submitAdjustment}
+            title={wholesaleMinNotMet ? `Minimum wholesale order is ${WHOLESALE_MIN} fish` : undefined}
+          >
+            {submitting ? 'Submitting...' : 'Submit Adjustment'}
+          </Button>
         </div>
-      </motion.div>
+      </motion.section>
 
-      {/* History */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.35 }}
-        className="glass-card p-4 sm:p-6"
+      {/* History — one panel, as on Inventory: the heading over a filter row
+          that wraps, then the rows, then the pager. The filters sat in a
+          second bordered box inside this card, over a row of chips repeating
+          what the inputs already showed. */}
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+        aria-labelledby="history-heading"
+        className="glass-card overflow-hidden"
       >
-        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">
-          Adjustment History {displayTotalRecords > 0 && <span className="text-text-muted/60">({displayTotalRecords})</span>}
-        </h3>
+        <div className="card-pad flex flex-col gap-2 border-b border-rule">
+          <SectionHeader id="history-heading" title="Adjustment history"
+            meta={displayTotalRecords > 0 ? `${displayTotalRecords} records` : undefined} />
 
-        {/* Filter Bar */}
-        <div className="mb-4 rounded-xl p-2.5"
-          style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {/* Search */}
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted/60 pointer-events-none" />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-[1_1_9rem] min-w-0">
+              <Search size={14} aria-hidden="true"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
               <input
                 type="text"
+                enterKeyHint="search"
                 value={searchInput}
                 onChange={e => handleSearchChange(e.target.value)}
                 placeholder="Search notes, dates, days..."
-                className="neu-input w-full pl-10 pr-8 py-[7px] text-xs transition-all duration-200 focus:ring-1 focus:ring-accent-purple/30"
+                aria-label="Search adjustments"
+                className={`neu-input w-full pl-8 py-1.5 text-[13px] ${searchInput ? 'pr-9' : ''}`}
               />
               {searchInput && (
-                <button onClick={clearSearch}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full bg-white/8 hover:bg-white/15 p-0.5 flex items-center justify-center transition-colors">
-                  <X className="w-3 h-3 text-text-muted" />
+                <button type="button" onClick={clearSearch} aria-label="Clear search"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-text-muted hover:text-text-primary
+                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-green">
+                  <X size={14} />
                 </button>
               )}
             </div>
 
-            {/* Date range */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <input type="date" value={searchStartDate}
-                onChange={e => { setSearchStartDate(e.target.value); setPage(1) }}
-                className="neu-input text-xs py-[7px] px-2" />
-              <span className="text-text-muted/40 text-[10px]">–</span>
-              <input type="date" value={searchEndDate}
-                onChange={e => { setSearchEndDate(e.target.value); setPage(1) }}
-                className="neu-input text-xs py-[7px] px-2" />
-              {(searchStartDate || searchEndDate) && (
-                <button onClick={clearDateFilter}
-                  className="rounded-full bg-accent-red/10 hover:bg-accent-red/20 p-1 flex items-center justify-center transition-colors"
-                  title="Clear dates">
-                  <X className="w-2.5 h-2.5 text-accent-red" />
-                </button>
-              )}
+            <select aria-label="Variant" value={historyVariant}
+              onChange={e => { setHistoryVariant(e.target.value); setPage(1) }}
+              className="neu-input flex-none py-1.5 text-[13px]">
+              <option value="">All variants</option>
+              {VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+
+            <div className="grid grid-cols-2 gap-2 flex-[1_1_17rem]">
+              <DateInput label="From" inset="pl-10" value={searchStartDate} max={searchEndDate}
+                onChange={v => { setSearchStartDate(v); setPage(1) }} />
+              <DateInput label="To" inset="pl-6" value={searchEndDate} min={searchStartDate}
+                onChange={v => { setSearchEndDate(v); setPage(1) }} />
             </div>
 
-            {/* Dropdowns */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <select value={historyVariant} onChange={e => { setHistoryVariant(e.target.value); setPage(1) }}
-                className="neu-input text-xs py-[7px] px-2">
-                <option value="">All Variants</option>
-                {VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
-              </select>
-              <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
-                className="neu-input text-xs py-[7px] px-2">
-                {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} per page</option>)}
-              </select>
-            </div>
+            {(searchStartDate || searchEndDate || historyVariant) && (
+              <Button variant="ghost" size="sm" onClick={clearAll}>Clear</Button>
+            )}
           </div>
-
-          {/* Active filter tags */}
-          {(searchQuery || searchStartDate || searchEndDate) && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-white/[0.04]">
-              <span className="text-[9px] text-text-muted/50 font-medium uppercase tracking-wider">Filters:</span>
-              {searchQuery && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-purple/10 text-accent-purple border border-accent-purple/15">
-                  {searchQuery}
-                  <button onClick={clearSearch} className="hover:text-white transition-colors"><X className="w-2 h-2" /></button>
-                </span>
-              )}
-              {searchStartDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
-                  {searchStartDate}
-                </span>
-              )}
-              {searchEndDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/15">
-                  {searchEndDate}
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {displayRecords.length === 0 ? (
-          <div className="py-12 text-center">
-            <Search className="w-8 h-8 text-text-muted/30 mx-auto mb-3" />
-            <p className="text-sm text-text-muted">
-              {searchQuery || searchStartDate || searchEndDate
-                ? 'No matching records found'
-                : 'No adjustments yet'}
-            </p>
-            {(searchQuery || searchStartDate || searchEndDate) && (
-              <button onClick={() => { clearSearch(); clearDateFilter() }}
-                className="mt-2 text-xs font-bold text-accent-purple hover:text-accent-purple/80 transition-colors">
-                Clear all filters
-              </button>
-            )}
+          <div className="px-[var(--pad-card)]">
+            {filtered
+              ? <EmptyState compact icon={Search} title="No matching records"
+                  message="Nothing matches this search, variant or date range."
+                  actionLabel="Clear filters" onAction={clearAll} />
+              : <EmptyState compact icon={Search} title="No adjustments yet"
+                  message="Sales and deaths recorded with the form appear here." />}
           </div>
         ) : (
-          <div className="space-y-3">
+          /* A ledger, not a stack of cards. Each row was a tinted, bordered box
+             with a 32px coloured icon tile, so a page of them read as fifteen
+             separate panels rather than one history — and three tints (amber,
+             red, green) competing down the page made none of them mean much.
+             The arrow and the sign carry the direction now; the rule carries the
+             separation. */
+          <ul className="list-none m-0 p-0 divide-y divide-rule">
             {displayRecords.map(r => {
               const dir = getDirection(r)
               const displayCount = Math.abs(Number(r.count) || 0)
               const isOut = dir === 'OUT'
               const reasonTag = getReason(r)
               const isDied = reasonTag === 'Died'
+              const Icon = isDied ? Skull : isOut ? ArrowDownRight : ArrowUpRight
+              const tone = isDied ? 'text-attention' : isOut ? 'text-negative' : 'text-positive'
               return (
-                <div key={r.id}
-                  className={`p-3 rounded-xl border transition-colors hover:bg-white/[0.02]
-                    ${isDied ? 'border-accent-amber/20 bg-accent-amber/[0.03]'
-                      : isOut ? 'border-accent-red/20 bg-accent-red/[0.03]'
-                      : 'border-accent-green/20 bg-accent-green/[0.03]'}
-                  `}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0
-                      ${isDied ? 'bg-accent-amber/20'
-                        : isOut ? 'bg-accent-red/20'
-                        : 'bg-accent-green/20'}`}>
-                      {isDied
-                        ? <Skull className="w-4 h-4 text-accent-amber" />
-                        : isOut
-                          ? <ArrowDownRight className="w-4 h-4 text-accent-red" />
-                          : <ArrowUpRight className="w-4 h-4 text-accent-green" />
-                      }
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-text-primary truncate">
-                          {isOut ? '−' : '+'}{displayCount.toLocaleString()} {r.variant}
-                        </p>
-                        {/* One badge only — the reason implies the direction, and the
-                            tint plus arrow already carry it. Falls back to IN/OUT
-                            when a row has no Sold/Died reason. */}
-                        <span className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-                          ${isDied ? 'bg-accent-amber/20 text-accent-amber'
-                            : reasonTag ? 'bg-accent-blue/20 text-accent-blue'
-                            : isOut ? 'bg-accent-red/20 text-accent-red'
-                            : 'bg-accent-green/20 text-accent-green'}`}>
-                          {isDied ? <Skull className="w-2.5 h-2.5" />
-                            : reasonTag ? <ShoppingCart className="w-2.5 h-2.5" /> : null}
-                          {reasonTag || (isOut ? 'OUT' : 'IN')}
-                        </span>
-                      </div>
-                      <p className="text-xs text-text-muted truncate">
-                        {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
+                <li key={r.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5 py-1.5 px-[var(--pad-card)]
+                  [@media(hover:hover)]:hover:bg-[var(--table-row-hover)]">
+                  <Icon size={14} className={`${tone} shrink-0 mt-0.5`} aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className="text-[13px] font-semibold text-text-primary truncate m-0 tabular-nums">
+                        {isOut ? '−' : '+'}{displayCount.toLocaleString()}
+                        <span className="font-normal text-text-secondary"> {r.variant}</span>
                       </p>
+                      {/* One badge only — the reason implies the direction, and
+                          the arrow already carries it. Falls back to IN/OUT when
+                          a row has no Sold/Died reason. */}
+                      <Badge variant={isDied ? 'warning' : reasonTag ? 'info' : isOut ? 'error' : 'success'}
+                        className="shrink-0 uppercase tracking-wider">
+                        {reasonTag || (isOut ? 'Out' : 'In')}
+                      </Badge>
                     </div>
-                  </div>
-                  {r.notes && (
-                    <p className="text-xs text-text-muted mt-2 pl-11">
-                      {highlightMatch(r.notes, searchQuery)}
+                    <p className="meta truncate m-0">
+                      {getSource(r)} · {searchQuery ? highlightMatch(formatDate(r.date), searchQuery) : formatDate(r.date)}
                     </p>
-                  )}
-                </div>
+                    {r.notes && (
+                      <p className="meta truncate m-0">{highlightMatch(r.notes, searchQuery)}</p>
+                    )}
+                  </div>
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
 
-        {/* Pagination Controls */}
-        {displayTotalPages > 1 && (
-          <div className="flex items-center justify-center gap-1.5 mt-6 pt-4 border-t border-white/5">
-            <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                ${page <= 1 ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:bg-white/10 hover:text-text-primary'}`}>
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {pageNumbers().map(p => (
-              <button key={p} onClick={() => goPage(p)}
-                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all
-                  ${p === page
-                    ? 'bg-gradient-to-r from-accent-green to-accent-teal text-white shadow-lg shadow-accent-green/20'
-                    : 'text-text-muted hover:bg-white/10 hover:text-text-primary'
-                  }`}>{p}</button>
-            ))}
-            <button onClick={() => goPage(page + 1)} disabled={page >= displayTotalPages}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                ${page >= displayTotalPages ? 'text-text-muted/30 cursor-not-allowed' : 'text-text-muted hover:bg-white/10 hover:text-text-primary'}`}>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+        {displayRecords.length > 0 && (
+          <Pager page={page} pages={displayTotalPages} total={displayTotalRecords}
+            perPage={perPage} options={PER_PAGE_OPTIONS}
+            onPage={setPage} onPerPage={n => { setPerPage(n); setPage(1) }} />
         )}
-      </motion.div>
+      </motion.section>
+      </div>
 
       {/* Confirmation Modal */}
       <AnimatePresence>
@@ -671,8 +600,8 @@ export default function Adjustments() {
                 {confirmSubmit.items.map((item, i) => (
                   <motion.div key={i}
                     initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.15 }}
                     className="flex items-center justify-between p-2.5 rounded-xl border"
                     style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                     <span className="flex items-center gap-2">
@@ -692,16 +621,17 @@ export default function Adjustments() {
               )}
 
               <div className="flex items-center justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmSubmit(null)}
-                  className="glow-btn glow-btn-secondary text-xs py-2 px-4">
+                <Button variant="secondary" size="sm" onClick={() => setConfirmSubmit(null)}>
                   Cancel
-                </button>
-                <button onClick={executeSubmit}
-                  className={`glow-btn text-xs py-2 px-4 flex items-center gap-1.5 ${
-                    confirmSubmit.reason === 'Died' ? 'glow-btn-red' : 'glow-btn'
-                  }`}>
-                  <Send className="w-3.5 h-3.5" /> Confirm
-                </button>
+                </Button>
+                <Button
+                  variant={confirmSubmit.reason === 'Died' ? 'danger' : 'primary'}
+                  size="sm"
+                  icon={Send}
+                  onClick={executeSubmit}
+                >
+                  Confirm
+                </Button>
               </div>
             </motion.div>
           </div>

@@ -1,10 +1,10 @@
 import clsx from 'clsx'
 
 const VARIANTS = {
-  primary: 'bg-accent-green text-white hover:brightness-110 active:brightness-95 shadow-sm',
+  primary: 'bg-accent-green text-[var(--on-accent)] hover:brightness-110 active:brightness-95 shadow-sm',
   secondary: 'bg-[var(--btn-secondary-bg)] border border-[var(--btn-secondary-border)] text-text-primary hover:bg-[var(--btn-secondary-hover)]',
   ghost: 'bg-transparent text-text-secondary hover:bg-[var(--btn-secondary-bg)]',
-  danger: 'bg-accent-red text-white hover:brightness-110 active:brightness-95 shadow-sm',
+  danger: 'bg-accent-red text-[var(--on-accent)] hover:brightness-110 active:brightness-95 shadow-sm',
 }
 
 const SIZES = {
@@ -27,9 +27,18 @@ export default function Button({
     <button
       disabled={disabled || loading}
       className={clsx(
-        'inline-flex items-center justify-center rounded-xl font-medium transition-all duration-150',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
-        'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-green/50',
+        'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-150',
+        // Disabled has to read as inert, not merely dimmer. At 50% on the dark
+        // panel a disabled secondary button was indistinguishable from a live
+        // one, which is how "Stop" and a dead "Stop & Save" ended up looking
+        // like the same control.
+        'disabled:opacity-40 disabled:saturate-50 disabled:shadow-none disabled:cursor-not-allowed',
+        // focus-visible, not focus: a mouse or touch press used to leave the
+        // ring stuck on the button afterwards. The pale halo around it came
+        // from ring-offset, whose offset colour defaults to white — invisible
+        // by design on light, a bright seam on this dark surface.
+        'outline-none focus-visible:outline focus-visible:outline-2',
+        'focus-visible:outline-offset-2 focus-visible:outline-accent-green',
         VARIANTS[variant],
         SIZES[size],
         className

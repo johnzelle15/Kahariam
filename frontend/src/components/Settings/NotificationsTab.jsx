@@ -1,10 +1,10 @@
 /**
- * NotificationsTab — Toggle email, inventory, revenue, anomaly, task, and system alerts.
+ * NotificationsTab — Toggle email, revenue, anomaly, task, and system alerts.
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Bell, Mail, Package, DollarSign, Fish, CheckSquare,
+  Bell, Mail, DollarSign, Fish, CheckSquare,
   AlertTriangle, Loader2, Save,
 } from 'lucide-react'
 import api from '../../utils/api'
@@ -20,7 +20,6 @@ function SettingsCard({ title, description, children }) {
       style={{
         background: 'var(--glass-bg)',
         border: '1px solid var(--glass-border)',
-        backdropFilter: 'blur(16px)',
       }}
     >
       {(title || description) && (
@@ -80,13 +79,6 @@ const NOTIF_ITEMS = [
     accent:      'var(--accent-blue)',
   },
   {
-    key:         'inventory_alerts',
-    label:       'Inventory Alerts',
-    description: 'Low stock and inventory change notifications',
-    icon:        Package,
-    accent:      'var(--accent-cyan)',
-  },
-  {
     key:         'revenue_alerts',
     label:       'Revenue Alerts',
     description: 'Daily revenue milestones and anomalies',
@@ -130,7 +122,6 @@ export default function NotificationsTab({ toast }) {
       // Use safe defaults
       setPrefs({
         email_notifications: true,
-        inventory_alerts:    true,
         revenue_alerts:      true,
         anomaly_alerts:      true,
         task_reminders:      true,
@@ -168,7 +159,7 @@ export default function NotificationsTab({ toast }) {
       >
         {loading ? (
           <div className="flex flex-col gap-3">
-            {[...Array(6)].map((_, i) => <Skeleton key={i} />)}
+            {NOTIF_ITEMS.map(item => <Skeleton key={item.key} />)}
           </div>
         ) : (
           <div className="flex flex-col">

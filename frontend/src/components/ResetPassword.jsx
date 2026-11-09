@@ -211,7 +211,7 @@ export default function ResetPassword({ token, onDone }) {
                   />
                 ))}
               </div>
-              <span className="ml-2 text-[10px] font-semibold" style={{ color: strengthColor }}>
+              <span className="ml-2 text-xs font-semibold" style={{ color: strengthColor }}>
                 {strengthLbl}
               </span>
             </div>
@@ -237,7 +237,7 @@ export default function ResetPassword({ token, onDone }) {
                         : <div className="w-1 h-1 rounded-full bg-white/20" />
                       }
                     </div>
-                    <span className="text-[11px] transition-colors"
+                    <span className="text-xs transition-colors"
                       style={{ color: rule.test(password) ? '#34d399' : '#6b7585' }}>
                       {rule.label}
                     </span>
@@ -281,10 +281,10 @@ export default function ResetPassword({ token, onDone }) {
           </button>
         </div>
         {confirm && !passwordsMatch && (
-          <p className="mt-1 text-[11px]" style={{ color: '#f87171' }}>Passwords do not match</p>
+          <p className="mt-1 text-xs" style={{ color: '#f87171' }}>Passwords do not match</p>
         )}
         {confirm && passwordsMatch && (
-          <p className="mt-1 text-[11px]" style={{ color: '#34d399' }}>Passwords match ✓</p>
+          <p className="mt-1 text-xs" style={{ color: '#34d399' }}>Passwords match ✓</p>
         )}
       </div>
 

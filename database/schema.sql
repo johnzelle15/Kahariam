@@ -118,6 +118,21 @@ CREATE TABLE IF NOT EXISTS inventory (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
+--  Feed purchases — backend/api/feed.py counts down to the next
+--  purchase from the latest `purchased_on`. The alert itself is never
+--  stored. `deleted` is a soft delete, as on inventory.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS feed_purchases (
+  id           int(11)       NOT NULL AUTO_INCREMENT,
+  purchased_on date          NOT NULL,
+  amount       decimal(10,2) NOT NULL,
+  notes        varchar(255)  DEFAULT NULL,
+  deleted      tinyint(1)    NOT NULL DEFAULT 0,
+  created_at   timestamp     NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------
 --  Readings — raw telemetry written by /api/v1/ingest.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS readings (
@@ -249,7 +264,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =====================================================================
---  End of schema — 11 tables, 5 foreign keys, no views, no triggers,
+--  End of schema — 12 tables, 5 foreign keys, no views, no triggers,
 --  no stored procedures, no events.
 --
 --  Table collations are intentionally left as the live database has

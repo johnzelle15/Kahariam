@@ -12,6 +12,7 @@ WHOLESALE_LINK_MARKER_PATTERN = re.compile(r"\[AUTO_LINK:WHOLESALE_PARENT_ID=(\d
 
 # Company sells wholesale only — one flat price per fish, no retail tier.
 PRICE_PER_FISH = float(os.environ.get('PRICE_PER_FISH', '0.40'))
+UNDO_WINDOW_SECONDS = int(os.environ.get('UNDO_WINDOW_SECONDS', '120'))
 
 # Minimum fish per wholesale OUT submit. 0 disables the rule entirely
 # (every check below becomes vacuously false). Was 300.
@@ -226,9 +227,26 @@ def save_inventory():
         VALUES (?, ?, ?, ?, ?, ?)
     ''', (count, variant, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), notes, action, tx_type))
     conn.commit()
+
+    # Link the run that produced this count, so a session records whether it
+    # ever reached inventory. Best-effort: a bookkeeping failure must not
+    # invalidate a save that already committed.
+    try:
+        inventory_id = getattr(c, 'lastrowid', None)
+        c.execute(
+            "UPDATE counting_sessions SET status='saved', inventory_id=? "
+            "WHERE status='completed' AND inventory_id IS NULL "
+            'ORDER BY id DESC LIMIT 1',
+            (inventory_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[WARN] could not link session to inventory row: {e}")
+
     conn.close()
-    
-    return jsonify({"status": "success", "message": f"Saved {count} {variant} fish to inventory!"})
+
+    return jsonify({"status": "success", "id": inventory_id,
+                    "message": f"Saved {count} {variant} fish to inventory!"})
 
 
 @inventory_bp.route('/get_inventory')
@@ -377,6 +395,52 @@ def delete_inventory(id):
     conn.close()
 
     return jsonify({"status": "success", "message": "Record moved to archive"})
+
+
+@inventory_bp.route('/undo_save/<int:record_id>', methods=['POST'])
+@require_auth
+def undo_save(record_id):
+    """Reverse a counting save, stock effect included.
+
+    Distinct from /delete_inventory, which archives a row for UI purposes
+    while it keeps counting toward stock. Undo sets `deleted`, so the fish
+    leave the totals as well as the list.
+
+    Time-boxed to UNDO_WINDOW_SECONDS so this stays an undo of the save the
+    operator just made, not a way to rewrite arbitrary history.
+    """
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, date, deleted FROM inventory WHERE id = ?', (record_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': 'Record not found'}), 404
+    if int(_row_value(row, 'deleted', 2, 0) or 0) == 1:
+        conn.close()
+        return jsonify({'status': 'success', 'message': 'Already undone'})
+
+    saved_at = _row_value(row, 'date', 1)
+    if not isinstance(saved_at, datetime):
+        try:
+            saved_at = datetime.strptime(str(saved_at), '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            saved_at = None
+    if saved_at and (datetime.now() - saved_at).total_seconds() > UNDO_WINDOW_SECONDS:
+        conn.close()
+        return jsonify({'status': 'error',
+                        'message': 'Too late to undo. Correct this from Inventory instead.'}), 409
+
+    c.execute('UPDATE inventory SET deleted = 1 WHERE id = ?', (record_id,))
+    # The run no longer reached inventory, so it is completed, not saved.
+    try:
+        c.execute("UPDATE counting_sessions SET status='completed', inventory_id=NULL "
+                  'WHERE inventory_id = ?', (record_id,))
+    except Exception as e:
+        print(f"[WARN] could not unlink session on undo: {e}")
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'message': 'Save undone'})
 
 
 @inventory_bp.route('/clear_inventory', methods=['POST'])
@@ -534,7 +598,7 @@ def get_statistics():
 
     today_revenue_query = (
         "SELECT "
-        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
+        "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold "
         "FROM inventory WHERE deleted = 0 AND DATE(date) = CURRENT_DATE"
     )
     c.execute(today_revenue_query)
@@ -555,7 +619,7 @@ def get_statistics():
     try:
         total_sales_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total "
             f"FROM inventory {where_clause}"
         )
         c.execute(total_sales_query, params)
@@ -587,7 +651,7 @@ def get_statistics():
         # Yesterday's daily revenue
         yday_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold "
             "FROM inventory WHERE deleted = 0 AND DATE(date) = ?"
         )
         c.execute(yday_rev_query, [yesterday_str])
@@ -598,7 +662,7 @@ def get_statistics():
         # Yesterday's cumulative total revenue (all time up to end of yesterday)
         yday_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total "
             "FROM inventory WHERE deleted = 0 AND DATE(date) <= ?"
         )
         c.execute(yday_total_rev_query, [yesterday_str])
@@ -633,20 +697,27 @@ def get_statistics():
         c.execute("SELECT SUM(count) as total FROM inventory WHERE deleted = 0 AND (action='WHOLESALE' OR action='INVENTORY')")
         global_wholesale_total = _row_scalar(c.fetchone(), 'total') or 0
 
+        # sales_count rides along in the same query and on the same predicate
+        # that defines a sale for revenue. Deriving it separately — or in the
+        # browser — is how the numerator and denominator of "average sale" end
+        # up disagreeing about what counts as a sale.
         global_total_rev_query = (
             "SELECT "
-            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND notes NOT LIKE 'Died.%' THEN ABS(count) ELSE 0 END) as sold_total "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_total, "
+            "SUM(CASE WHEN (action='OUT' OR (action='WHOLESALE' AND count < 0)) AND COALESCE(transaction_type,'') <> 'DIED' THEN 1 ELSE 0 END) as sales_count "
             "FROM inventory WHERE deleted = 0"
         )
         c.execute(global_total_rev_query)
         global_rev_row = c.fetchone()
         global_sold_total = float(_row_scalar(global_rev_row, 'sold_total') or 0)
         global_total_revenue = round(global_sold_total * PRICE_PER_FISH, 2)
+        global_sales_count = int(_row_value(global_rev_row, 'sales_count', 1, 0) or 0)
     except Exception:
         global_additions_total = additions_total
         global_tank_total = tank_total
         global_wholesale_total = wholesale_total
         global_total_revenue = total_revenue
+        global_sales_count = 0
 
     conn.close()
     
@@ -676,7 +747,11 @@ def get_statistics():
             "wholesale_total": global_wholesale_total,
             "today_revenue": today_revenue,
             "total_revenue": global_total_revenue,
-            "today_session_total": today_session_total
+            "today_session_total": today_session_total,
+            # Number of recorded sale movements all-time. Additive: existing
+            # consumers are unaffected, and it is what makes the dashboard's
+            # average-sale figure a measurement rather than an estimate.
+            "sales_count": global_sales_count
         }
     })
 
@@ -985,12 +1060,17 @@ def daily_trend():
     range_where = "WHERE deleted = 0 AND DATE(date) BETWEEN ? AND ?" + where_variant
     range_params = [d_start.isoformat(), d_end.isoformat()] + params_variant
 
+    # A death is not a sale, but it does leave the pond. Deaths are stored as
+    # transaction_type='DIED' — the old test for a 'Died.' note prefix matched
+    # nothing, so every death was counted as a sale and as revenue. sold_*
+    # drives revenue; out_wholesale, every fish that left, drives the stock.
     c.execute(
         "SELECT DATE(date) as day, "
         "SUM(CASE WHEN action='IN' THEN count ELSE 0 END) as added_tank, "
-        "SUM(CASE WHEN action='OUT' AND notes NOT LIKE 'Died.%%' THEN ABS(count) ELSE 0 END) as sold_tank, "
+        "SUM(CASE WHEN action='OUT' AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_tank, "
         "SUM(CASE WHEN action='WHOLESALE' AND count > 0 THEN count ELSE 0 END) as added_wholesale, "
-        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND notes NOT LIKE 'Died.%%' THEN ABS(count) ELSE 0 END) as sold_wholesale "
+        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 AND COALESCE(transaction_type,'') <> 'DIED' THEN ABS(count) ELSE 0 END) as sold_wholesale, "
+        "SUM(CASE WHEN action='WHOLESALE' AND count < 0 THEN ABS(count) ELSE 0 END) as out_wholesale "
         "FROM inventory " + range_where + " GROUP BY day ORDER BY day",
         range_params
     )
@@ -1002,6 +1082,7 @@ def daily_trend():
             'sold_tank': int(_row_value(row, 'sold_tank', 2, 0) or 0),
             'added_wholesale': int(_row_value(row, 'added_wholesale', 3, 0) or 0),
             'sold_wholesale': int(_row_value(row, 'sold_wholesale', 4, 0) or 0),
+            'out_wholesale': int(_row_value(row, 'out_wholesale', 5, 0) or 0),
         }
     conn.close()
 
@@ -1010,9 +1091,9 @@ def daily_trend():
     current = d_start
     while current <= d_end:
         ds = current.isoformat()
-        d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0})
+        d = daily_raw.get(ds, {'added_tank': 0, 'sold_tank': 0, 'added_wholesale': 0, 'sold_wholesale': 0, 'out_wholesale': 0})
         running_tank += d['added_tank'] - d['sold_tank']
-        running_wholesale += d['added_wholesale'] - d['sold_wholesale']
+        running_wholesale += d['added_wholesale'] - d['out_wholesale']
         revenue = round((d['sold_tank'] + d['sold_wholesale']) * PRICE_PER_FISH, 2)
         result.append({
             'date': ds,
@@ -1679,106 +1760,3 @@ def restore_record(record_id):
     conn.close()
 
     return jsonify({"success": True, "message": "Record restored successfully"})
-
-
-# ---------- Low Stock Alert (filter-independent, real-time) ----------
-
-# Default thresholds per variant; override via env LOW_STOCK_THRESHOLDS
-# Format: "SPIN_20:15:30"  (variant:critical:warning)
-_DEFAULT_THRESHOLDS = {'_default': {'critical': 15, 'warning': 30}}
-
-def _load_thresholds():
-    thresholds = dict(_DEFAULT_THRESHOLDS)
-    raw = os.environ.get('LOW_STOCK_THRESHOLDS', '').strip()
-    if raw:
-        for part in raw.split(','):
-            tokens = part.strip().split(':')
-            if len(tokens) == 3:
-                variant, crit, warn = tokens[0].strip(), tokens[1].strip(), tokens[2].strip()
-                try:
-                    thresholds[variant] = {'critical': int(crit), 'warning': int(warn)}
-                except ValueError:
-                    pass
-    return thresholds
-
-
-@inventory_bp.route('/api/low-stock')
-@require_auth
-def get_low_stock():
-    """Return current stock levels per variant with alert status.
-
-    This endpoint is ALWAYS unfiltered — it reflects real-time stock,
-    independent of any dashboard date range or filter selections.
-    """
-    conn = get_db()
-    c = conn.cursor()
-
-    # Current tank stock per variant (IN - OUT)
-    c.execute('''
-        SELECT variant,
-               SUM(CASE WHEN action='IN' THEN count WHEN action='OUT' THEN -count ELSE 0 END) as stock
-        FROM inventory
-        WHERE deleted = 0 AND (action='IN' OR action='OUT')
-        GROUP BY variant
-        ORDER BY variant
-    ''')
-    tank_rows = c.fetchall()
-
-    # Current wholesale stock per variant
-    c.execute('''
-        SELECT variant,
-               SUM(count) as stock
-        FROM inventory
-        WHERE deleted = 0 AND (action='WHOLESALE' OR action='INVENTORY')
-        GROUP BY variant
-        ORDER BY variant
-    ''')
-    wholesale_rows = c.fetchall()
-
-    conn.close()
-
-    thresholds = _load_thresholds()
-    alerts = []
-
-    def _classify(variant_name, current_stock):
-        t = thresholds.get(variant_name, thresholds['_default'])
-        if current_stock <= t['critical']:
-            return 'critical'
-        if current_stock <= t['warning']:
-            return 'warning'
-        return 'ok'
-
-    seen_variants = set()
-
-    for row in tank_rows:
-        v = _row_value(row, 'variant', 0, '')
-        stock = int(_row_value(row, 'stock', 1, 0) or 0)
-        t = thresholds.get(v, thresholds['_default'])
-        alerts.append({
-            'variant': v,
-            'source': 'tank',
-            'stock': stock,
-            'status': _classify(v, stock),
-            'threshold_critical': t['critical'],
-            'threshold_warning': t['warning'],
-        })
-        seen_variants.add(('tank', v))
-
-    for row in wholesale_rows:
-        v = _row_value(row, 'variant', 0, '')
-        stock = int(_row_value(row, 'stock', 1, 0) or 0)
-        t = thresholds.get(v, thresholds['_default'])
-        alerts.append({
-            'variant': v,
-            'source': 'wholesale',
-            'stock': stock,
-            'status': _classify(v, stock),
-            'threshold_critical': t['critical'],
-            'threshold_warning': t['warning'],
-        })
-
-    # Sort: critical first, then warning, then ok
-    order = {'critical': 0, 'warning': 1, 'ok': 2}
-    alerts.sort(key=lambda a: (order.get(a['status'], 9), a['variant']))
-
-    return jsonify({'alerts': alerts})

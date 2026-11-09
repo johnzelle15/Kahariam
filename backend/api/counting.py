@@ -261,6 +261,7 @@ def start():
             c.execute('UPDATE counting_state SET active=1, updated_at=? WHERE id=1', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),))
             conn.commit()
             conn.close()
+            _open_session(getattr(request, 'user', None), request.args.get('variant', ''))
             # Broadcast to ALL connected clients that counting started
             try:
                 socketio.emit('counting_state', {'active': True})
@@ -323,6 +324,8 @@ def stop():
     conn.commit()
     conn.close()
 
+    _close_session(runtime.fish_count)
+
     # Broadcast to ALL connected clients that counting stopped
     try:
         socketio.emit('counting_state', {'active': False})
@@ -352,8 +355,14 @@ def get_state():
         row = c.fetchone()
         active = bool(row['active'] if isinstance(row, dict) else row[0]) if row else False
         conn.close()
-        return jsonify({"active": active})
-    except Exception as e:
+        device_id = counter_device_id()
+        return jsonify({
+            "active": active,
+            "device_id": device_id,
+            "device_name": _device_name(device_id),
+            "session": get_active_session() if active else None,
+        })
+    except Exception:
         # Fallback to runtime if DB fails
         runtime = get_runtime()
         return jsonify({"active": runtime.counting_active})
@@ -366,3 +375,132 @@ def update_count():
     data = request.get_json()
     runtime.fish_count = data.get("count", 0)
     return jsonify({"status": "success"})
+
+
+# ── Counting sessions ────────────────────────────────────────────────────────
+# A counting run is a record: who ran it, on which device, for how long, and
+# whether it ever reached inventory. Previously this lived only in
+# counting_state (one row, no history), so nothing could be reviewed after
+# the fact.
+
+def counter_device_id():
+    """The device the local counter process reports as.
+
+    vision/fish_counter.py posts readings under DEVICE_ID, so that is the
+    device a counting session actually occupies — the UI used to lock a
+    hardcoded 'test-device' instead, which is a different row entirely.
+    """
+    return (os.environ.get('DEVICE_ID') or '').strip() or None
+
+
+def _device_name(device_id):
+    if not device_id:
+        return None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('SELECT name FROM devices WHERE id = ?', (device_id,))
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return None
+        return (row['name'] if isinstance(row, dict) else row[0]) or None
+    except Exception:
+        return None
+
+
+def _open_session(user, variant):
+    """Record the start of a run. Never raises — a bookkeeping failure must
+    not stop the operator from counting fish."""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        # Any session still marked active is stale (crash, power cut); close it
+        # rather than leaving two runs open at once.
+        c.execute("UPDATE counting_sessions SET status='aborted', ended_at=? "
+                  "WHERE status='active'",
+                  (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),))
+        c.execute(
+            'INSERT INTO counting_sessions '
+            '(device_id, user_id, username, variant, started_at, status) '
+            "VALUES (?, ?, ?, ?, ?, 'active')",
+            (counter_device_id(),
+             (user or {}).get('sub'),
+             (user or {}).get('username'),
+             (variant or '').strip() or None,
+             datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[WARN] could not open counting session: {e}")
+
+
+def _close_session(final_count):
+    """Close the open run. 'completed' when fish were counted, 'aborted' when
+    the run produced nothing — the two mean different things to a supervisor."""
+    try:
+        status = 'completed' if int(final_count or 0) > 0 else 'aborted'
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            'UPDATE counting_sessions SET ended_at=?, final_count=?, status=? '
+            "WHERE status='active'",
+            (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), int(final_count or 0), status)
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[WARN] could not close counting session: {e}")
+
+
+def get_active_session():
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT id, username, variant, started_at, device_id "
+                  "FROM counting_sessions WHERE status='active' "
+                  'ORDER BY id DESC LIMIT 1')
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return None
+        started = row['started_at']
+        return {
+            'id': row['id'],
+            'username': row['username'],
+            'variant': row['variant'],
+            'device_id': row['device_id'],
+            'started_at': started.strftime('%Y-%m-%d %H:%M:%S') if hasattr(started, 'strftime') else str(started),
+        }
+    except Exception:
+        return None
+
+
+@counting_bp.route('/api/sessions')
+@require_auth
+def list_sessions():
+    try:
+        limit = max(1, min(50, int(request.args.get('limit', 10))))
+    except ValueError:
+        limit = 10
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, username, variant, started_at, ended_at, final_count, status, device_id '
+              'FROM counting_sessions ORDER BY id DESC LIMIT ' + str(limit))
+    out = []
+    for row in c.fetchall():
+        def fmt(v):
+            return v.strftime('%Y-%m-%d %H:%M:%S') if hasattr(v, 'strftime') else (str(v) if v else None)
+        out.append({
+            'id': row['id'],
+            'username': row['username'],
+            'variant': row['variant'],
+            'started_at': fmt(row['started_at']),
+            'ended_at': fmt(row['ended_at']),
+            'final_count': row['final_count'],
+            'status': row['status'],
+            'device_id': row['device_id'],
+        })
+    conn.close()
+    return jsonify({'sessions': out})
